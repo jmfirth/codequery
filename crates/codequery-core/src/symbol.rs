@@ -25,6 +25,12 @@ pub struct Symbol {
     /// Documentation comment attached to this symbol, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<String>,
+    /// Full source text of the symbol body.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    /// Signature/header only (no body).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
 }
 
 /// The kind of a source code symbol.
@@ -93,13 +99,15 @@ pub struct Location {
 
 /// Symbol visibility level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
-#[serde(rename_all = "snake_case")]
 pub enum Visibility {
     /// Visible to all.
+    #[serde(rename = "pub")]
     Public,
     /// Visible only within the containing scope.
+    #[serde(rename = "priv")]
     Private,
     /// Visible within the current crate.
+    #[serde(rename = "pub(crate)")]
     Crate,
 }
 
@@ -159,6 +167,8 @@ mod tests {
             visibility: Visibility::Public,
             children: vec![],
             doc: Some("A function".to_string()),
+            body: None,
+            signature: None,
         };
         assert_eq!(sym.name, "my_func");
         assert_eq!(sym.kind, SymbolKind::Function);
@@ -183,6 +193,8 @@ mod tests {
             visibility: Visibility::Private,
             children: vec![],
             doc: None,
+            body: None,
+            signature: None,
         };
         assert!(sym.children.is_empty());
     }
@@ -199,6 +211,8 @@ mod tests {
             visibility: Visibility::Public,
             children: vec![],
             doc: None,
+            body: None,
+            signature: None,
         };
         let parent = Symbol {
             name: "MyStruct".to_string(),
@@ -210,6 +224,8 @@ mod tests {
             visibility: Visibility::Public,
             children: vec![child],
             doc: Some("Impl block".to_string()),
+            body: None,
+            signature: None,
         };
         assert_eq!(parent.children.len(), 1);
         assert_eq!(parent.children[0].name, "inner_method");
@@ -228,6 +244,8 @@ mod tests {
             visibility: Visibility::Public,
             children: vec![],
             doc: None,
+            body: None,
+            signature: None,
         };
         let json = serde_json::to_value(&sym).unwrap();
         assert_eq!(json["name"], "foo");
@@ -236,10 +254,13 @@ mod tests {
         assert_eq!(json["line"], 1);
         assert_eq!(json["column"], 0);
         assert_eq!(json["end_line"], 5);
-        assert_eq!(json["visibility"], "public");
+        assert_eq!(json["visibility"], "pub");
         assert_eq!(json["children"], serde_json::json!([]));
         // doc is None and skip_serializing_if means it should be absent
         assert!(json.get("doc").is_none());
+        // body and signature are None and skip_serializing_if means they should be absent
+        assert!(json.get("body").is_none());
+        assert!(json.get("signature").is_none());
     }
 
     #[test]
@@ -267,13 +288,53 @@ mod tests {
     }
 
     #[test]
-    fn test_visibility_serializes_as_snake_case_in_json() {
-        assert_eq!(serde_json::to_value(Visibility::Public).unwrap(), "public");
+    fn test_visibility_serializes_as_spec_values_in_json() {
+        assert_eq!(serde_json::to_value(Visibility::Public).unwrap(), "pub");
+        assert_eq!(serde_json::to_value(Visibility::Private).unwrap(), "priv");
         assert_eq!(
-            serde_json::to_value(Visibility::Private).unwrap(),
-            "private"
+            serde_json::to_value(Visibility::Crate).unwrap(),
+            "pub(crate)"
         );
-        assert_eq!(serde_json::to_value(Visibility::Crate).unwrap(), "crate");
+    }
+
+    #[test]
+    fn test_symbol_body_and_signature_fields_none_omitted_from_json() {
+        let sym = Symbol {
+            name: "foo".to_string(),
+            kind: SymbolKind::Function,
+            file: PathBuf::from("test.rs"),
+            line: 1,
+            column: 0,
+            end_line: 3,
+            visibility: Visibility::Public,
+            children: vec![],
+            doc: None,
+            body: None,
+            signature: None,
+        };
+        let json = serde_json::to_value(&sym).unwrap();
+        assert!(json.get("body").is_none());
+        assert!(json.get("signature").is_none());
+    }
+
+    #[test]
+    fn test_symbol_body_and_signature_fields_some_present_in_json() {
+        let sym = Symbol {
+            name: "bar".to_string(),
+            kind: SymbolKind::Function,
+            file: PathBuf::from("test.rs"),
+            line: 1,
+            column: 0,
+            end_line: 5,
+            visibility: Visibility::Public,
+            children: vec![],
+            doc: None,
+            body: Some("fn bar() {\n    42\n}".to_string()),
+            signature: Some("fn bar()".to_string()),
+        };
+        let json = serde_json::to_value(&sym).unwrap();
+        assert_eq!(json["body"], "fn bar() {\n    42\n}");
+        assert_eq!(json["signature"], "fn bar()");
     }
 
     #[test]

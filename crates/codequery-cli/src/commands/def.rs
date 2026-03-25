@@ -122,6 +122,8 @@ mod tests {
             visibility: Visibility::Public,
             children,
             doc: None,
+            body: None,
+            signature: None,
         }
     }
 

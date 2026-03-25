@@ -91,6 +91,8 @@ mod tests {
             visibility,
             children,
             doc: None,
+            body: None,
+            signature: None,
         }
     }
 

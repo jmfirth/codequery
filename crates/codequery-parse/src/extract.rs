@@ -59,6 +59,8 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
+                body: None,
+                signature: None,
             })
         }
         "struct_item" => {
@@ -73,6 +75,8 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
+                body: None,
+                signature: None,
             })
         }
         "enum_item" => {
@@ -87,6 +91,8 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
+                body: None,
+                signature: None,
             })
         }
         "trait_item" => {
@@ -101,6 +107,8 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
+                body: None,
+                signature: None,
             })
         }
         "impl_item" => {
@@ -116,6 +124,8 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: Visibility::Private,
                 children,
                 doc: extract_doc_comment(node, source),
+                body: None,
+                signature: None,
             })
         }
         "type_item" => {
@@ -130,6 +140,8 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
+                body: None,
+                signature: None,
             })
         }
         "const_item" => {
@@ -144,6 +156,8 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
+                body: None,
+                signature: None,
             })
         }
         "static_item" => {
@@ -158,6 +172,8 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
+                body: None,
+                signature: None,
             })
         }
         "mod_item" => {
@@ -172,6 +188,8 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
+                body: None,
+                signature: None,
             })
         }
         _ => None,
@@ -250,6 +268,8 @@ fn extract_impl_methods(
                 visibility: extract_visibility(child, source),
                 children: vec![],
                 doc: extract_doc_comment(child, source),
+                body: None,
+                signature: None,
             });
         }
     }
