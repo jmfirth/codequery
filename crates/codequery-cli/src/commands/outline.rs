@@ -2,16 +2,17 @@
 
 use std::path::Path;
 
-use codequery_core::detect_project_root_or;
-use codequery_parse::{extract_symbols, RustParser};
+use codequery_core::{detect_project_root_or, language_for_file};
+use codequery_parse::{extract_symbols, Parser};
 
 use crate::args::ExitCode;
 use crate::output::format_outline;
 
 /// Run the outline command: list all symbols in a file.
 ///
-/// Resolves the project root, parses the file with tree-sitter, extracts all
-/// symbol definitions, formats the outline, and prints it to stdout.
+/// Resolves the project root, detects the file's language, parses with
+/// tree-sitter, extracts all symbol definitions, formats the outline,
+/// and prints it to stdout.
 ///
 /// # Errors
 ///
@@ -33,14 +34,20 @@ pub fn run(file: &Path, project: Option<&Path>) -> anyhow::Result<ExitCode> {
         return Ok(ExitCode::ProjectError);
     }
 
-    // 3. Compute relative path for display
+    // 3. Detect language from file extension
+    let Some(language) = language_for_file(&absolute_file) else {
+        eprintln!("error: unsupported file type: {}", absolute_file.display());
+        return Ok(ExitCode::ProjectError);
+    };
+
+    // 4. Compute relative path for display
     let relative_path = absolute_file
         .canonicalize()?
         .strip_prefix(project_root.canonicalize()?)
         .map_or_else(|_| file.to_path_buf(), Path::to_path_buf);
 
-    // 4. Parse
-    let mut parser = RustParser::new()?;
+    // 5. Parse
+    let mut parser = Parser::for_language(language)?;
     let (source, tree) = match parser.parse_file(&absolute_file) {
         Ok(result) => result,
         Err(codequery_parse::ParseError::Io(e)) => {
@@ -52,13 +59,13 @@ pub fn run(file: &Path, project: Option<&Path>) -> anyhow::Result<ExitCode> {
 
     let has_parse_errors = tree.root_node().has_error();
 
-    // 5. Extract
-    let symbols = extract_symbols(&source, &tree, &relative_path);
+    // 6. Extract
+    let symbols = extract_symbols(&source, &tree, &relative_path, language);
 
-    // 6. Format
+    // 7. Format
     let output = format_outline(&relative_path, &symbols);
 
-    // 7. Output
+    // 8. Output
     println!("{output}");
 
     // Determine exit code

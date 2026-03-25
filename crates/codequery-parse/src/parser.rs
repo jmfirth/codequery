@@ -1,30 +1,46 @@
-//! Tree-sitter parser configured for Rust source code.
+//! Language-aware tree-sitter parser.
+//!
+//! Wraps a `tree_sitter::Parser` with the appropriate grammar pre-loaded
+//! for any Tier 1 language. The parser is reusable across multiple files
+//! of the same language.
 
 use std::path::Path;
 
+use codequery_core::Language;
+
 use crate::error::{ParseError, Result};
 
-/// A tree-sitter parser configured for Rust source code.
+/// A tree-sitter parser configured for a specific source language.
 ///
-/// Wraps a `tree_sitter::Parser` with the Rust grammar pre-loaded.
-/// The parser is reusable across multiple files — call `parse()` or
-/// `parse_file()` repeatedly without recreating the parser.
-pub struct RustParser {
+/// Created via the [`Parser::for_language`] factory, which loads the
+/// correct grammar. The parser is reusable across multiple files — call
+/// `parse()` or `parse_file()` repeatedly without recreating the parser.
+pub struct Parser {
     parser: tree_sitter::Parser,
+    language: Language,
 }
 
-impl RustParser {
-    /// Create a new parser with the Rust grammar loaded.
+impl Parser {
+    /// Create a parser for the given language.
+    ///
+    /// Loads the tree-sitter grammar corresponding to `language`.
     ///
     /// # Errors
     ///
-    /// Returns `ParseError::LanguageError` if the Rust grammar fails to load.
-    pub fn new() -> Result<Self> {
+    /// Returns `ParseError::LanguageError` if the grammar fails to load.
+    pub fn for_language(language: Language) -> Result<Self> {
         let mut parser = tree_sitter::Parser::new();
+        let grammar = grammar_for_language(language);
         parser
-            .set_language(&tree_sitter_rust::LANGUAGE.into())
+            .set_language(&grammar)
             .map_err(|e| ParseError::LanguageError(e.to_string()))?;
-        Ok(Self { parser })
+        Ok(Self { parser, language })
+    }
+
+    /// The language this parser is configured for.
+    #[must_use]
+    pub fn language(&self) -> Language {
+        self.language
     }
 
     /// Parse source bytes into a tree-sitter tree.
@@ -60,16 +76,175 @@ impl RustParser {
     }
 }
 
+/// Select the tree-sitter grammar for a language.
+fn grammar_for_language(language: Language) -> tree_sitter::Language {
+    match language {
+        Language::Rust => tree_sitter_rust::LANGUAGE.into(),
+        Language::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        Language::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
+        Language::Python => tree_sitter_python::LANGUAGE.into(),
+        Language::Go => tree_sitter_go::LANGUAGE.into(),
+        Language::C => tree_sitter_c::LANGUAGE.into(),
+        Language::Cpp => tree_sitter_cpp::LANGUAGE.into(),
+        Language::Java => tree_sitter_java::LANGUAGE.into(),
+    }
+}
+
+/// A Rust-specific parser — convenience alias for backward compatibility.
+///
+/// Equivalent to `Parser::for_language(Language::Rust)`.
+pub struct RustParser;
+
+impl RustParser {
+    /// Create a new parser with the Rust grammar loaded.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError::LanguageError` if the Rust grammar fails to load.
+    #[allow(clippy::new_ret_no_self)]
+    // Backward-compatibility wrapper — intentionally returns Parser, not Self
+    pub fn new() -> Result<Parser> {
+        Parser::for_language(Language::Rust)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    // -----------------------------------------------------------------------
+    // Backward-compatible: RustParser still works
+    // -----------------------------------------------------------------------
     #[test]
-    fn test_new_succeeds_with_rust_grammar() {
+    fn test_rust_parser_new_succeeds() {
         let parser = RustParser::new();
         assert!(parser.is_ok());
     }
 
+    #[test]
+    fn test_rust_parser_returns_rust_language() {
+        let parser = RustParser::new().unwrap();
+        assert_eq!(parser.language(), Language::Rust);
+    }
+
+    // -----------------------------------------------------------------------
+    // Parser::for_language for all 8 variants
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_for_language_rust_creates_parser() {
+        let parser = Parser::for_language(Language::Rust);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_typescript_creates_parser() {
+        let parser = Parser::for_language(Language::TypeScript);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_javascript_creates_parser() {
+        let parser = Parser::for_language(Language::JavaScript);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_python_creates_parser() {
+        let parser = Parser::for_language(Language::Python);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_go_creates_parser() {
+        let parser = Parser::for_language(Language::Go);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_c_creates_parser() {
+        let parser = Parser::for_language(Language::C);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_cpp_creates_parser() {
+        let parser = Parser::for_language(Language::Cpp);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_java_creates_parser() {
+        let parser = Parser::for_language(Language::Java);
+        assert!(parser.is_ok());
+    }
+
+    // -----------------------------------------------------------------------
+    // Parsing with non-Rust languages produces valid trees
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_parse_typescript_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::TypeScript).unwrap();
+        let tree = parser
+            .parse(b"function greet(name: string): string { return name; }")
+            .unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_python_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::Python).unwrap();
+        let tree = parser
+            .parse(b"def greet(name: str) -> str:\n    return name\n")
+            .unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_go_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::Go).unwrap();
+        let tree = parser
+            .parse(b"package main\n\nfunc greet(name string) string {\n\treturn name\n}\n")
+            .unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_c_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::C).unwrap();
+        let tree = parser.parse(b"int main() { return 0; }\n").unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_cpp_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::Cpp).unwrap();
+        let tree = parser
+            .parse(b"class Foo { public: void bar(); };\n")
+            .unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_java_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::Java).unwrap();
+        let tree = parser
+            .parse(b"public class Main { public static void main(String[] args) {} }\n")
+            .unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_javascript_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::JavaScript).unwrap();
+        let tree = parser
+            .parse(b"function greet(name) { return name; }\n")
+            .unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    // -----------------------------------------------------------------------
+    // Existing parser behavior tests (migrated from RustParser)
+    // -----------------------------------------------------------------------
     #[test]
     fn test_parse_valid_rust_returns_tree_without_errors() {
         let mut parser = RustParser::new().unwrap();
@@ -88,7 +263,6 @@ mod tests {
     fn test_parse_empty_source_returns_valid_tree() {
         let mut parser = RustParser::new().unwrap();
         let tree = parser.parse(b"").unwrap();
-        // Empty source is valid — tree-sitter produces a tree with a source_file root
         assert!(!tree.root_node().has_error());
     }
 

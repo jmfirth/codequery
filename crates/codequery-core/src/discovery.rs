@@ -12,18 +12,38 @@ use crate::error::{CoreError, Result};
 pub enum Language {
     /// The Rust programming language.
     Rust,
-    // Future phases add: TypeScript, JavaScript, Python, Go, C, Cpp, Java, etc.
+    /// TypeScript (`.ts`, `.tsx`).
+    TypeScript,
+    /// JavaScript (`.js`, `.jsx`).
+    JavaScript,
+    /// Python (`.py`).
+    Python,
+    /// Go (`.go`).
+    Go,
+    /// C (`.c`, `.h`).
+    C,
+    /// C++ (`.cpp`, `.cc`, `.cxx`, `.hpp`, `.hxx`, `.hh`).
+    Cpp,
+    /// Java (`.java`).
+    Java,
 }
 
 /// Detect the language of a file from its extension.
 ///
-/// Phase 0 only recognizes `.rs` as `Language::Rust`. All other extensions return `None`.
+/// Recognizes all Tier 1 language extensions.
 #[must_use]
 pub fn language_for_file(path: &Path) -> Option<Language> {
     path.extension()
         .and_then(|ext| ext.to_str())
         .and_then(|ext| match ext {
             "rs" => Some(Language::Rust),
+            "ts" | "tsx" => Some(Language::TypeScript),
+            "js" | "jsx" => Some(Language::JavaScript),
+            "py" => Some(Language::Python),
+            "go" => Some(Language::Go),
+            "c" | "h" => Some(Language::C),
+            "cpp" | "cc" | "cxx" | "hpp" | "hxx" | "hh" => Some(Language::Cpp),
+            "java" => Some(Language::Java),
             _ => None,
         })
 }
@@ -197,10 +217,86 @@ mod tests {
     }
 
     #[test]
-    fn test_language_for_file_returns_none_for_other_extensions() {
-        assert_eq!(language_for_file(Path::new("script.py")), None);
-        assert_eq!(language_for_file(Path::new("app.js")), None);
+    fn test_language_for_file_returns_none_for_unrecognized_extensions() {
         assert_eq!(language_for_file(Path::new("readme.txt")), None);
         assert_eq!(language_for_file(Path::new("no_extension")), None);
+        assert_eq!(language_for_file(Path::new("data.json")), None);
+        assert_eq!(language_for_file(Path::new("style.css")), None);
+    }
+
+    #[test]
+    fn test_language_for_file_returns_typescript_for_ts_tsx() {
+        assert_eq!(
+            language_for_file(Path::new("app.ts")),
+            Some(Language::TypeScript)
+        );
+        assert_eq!(
+            language_for_file(Path::new("component.tsx")),
+            Some(Language::TypeScript)
+        );
+    }
+
+    #[test]
+    fn test_language_for_file_returns_javascript_for_js_jsx() {
+        assert_eq!(
+            language_for_file(Path::new("app.js")),
+            Some(Language::JavaScript)
+        );
+        assert_eq!(
+            language_for_file(Path::new("component.jsx")),
+            Some(Language::JavaScript)
+        );
+    }
+
+    #[test]
+    fn test_language_for_file_returns_python_for_py() {
+        assert_eq!(
+            language_for_file(Path::new("script.py")),
+            Some(Language::Python)
+        );
+    }
+
+    #[test]
+    fn test_language_for_file_returns_go_for_go() {
+        assert_eq!(language_for_file(Path::new("main.go")), Some(Language::Go));
+    }
+
+    #[test]
+    fn test_language_for_file_returns_c_for_c_h() {
+        assert_eq!(language_for_file(Path::new("main.c")), Some(Language::C));
+        assert_eq!(language_for_file(Path::new("header.h")), Some(Language::C));
+    }
+
+    #[test]
+    fn test_language_for_file_returns_cpp_for_cpp_extensions() {
+        assert_eq!(
+            language_for_file(Path::new("main.cpp")),
+            Some(Language::Cpp)
+        );
+        assert_eq!(language_for_file(Path::new("main.cc")), Some(Language::Cpp));
+        assert_eq!(
+            language_for_file(Path::new("main.cxx")),
+            Some(Language::Cpp)
+        );
+        assert_eq!(
+            language_for_file(Path::new("header.hpp")),
+            Some(Language::Cpp)
+        );
+        assert_eq!(
+            language_for_file(Path::new("header.hxx")),
+            Some(Language::Cpp)
+        );
+        assert_eq!(
+            language_for_file(Path::new("header.hh")),
+            Some(Language::Cpp)
+        );
+    }
+
+    #[test]
+    fn test_language_for_file_returns_java_for_java() {
+        assert_eq!(
+            language_for_file(Path::new("Main.java")),
+            Some(Language::Java)
+        );
     }
 }

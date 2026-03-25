@@ -2,8 +2,10 @@
 
 use std::path::Path;
 
-use codequery_core::{detect_project_root_or, discover_files, Symbol, SymbolKind};
-use codequery_parse::{extract_symbols, RustParser};
+use codequery_core::{
+    detect_project_root_or, discover_files, language_for_file, Symbol, SymbolKind,
+};
+use codequery_parse::{extract_symbols, Parser};
 
 use crate::args::ExitCode;
 use crate::output::format_def_results;
@@ -27,14 +29,20 @@ pub fn run(symbol: &str, project: Option<&Path>, scope: Option<&Path>) -> anyhow
     // 2. Discover files (scope comes from --in flag)
     let files = discover_files(&project_root, scope)?;
 
-    // 3. Create parser (reused across all files)
-    let mut parser = RustParser::new()?;
-
-    // 4. Read, pre-filter, parse, extract, and collect matches
+    // 3. Read, pre-filter, parse, extract, and collect matches
     let mut matches: Vec<Symbol> = Vec::new();
+
+    // Track the current parser language so we can reuse parsers across
+    // files of the same language.
+    let mut current_parser: Option<(codequery_core::Language, Parser)> = None;
 
     for relative_path in &files {
         let absolute_path = project_root.join(relative_path);
+
+        // Detect language for this file
+        let Some(language) = language_for_file(relative_path) else {
+            continue; // Skip files with unrecognized extensions
+        };
 
         // Read file contents
         let Ok(source) = std::fs::read_to_string(&absolute_path) else {
@@ -46,22 +54,31 @@ pub fn run(symbol: &str, project: Option<&Path>, scope: Option<&Path>) -> anyhow
             continue;
         }
 
+        // Reuse parser if same language, otherwise create a new one
+        let parser = match &mut current_parser {
+            Some((lang, p)) if *lang == language => p,
+            _ => {
+                current_parser = Some((language, Parser::for_language(language)?));
+                &mut current_parser.as_mut().expect("just assigned").1
+            }
+        };
+
         // Parse the already-read source (avoid double read via parse_file)
         let Ok(tree) = parser.parse(source.as_bytes()) else {
             continue; // Skip unparseable files
         };
 
         // Extract symbols from parsed tree
-        let symbols = extract_symbols(&source, &tree, relative_path);
+        let symbols = extract_symbols(&source, &tree, relative_path, language);
 
         // Filter: match top-level symbols and flatten impl children
         collect_matching_symbols(&symbols, symbol, &mut matches);
     }
 
-    // 5. Sort by file path, then by line number
+    // 4. Sort by file path, then by line number
     matches.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
 
-    // 6. Format and output
+    // 5. Format and output
     if matches.is_empty() {
         Ok(ExitCode::NoResults)
     } else {
