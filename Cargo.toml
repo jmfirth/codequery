@@ -1,0 +1,7 @@
+[workspace]
+members = ["crates/*"]
+exclude = ["tests/fixtures/rust_project"]
+resolver = "2"
+
+[workspace.dependencies]
+tempfile = "3"

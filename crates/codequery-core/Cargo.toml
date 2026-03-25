@@ -1,0 +1,12 @@
+[package]
+name = "codequery-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thiserror = "2"
+ignore = "0.4"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
