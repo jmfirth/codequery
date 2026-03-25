@@ -2,7 +2,7 @@
 //!
 //! Walks the AST and extracts all symbol definitions — functions, structs,
 //! enums, traits, impl blocks, methods, constants, type aliases, statics,
-//! and modules.
+//! and modules. Also provides body and signature extraction for each symbol kind.
 
 use std::path::Path;
 
@@ -32,6 +32,109 @@ impl LanguageExtractor for RustExtractor {
     }
 }
 
+/// Extract the full source body of a symbol's AST node.
+///
+/// Returns the complete source text between the node's start and end bytes.
+/// Doc comments are separate preceding nodes and are NOT included — the body
+/// starts at the definition keyword (e.g., `pub fn`, `struct`, etc.).
+#[must_use]
+pub fn extract_body(source: &str, node: &tree_sitter::Node<'_>) -> String {
+    source[node.start_byte()..node.end_byte()].to_string()
+}
+
+/// Extract the type signature of a symbol.
+///
+/// The signature varies by symbol kind:
+/// - **Function/Method**: declaration line up to the opening `{`, trimmed
+/// - **Struct/Enum**: header + field/variant list (the full body is the signature)
+/// - **Trait**: header + method signatures (the full body is the signature)
+/// - **Impl**: the `impl ... for ...` header line
+/// - **Type/Const/Static**: the full declaration line
+/// - **Module**: `mod name` line
+#[must_use]
+pub fn extract_signature(source: &str, node: &tree_sitter::Node<'_>, kind: SymbolKind) -> String {
+    let body_text = &source[node.start_byte()..node.end_byte()];
+    match kind {
+        SymbolKind::Function | SymbolKind::Method | SymbolKind::Test => {
+            extract_fn_signature(body_text)
+        }
+        SymbolKind::Struct
+        | SymbolKind::Enum
+        | SymbolKind::Trait
+        | SymbolKind::Class
+        | SymbolKind::Interface => body_text.to_string(),
+        SymbolKind::Impl => extract_impl_signature(body_text),
+        SymbolKind::Type | SymbolKind::Const | SymbolKind::Static => {
+            extract_single_line_signature(body_text)
+        }
+        SymbolKind::Module => extract_mod_signature(body_text),
+    }
+}
+
+/// Extract function/method signature: everything before the opening `{`, trimmed.
+fn extract_fn_signature(body: &str) -> String {
+    // Find the opening brace that starts the function body
+    if let Some(brace_pos) = find_top_level_brace(body) {
+        body[..brace_pos].trim().to_string()
+    } else {
+        // No brace found — might be a function declaration (e.g., in a trait)
+        // Return the full text, trimmed of trailing semicolons and whitespace
+        body.trim().trim_end_matches(';').trim().to_string()
+    }
+}
+
+/// Find the position of the first top-level `{` in source text.
+///
+/// Skips braces inside generics (`<...>`) to avoid matching on type parameters.
+fn find_top_level_brace(source: &str) -> Option<usize> {
+    let mut angle_depth: u32 = 0;
+    for (i, ch) in source.char_indices() {
+        match ch {
+            '<' => angle_depth = angle_depth.saturating_add(1),
+            '>' => angle_depth = angle_depth.saturating_sub(1),
+            '{' if angle_depth == 0 => return Some(i),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Extract impl signature: just the header line (`impl ... for ...`).
+fn extract_impl_signature(body: &str) -> String {
+    if let Some(brace_pos) = find_top_level_brace(body) {
+        body[..brace_pos].trim().to_string()
+    } else {
+        body.lines().next().unwrap_or("").trim().to_string()
+    }
+}
+
+/// Extract a single-line signature for type aliases, consts, and statics.
+fn extract_single_line_signature(body: &str) -> String {
+    // For multi-line declarations, take the full text trimmed
+    // For single-line, it's just the line
+    body.lines()
+        .next()
+        .unwrap_or("")
+        .trim_end_matches(';')
+        .trim()
+        .to_string()
+}
+
+/// Extract module signature: just the `mod name` portion.
+fn extract_mod_signature(body: &str) -> String {
+    // `mod name;` or `mod name { ... }`
+    if let Some(brace_pos) = find_top_level_brace(body) {
+        body[..brace_pos].trim().to_string()
+    } else {
+        body.lines()
+            .next()
+            .unwrap_or("")
+            .trim_end_matches(';')
+            .trim()
+            .to_string()
+    }
+}
+
 /// Extract a top-level symbol from a node, if it represents a definition.
 #[allow(clippy::too_many_lines)]
 // All node-type match arms for top-level extraction; splitting would obscure the logic
@@ -46,6 +149,8 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
             } else {
                 SymbolKind::Function
             };
+            let body = extract_body(source, &node);
+            let signature = extract_signature(source, &node, kind);
             Some(Symbol {
                 name,
                 kind,
@@ -56,15 +161,18 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
-                body: None,
-                signature: None,
+                body: Some(body),
+                signature: Some(signature),
             })
         }
         "struct_item" => {
             let name = node_field_text(node, "name", source)?;
+            let kind = SymbolKind::Struct;
+            let body = extract_body(source, &node);
+            let signature = extract_signature(source, &node, kind);
             Some(Symbol {
                 name,
-                kind: SymbolKind::Struct,
+                kind,
                 file: file.to_path_buf(),
                 line: node.start_position().row + 1,
                 column: node.start_position().column,
@@ -72,15 +180,18 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
-                body: None,
-                signature: None,
+                body: Some(body),
+                signature: Some(signature),
             })
         }
         "enum_item" => {
             let name = node_field_text(node, "name", source)?;
+            let kind = SymbolKind::Enum;
+            let body = extract_body(source, &node);
+            let signature = extract_signature(source, &node, kind);
             Some(Symbol {
                 name,
-                kind: SymbolKind::Enum,
+                kind,
                 file: file.to_path_buf(),
                 line: node.start_position().row + 1,
                 column: node.start_position().column,
@@ -88,15 +199,18 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
-                body: None,
-                signature: None,
+                body: Some(body),
+                signature: Some(signature),
             })
         }
         "trait_item" => {
             let name = node_field_text(node, "name", source)?;
+            let kind = SymbolKind::Trait;
+            let body = extract_body(source, &node);
+            let signature = extract_signature(source, &node, kind);
             Some(Symbol {
                 name,
-                kind: SymbolKind::Trait,
+                kind,
                 file: file.to_path_buf(),
                 line: node.start_position().row + 1,
                 column: node.start_position().column,
@@ -104,16 +218,19 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
-                body: None,
-                signature: None,
+                body: Some(body),
+                signature: Some(signature),
             })
         }
         "impl_item" => {
             let impl_name = extract_impl_name(node, source)?;
             let children = extract_impl_methods(node, source, file);
+            let kind = SymbolKind::Impl;
+            let body = extract_body(source, &node);
+            let signature = extract_signature(source, &node, kind);
             Some(Symbol {
                 name: impl_name,
-                kind: SymbolKind::Impl,
+                kind,
                 file: file.to_path_buf(),
                 line: node.start_position().row + 1,
                 column: node.start_position().column,
@@ -121,15 +238,18 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: Visibility::Private,
                 children,
                 doc: extract_doc_comment(node, source),
-                body: None,
-                signature: None,
+                body: Some(body),
+                signature: Some(signature),
             })
         }
         "type_item" => {
             let name = node_field_text(node, "name", source)?;
+            let kind = SymbolKind::Type;
+            let body = extract_body(source, &node);
+            let signature = extract_signature(source, &node, kind);
             Some(Symbol {
                 name,
-                kind: SymbolKind::Type,
+                kind,
                 file: file.to_path_buf(),
                 line: node.start_position().row + 1,
                 column: node.start_position().column,
@@ -137,15 +257,18 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
-                body: None,
-                signature: None,
+                body: Some(body),
+                signature: Some(signature),
             })
         }
         "const_item" => {
             let name = node_field_text(node, "name", source)?;
+            let kind = SymbolKind::Const;
+            let body = extract_body(source, &node);
+            let signature = extract_signature(source, &node, kind);
             Some(Symbol {
                 name,
-                kind: SymbolKind::Const,
+                kind,
                 file: file.to_path_buf(),
                 line: node.start_position().row + 1,
                 column: node.start_position().column,
@@ -153,15 +276,18 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
-                body: None,
-                signature: None,
+                body: Some(body),
+                signature: Some(signature),
             })
         }
         "static_item" => {
             let name = node_field_text(node, "name", source)?;
+            let kind = SymbolKind::Static;
+            let body = extract_body(source, &node);
+            let signature = extract_signature(source, &node, kind);
             Some(Symbol {
                 name,
-                kind: SymbolKind::Static,
+                kind,
                 file: file.to_path_buf(),
                 line: node.start_position().row + 1,
                 column: node.start_position().column,
@@ -169,15 +295,18 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
-                body: None,
-                signature: None,
+                body: Some(body),
+                signature: Some(signature),
             })
         }
         "mod_item" => {
             let name = node_field_text(node, "name", source)?;
+            let kind = SymbolKind::Module;
+            let body = extract_body(source, &node);
+            let signature = extract_signature(source, &node, kind);
             Some(Symbol {
                 name,
-                kind: SymbolKind::Module,
+                kind,
                 file: file.to_path_buf(),
                 line: node.start_position().row + 1,
                 column: node.start_position().column,
@@ -185,8 +314,8 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
                 visibility: extract_visibility(node, source),
                 children: vec![],
                 doc: extract_doc_comment(node, source),
-                body: None,
-                signature: None,
+                body: Some(body),
+                signature: Some(signature),
             })
         }
         _ => None,
@@ -255,9 +384,12 @@ fn extract_impl_methods(
             let Some(name) = node_field_text(child, "name", source) else {
                 continue;
             };
+            let kind = SymbolKind::Method;
+            let method_body = extract_body(source, &child);
+            let method_sig = extract_signature(source, &child, kind);
             methods.push(Symbol {
                 name,
-                kind: SymbolKind::Method,
+                kind,
                 file: file.to_path_buf(),
                 line: child.start_position().row + 1,
                 column: child.start_position().column,
@@ -265,8 +397,8 @@ fn extract_impl_methods(
                 visibility: extract_visibility(child, source),
                 children: vec![],
                 doc: extract_doc_comment(child, source),
-                body: None,
-                signature: None,
+                body: Some(method_body),
+                signature: Some(method_sig),
             });
         }
     }
@@ -710,5 +842,425 @@ mod tests {
             .expect("internal_helper not found");
         assert_eq!(helper.visibility, Visibility::Private);
         assert_eq!(helper.kind, SymbolKind::Method);
+    }
+
+    // =======================================================================
+    // Body and Signature Extraction Tests (Task 013)
+    // =======================================================================
+
+    // -----------------------------------------------------------------------
+    // Scenario 19: Function body extraction returns complete source text
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_body_function_returns_complete_source_text() {
+        let source = "/// A greeting function.\npub fn greet(name: &str) -> String {\n    format!(\"Hello, {name}!\")\n}\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let greet = symbols
+            .iter()
+            .find(|s| s.name == "greet")
+            .expect("greet not found");
+        let body = greet.body.as_deref().expect("body should be Some");
+        assert_eq!(
+            body,
+            "pub fn greet(name: &str) -> String {\n    format!(\"Hello, {name}!\")\n}"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 20: Function signature is just the declaration line (no body)
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_signature_function_is_declaration_without_body() {
+        let source = "pub fn greet(name: &str) -> String {\n    format!(\"Hello, {name}!\")\n}\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let greet = symbols
+            .iter()
+            .find(|s| s.name == "greet")
+            .expect("greet not found");
+        let sig = greet
+            .signature
+            .as_deref()
+            .expect("signature should be Some");
+        assert_eq!(sig, "pub fn greet(name: &str) -> String");
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 21: Struct body includes fields
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_body_struct_includes_fields() {
+        let source = "pub struct User {\n    pub name: String,\n    pub age: u32,\n}\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let user = symbols
+            .iter()
+            .find(|s| s.name == "User")
+            .expect("User not found");
+        let body = user.body.as_deref().expect("body should be Some");
+        assert!(body.contains("pub name: String"));
+        assert!(body.contains("pub age: u32"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 22: Struct signature includes fields (full definition is the sig)
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_signature_struct_includes_fields() {
+        let source = "pub struct User {\n    pub name: String,\n    pub age: u32,\n}\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let user = symbols
+            .iter()
+            .find(|s| s.name == "User")
+            .expect("User not found");
+        let sig = user.signature.as_deref().expect("signature should be Some");
+        assert_eq!(
+            sig,
+            "pub struct User {\n    pub name: String,\n    pub age: u32,\n}"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 23: Trait signature includes method declarations
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_signature_trait_includes_method_declarations() {
+        let source = "pub trait Validate {\n    fn is_valid(&self) -> bool;\n    fn errors(&self) -> Vec<String> { Vec::new() }\n}\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let validate = symbols
+            .iter()
+            .find(|s| s.name == "Validate")
+            .expect("Validate not found");
+        let sig = validate
+            .signature
+            .as_deref()
+            .expect("signature should be Some");
+        assert!(sig.contains("fn is_valid(&self) -> bool"));
+        assert!(sig.contains("fn errors(&self) -> Vec<String>"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 24: Impl signature is the header line
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_signature_impl_is_header_line() {
+        let source = "impl User {\n    pub fn new() -> Self { Self {} }\n}\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let user_impl = symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Impl)
+            .expect("impl not found");
+        let sig = user_impl
+            .signature
+            .as_deref()
+            .expect("signature should be Some");
+        assert_eq!(sig, "impl User");
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 25: Trait impl signature is the header line
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_signature_trait_impl_is_header_line() {
+        let source = "impl Validate for User {\n    fn is_valid(&self) -> bool { true }\n}\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let trait_impl = symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Impl)
+            .expect("impl not found");
+        let sig = trait_impl
+            .signature
+            .as_deref()
+            .expect("signature should be Some");
+        assert_eq!(sig, "impl Validate for User");
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 26: Const signature is the full declaration
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_signature_const_is_full_declaration() {
+        let source = "pub const MAX_RETRIES: u32 = 3;\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let max_retries = symbols
+            .iter()
+            .find(|s| s.name == "MAX_RETRIES")
+            .expect("MAX_RETRIES not found");
+        let sig = max_retries
+            .signature
+            .as_deref()
+            .expect("signature should be Some");
+        assert_eq!(sig, "pub const MAX_RETRIES: u32 = 3");
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 27: Static signature is the full declaration
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_signature_static_is_full_declaration() {
+        let source = "static COUNTER: u32 = 0;\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let counter = symbols
+            .iter()
+            .find(|s| s.name == "COUNTER")
+            .expect("COUNTER not found");
+        let sig = counter
+            .signature
+            .as_deref()
+            .expect("signature should be Some");
+        assert_eq!(sig, "static COUNTER: u32 = 0");
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 28: Type alias signature is the full line
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_signature_type_alias_is_full_line() {
+        let source = "pub type UserId = u64;\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let userid = symbols
+            .iter()
+            .find(|s| s.name == "UserId")
+            .expect("UserId not found");
+        let sig = userid
+            .signature
+            .as_deref()
+            .expect("signature should be Some");
+        assert_eq!(sig, "pub type UserId = u64");
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 29: Module signature is just `mod name`
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_signature_module_is_mod_name() {
+        let source = "pub mod models;\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let models = symbols
+            .iter()
+            .find(|s| s.name == "models")
+            .expect("models not found");
+        let sig = models
+            .signature
+            .as_deref()
+            .expect("signature should be Some");
+        assert_eq!(sig, "pub mod models");
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 30: Doc comments are NOT part of the body
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_body_excludes_doc_comments() {
+        let source = "/// This is a doc comment.\npub fn documented() -> bool {\n    true\n}\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let documented = symbols
+            .iter()
+            .find(|s| s.name == "documented")
+            .expect("documented not found");
+        let body = documented.body.as_deref().expect("body should be Some");
+        assert!(
+            !body.starts_with("///"),
+            "body should not start with doc comment"
+        );
+        assert!(body.starts_with("pub fn documented"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 31: All symbols in fixture project have non-None body and signature
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_all_fixture_symbols_have_body_and_signature() {
+        for fixture in &[
+            "lib.rs",
+            "models.rs",
+            "traits.rs",
+            "services.rs",
+            "utils/helpers.rs",
+        ] {
+            let (_, symbols) = extract_fixture(fixture);
+            for sym in &symbols {
+                assert!(
+                    sym.body.is_some(),
+                    "symbol {} in {} should have a body",
+                    sym.name,
+                    fixture
+                );
+                assert!(
+                    sym.signature.is_some(),
+                    "symbol {} in {} should have a signature",
+                    sym.name,
+                    fixture
+                );
+                // Also check children (methods inside impl blocks)
+                for child in &sym.children {
+                    assert!(
+                        child.body.is_some(),
+                        "child {} of {} in {} should have a body",
+                        child.name,
+                        sym.name,
+                        fixture
+                    );
+                    assert!(
+                        child.signature.is_some(),
+                        "child {} of {} in {} should have a signature",
+                        child.name,
+                        sym.name,
+                        fixture
+                    );
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 32: Method body and signature inside impl
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_body_and_signature_for_method_inside_impl() {
+        let source = "impl Foo {\n    pub fn bar(&self) -> u32 {\n        42\n    }\n}\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let impl_foo = symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Impl)
+            .expect("impl Foo not found");
+        let bar = impl_foo
+            .children
+            .iter()
+            .find(|c| c.name == "bar")
+            .expect("bar not found");
+        let body = bar.body.as_deref().expect("body should be Some");
+        assert!(body.contains("42"));
+        assert!(body.starts_with("pub fn bar"));
+
+        let sig = bar.signature.as_deref().expect("signature should be Some");
+        assert_eq!(sig, "pub fn bar(&self) -> u32");
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 33: Enum body includes variants
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_body_enum_includes_variants() {
+        let source = "pub enum Color {\n    Red,\n    Green,\n    Blue,\n}\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let color = symbols
+            .iter()
+            .find(|s| s.name == "Color")
+            .expect("Color not found");
+        let body = color.body.as_deref().expect("body should be Some");
+        assert!(body.contains("Red"));
+        assert!(body.contains("Green"));
+        assert!(body.contains("Blue"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 34: Enum signature equals body (full definition is signature)
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_signature_enum_equals_full_definition() {
+        let source = "pub enum Color {\n    Red,\n    Green,\n    Blue,\n}\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let color = symbols
+            .iter()
+            .find(|s| s.name == "Color")
+            .expect("Color not found");
+        let body = color.body.as_deref().expect("body should be Some");
+        let sig = color.signature.as_deref().expect("sig should be Some");
+        assert_eq!(body, sig);
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 35: Module with body has correct signature
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_signature_module_with_body_is_just_header() {
+        let source = "mod inner {\n    fn hidden() {}\n}\n";
+        let symbols = parse_and_extract(source, "test.rs");
+        let inner = symbols
+            .iter()
+            .find(|s| s.name == "inner")
+            .expect("inner not found");
+        let sig = inner
+            .signature
+            .as_deref()
+            .expect("signature should be Some");
+        assert_eq!(sig, "mod inner");
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 36: Fixture greet function body and signature
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_fixture_greet_body_and_signature() {
+        let (_, symbols) = extract_fixture("lib.rs");
+        let greet = symbols
+            .iter()
+            .find(|s| s.name == "greet")
+            .expect("greet not found");
+        let body = greet.body.as_deref().expect("body should be Some");
+        assert!(body.starts_with("pub fn greet(name: &str) -> String"));
+        assert!(body.contains("format!(\"Hello, {name}!\")"));
+        assert!(body.ends_with('}'));
+
+        let sig = greet.signature.as_deref().expect("sig should be Some");
+        assert_eq!(sig, "pub fn greet(name: &str) -> String");
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 37: Fixture User struct signature matches spec
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_fixture_user_struct_signature() {
+        let (_, symbols) = extract_fixture("models.rs");
+        let user = symbols
+            .iter()
+            .find(|s| s.name == "User")
+            .expect("User not found");
+        let sig = user.signature.as_deref().expect("sig should be Some");
+        assert!(sig.contains("pub struct User"));
+        assert!(sig.contains("pub name: String"));
+        assert!(sig.contains("pub age: u32"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 38: Fixture Validate trait signature includes methods
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_fixture_validate_trait_signature_includes_methods() {
+        let (_, symbols) = extract_fixture("traits.rs");
+        let validate = symbols
+            .iter()
+            .find(|s| s.name == "Validate")
+            .expect("Validate not found");
+        let sig = validate.signature.as_deref().expect("sig should be Some");
+        assert!(sig.contains("fn is_valid(&self) -> bool"));
+        assert!(sig.contains("fn errors(&self) -> Vec<String>"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 39: Fixture impl User signature
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_fixture_impl_user_signature() {
+        let (_, symbols) = extract_fixture("services.rs");
+        let user_impl = symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Impl && s.name == "User")
+            .expect("impl User not found");
+        let sig = user_impl.signature.as_deref().expect("sig should be Some");
+        assert_eq!(sig, "impl User");
+    }
+
+    // -----------------------------------------------------------------------
+    // Scenario 40: Fixture UserId type alias signature
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_fixture_userid_type_alias_signature() {
+        let (_, symbols) = extract_fixture("models.rs");
+        let userid = symbols
+            .iter()
+            .find(|s| s.name == "UserId")
+            .expect("UserId not found");
+        let sig = userid.signature.as_deref().expect("sig should be Some");
+        assert_eq!(sig, "pub type UserId = u64");
     }
 }

@@ -14,4 +14,5 @@ pub mod parser;
 
 pub use error::{ParseError, Result};
 pub use extract::extract_symbols;
+pub use languages::rust::{extract_body, extract_signature};
 pub use parser::{Parser, RustParser};
