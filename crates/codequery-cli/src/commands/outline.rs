@@ -5,19 +5,24 @@ use std::path::Path;
 use codequery_core::{detect_project_root_or, language_for_file};
 use codequery_parse::{extract_symbols, Parser};
 
-use crate::args::ExitCode;
-use crate::output::format_outline;
+use crate::args::{ExitCode, OutputMode};
+use crate::output::format_outline_output;
 
 /// Run the outline command: list all symbols in a file.
 ///
 /// Resolves the project root, detects the file's language, parses with
-/// tree-sitter, extracts all symbol definitions, formats the outline,
-/// and prints it to stdout.
+/// tree-sitter, extracts all symbol definitions, formats the outline
+/// in the requested mode, and prints it to stdout.
 ///
 /// # Errors
 ///
 /// Returns an error if the parser cannot be created (language grammar failure).
-pub fn run(file: &Path, project: Option<&Path>) -> anyhow::Result<ExitCode> {
+pub fn run(
+    file: &Path,
+    project: Option<&Path>,
+    mode: OutputMode,
+    pretty: bool,
+) -> anyhow::Result<ExitCode> {
     // 1. Resolve project root
     let cwd = std::env::current_dir()?;
     let project_root = detect_project_root_or(&cwd, project)?;
@@ -63,7 +68,7 @@ pub fn run(file: &Path, project: Option<&Path>) -> anyhow::Result<ExitCode> {
     let symbols = extract_symbols(&source, &tree, &relative_path, language);
 
     // 7. Format
-    let output = format_outline(&relative_path, &symbols);
+    let output = format_outline_output(&relative_path, &symbols, mode, pretty);
 
     // 8. Output
     println!("{output}");
@@ -93,7 +98,7 @@ mod tests {
     fn test_outline_valid_rust_file_produces_symbols() {
         let project = fixture_project();
         let file = project.join("src/lib.rs");
-        let result = run(&file, Some(&project));
+        let result = run(&file, Some(&project), OutputMode::Framed, false);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -107,7 +112,7 @@ mod tests {
         let empty_file = tmp.path().join("empty.rs");
         std::fs::write(&empty_file, "").unwrap();
 
-        let result = run(&empty_file, Some(tmp.path()));
+        let result = run(&empty_file, Some(tmp.path()), OutputMode::Framed, false);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
     }
@@ -117,7 +122,7 @@ mod tests {
     fn test_outline_nonexistent_file_returns_project_error() {
         let project = fixture_project();
         let file = project.join("src/nonexistent.rs");
-        let result = run(&file, Some(&project));
+        let result = run(&file, Some(&project), OutputMode::Framed, false);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::ProjectError);
     }
@@ -130,8 +135,28 @@ mod tests {
         let broken_file = tmp.path().join("broken.rs");
         std::fs::write(&broken_file, "fn good() {}\nfn broken( {}\nstruct S {}\n").unwrap();
 
-        let result = run(&broken_file, Some(tmp.path()));
+        let result = run(&broken_file, Some(tmp.path()), OutputMode::Framed, false);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::ParseWarning);
+    }
+
+    // Test 5: JSON mode still returns correct exit code
+    #[test]
+    fn test_outline_json_mode_returns_success() {
+        let project = fixture_project();
+        let file = project.join("src/lib.rs");
+        let result = run(&file, Some(&project), OutputMode::Json, true);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ExitCode::Success);
+    }
+
+    // Test 6: Raw mode still returns correct exit code
+    #[test]
+    fn test_outline_raw_mode_returns_success() {
+        let project = fixture_project();
+        let file = project.join("src/lib.rs");
+        let result = run(&file, Some(&project), OutputMode::Raw, false);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 }

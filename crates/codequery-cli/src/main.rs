@@ -19,10 +19,18 @@ fn main() -> std::process::ExitCode {
 }
 
 fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
+    let mode = args.output_mode();
+    let pretty = args.pretty;
     match args.command {
-        Command::Outline { file } => commands::outline::run(&file, args.project.as_deref()),
-        Command::Def { symbol } => {
-            commands::def::run(&symbol, args.project.as_deref(), args.scope.as_deref())
+        Command::Outline { file } => {
+            commands::outline::run(&file, args.project.as_deref(), mode, pretty)
         }
+        Command::Def { symbol } => commands::def::run(
+            &symbol,
+            args.project.as_deref(),
+            args.scope.as_deref(),
+            mode,
+            pretty,
+        ),
     }
 }

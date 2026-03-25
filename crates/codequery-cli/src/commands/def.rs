@@ -7,21 +7,27 @@ use codequery_core::{
 };
 use codequery_parse::{extract_symbols, Parser};
 
-use crate::args::ExitCode;
-use crate::output::format_def_results;
+use crate::args::{ExitCode, OutputMode};
+use crate::output::format_def;
 
 /// Run the def command: find where a symbol is defined.
 ///
 /// Discovers all source files in the project (optionally scoped by `--in`),
 /// applies a text pre-filter to avoid parsing irrelevant files, parses
 /// candidates with tree-sitter, extracts symbols, filters by name, and
-/// prints results in framed format.
+/// prints results in the requested output mode.
 ///
 /// # Errors
 ///
 /// Returns an error if the project root cannot be detected, file discovery
 /// fails, or the parser cannot be created.
-pub fn run(symbol: &str, project: Option<&Path>, scope: Option<&Path>) -> anyhow::Result<ExitCode> {
+pub fn run(
+    symbol: &str,
+    project: Option<&Path>,
+    scope: Option<&Path>,
+    mode: OutputMode,
+    pretty: bool,
+) -> anyhow::Result<ExitCode> {
     // 1. Resolve project root
     let cwd = std::env::current_dir()?;
     let project_root = detect_project_root_or(&cwd, project)?;
@@ -79,12 +85,18 @@ pub fn run(symbol: &str, project: Option<&Path>, scope: Option<&Path>) -> anyhow
     matches.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
 
     // 5. Format and output
-    if matches.is_empty() {
+    if matches.is_empty() && mode != OutputMode::Json {
         Ok(ExitCode::NoResults)
     } else {
-        let output = format_def_results(&matches);
-        println!("{output}");
-        Ok(ExitCode::Success)
+        let output = format_def(&matches, symbol, mode, pretty);
+        if !output.is_empty() {
+            println!("{output}");
+        }
+        if matches.is_empty() {
+            Ok(ExitCode::NoResults)
+        } else {
+            Ok(ExitCode::Success)
+        }
     }
 }
 
@@ -298,7 +310,13 @@ mod tests {
     #[test]
     fn test_def_scope_limits_search_to_subdirectory() {
         let project = fixture_project();
-        let result = run("helper", Some(&project), Some(Path::new("src/utils")));
+        let result = run(
+            "helper",
+            Some(&project),
+            Some(Path::new("src/utils")),
+            OutputMode::Framed,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -309,7 +327,7 @@ mod tests {
     #[test]
     fn test_def_fixture_finds_greet_function() {
         let project = fixture_project();
-        let result = run("greet", Some(&project), None);
+        let result = run("greet", Some(&project), None, OutputMode::Framed, false);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -318,7 +336,7 @@ mod tests {
     #[test]
     fn test_def_fixture_finds_user_struct() {
         let project = fixture_project();
-        let result = run("User", Some(&project), None);
+        let result = run("User", Some(&project), None, OutputMode::Framed, false);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -327,7 +345,7 @@ mod tests {
     #[test]
     fn test_def_fixture_finds_duplicate_helper() {
         let project = fixture_project();
-        let result = run("helper", Some(&project), None);
+        let result = run("helper", Some(&project), None, OutputMode::Framed, false);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -336,7 +354,7 @@ mod tests {
     #[test]
     fn test_def_fixture_finds_is_adult_method() {
         let project = fixture_project();
-        let result = run("is_adult", Some(&project), None);
+        let result = run("is_adult", Some(&project), None, OutputMode::Framed, false);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -345,7 +363,13 @@ mod tests {
     #[test]
     fn test_def_fixture_nonexistent_symbol_returns_no_results() {
         let project = fixture_project();
-        let result = run("nonexistent_symbol", Some(&project), None);
+        let result = run(
+            "nonexistent_symbol",
+            Some(&project),
+            None,
+            OutputMode::Framed,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
     }
@@ -354,7 +378,13 @@ mod tests {
     #[test]
     fn test_def_fixture_scoped_search_finds_only_utils_helper() {
         let project = fixture_project();
-        let result = run("helper", Some(&project), Some(Path::new("src/utils")));
+        let result = run(
+            "helper",
+            Some(&project),
+            Some(Path::new("src/utils")),
+            OutputMode::Framed,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -379,5 +409,38 @@ mod tests {
         // Should find the struct, NOT the impl block
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].kind, SymbolKind::Struct);
+    }
+
+    // Test: JSON mode returns correct exit code
+    #[test]
+    fn test_def_json_mode_returns_success() {
+        let project = fixture_project();
+        let result = run("greet", Some(&project), None, OutputMode::Json, true);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ExitCode::Success);
+    }
+
+    // Test: JSON mode with no results returns NoResults
+    #[test]
+    fn test_def_json_mode_no_results_returns_no_results() {
+        let project = fixture_project();
+        let result = run(
+            "nonexistent_symbol",
+            Some(&project),
+            None,
+            OutputMode::Json,
+            true,
+        );
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ExitCode::NoResults);
+    }
+
+    // Test: Raw mode returns correct exit code
+    #[test]
+    fn test_def_raw_mode_returns_success() {
+        let project = fixture_project();
+        let result = run("greet", Some(&project), None, OutputMode::Raw, false);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 }

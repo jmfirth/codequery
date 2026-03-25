@@ -1,6 +1,17 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+/// The output format for command results.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputMode {
+    /// Default: `@@ file:line:column kind name @@` headers with content.
+    Framed,
+    /// Structured JSON output for programmatic use.
+    Json,
+    /// Content only, no `@@` framing delimiters.
+    Raw,
+}
+
 /// Semantic code query tool for the command line.
 #[derive(Debug, Parser)]
 #[command(name = "cq", version, about)]
@@ -13,8 +24,33 @@ pub struct CqArgs {
     #[arg(long = "in", global = true)]
     pub scope: Option<PathBuf>,
 
+    /// JSON output for programmatic use
+    #[arg(long, global = true, conflicts_with = "raw")]
+    pub json: bool,
+
+    /// Raw output, no framing
+    #[arg(long, global = true, conflicts_with = "json")]
+    pub raw: bool,
+
+    /// Force pretty-printed JSON (default when TTY)
+    #[arg(long, global = true)]
+    pub pretty: bool,
+
     #[command(subcommand)]
     pub command: Command,
+}
+
+impl CqArgs {
+    /// Derive the output mode from `--json` and `--raw` flags.
+    pub fn output_mode(&self) -> OutputMode {
+        if self.json {
+            OutputMode::Json
+        } else if self.raw {
+            OutputMode::Raw
+        } else {
+            OutputMode::Framed
+        }
+    }
 }
 
 /// Available cq subcommands.
@@ -130,5 +166,42 @@ mod tests {
     #[test]
     fn test_exit_code_parse_warning_is_four() {
         assert_eq!(ExitCode::ParseWarning as u8, 4);
+    }
+
+    #[test]
+    fn test_json_flag_parsed() {
+        let args = CqArgs::parse_from(["cq", "--json", "def", "foo"]);
+        assert!(args.json);
+        assert!(!args.raw);
+        assert_eq!(args.output_mode(), OutputMode::Json);
+    }
+
+    #[test]
+    fn test_raw_flag_parsed() {
+        let args = CqArgs::parse_from(["cq", "--raw", "def", "foo"]);
+        assert!(args.raw);
+        assert!(!args.json);
+        assert_eq!(args.output_mode(), OutputMode::Raw);
+    }
+
+    #[test]
+    fn test_json_and_raw_together_produce_error() {
+        let result = CqArgs::try_parse_from(["cq", "--json", "--raw", "def", "foo"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pretty_flag_parsed() {
+        let args = CqArgs::parse_from(["cq", "--json", "--pretty", "def", "foo"]);
+        assert!(args.json);
+        assert!(args.pretty);
+    }
+
+    #[test]
+    fn test_no_output_flags_defaults_to_framed() {
+        let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        assert!(!args.json);
+        assert!(!args.raw);
+        assert_eq!(args.output_mode(), OutputMode::Framed);
     }
 }
