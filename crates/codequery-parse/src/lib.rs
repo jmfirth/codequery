@@ -7,7 +7,9 @@
 #![warn(clippy::pedantic)]
 
 pub mod error;
+pub mod extract;
 pub mod parser;
 
 pub use error::{ParseError, Result};
+pub use extract::extract_symbols;
 pub use parser::RustParser;
