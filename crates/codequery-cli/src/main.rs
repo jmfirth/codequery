@@ -1,6 +1,9 @@
 #![warn(clippy::pedantic)]
 
 mod args;
+#[allow(dead_code)]
+// Output formatting consumed by command dispatch in Tasks 008/009
+mod output;
 
 use args::{Command, CqArgs, ExitCode};
 use clap::Parser;
