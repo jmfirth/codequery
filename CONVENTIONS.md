@@ -24,7 +24,7 @@ This document defines the rules all contributors (human and agent) follow. When 
 - Types: `PascalCase`
 - Functions, methods, variables: `snake_case`
 - Constants: `SCREAMING_SNAKE_CASE`
-- Crate names: `cq-xxx` (kebab-case in Cargo.toml, `cq_xxx` as Rust identifiers)
+- Crate names: `codequery-xxx` (kebab-case in Cargo.toml, `codequery_xxx` as Rust identifiers). Binary name is `cq`.
 - Module files: `snake_case.rs`
 - Symbol model types: `PascalCase` matching their domain (e.g., `Symbol`, `SymbolKind`, `Reference`, `Location`)
 - Test functions: `test_<what>_<condition>_<expected>` (e.g., `test_outline_rust_struct_includes_methods`)
@@ -79,23 +79,23 @@ Tree-sitter parse errors on individual files are **warnings**, not fatal errors.
 | Crate | Purpose | Used in |
 |-------|---------|---------|
 | `thiserror` | Error derive macros | All library crates |
-| `anyhow` | Top-level error handling | `cq-cli` |
-| `clap` (derive) | Argument parsing | `cq-cli` |
-| `tree-sitter` | Core parsing engine | `cq-parse` |
-| `tree-sitter-rust` | Rust grammar | `cq-parse` |
-| `tree-sitter-typescript` | TS/JS grammar | `cq-parse` (Phase 1) |
-| `tree-sitter-python` | Python grammar | `cq-parse` (Phase 1) |
-| `tree-sitter-go` | Go grammar | `cq-parse` (Phase 1) |
-| `tree-sitter-c` | C grammar | `cq-parse` (Phase 1) |
-| `tree-sitter-cpp` | C++ grammar | `cq-parse` (Phase 1) |
-| `tree-sitter-java` | Java grammar | `cq-parse` (Phase 1) |
-| `rayon` | Parallel file parsing | `cq-index` (Phase 1) |
-| `memmap2` | Memory-mapped file I/O for grep pre-filter | `cq-index` (Phase 1) |
-| `memchr` | Fast byte search for grep pre-filter | `cq-index` (Phase 1) |
-| `ignore` | .gitignore-compatible file walking | `cq-core` |
-| `stack-graphs` | Scope graph name resolution | `cq-resolve` (Phase 2) |
-| `tree-sitter-stack-graphs` | Stack graph / tree-sitter integration | `cq-resolve` (Phase 2) |
-| `serde` + `serde_json` | JSON output format | `cq-cli` |
+| `anyhow` | Top-level error handling | `codequery-cli` |
+| `clap` (derive) | Argument parsing | `codequery-cli` |
+| `tree-sitter` | Core parsing engine | `codequery-parse` |
+| `tree-sitter-rust` | Rust grammar | `codequery-parse` |
+| `tree-sitter-typescript` | TS/JS grammar | `codequery-parse` (Phase 1) |
+| `tree-sitter-python` | Python grammar | `codequery-parse` (Phase 1) |
+| `tree-sitter-go` | Go grammar | `codequery-parse` (Phase 1) |
+| `tree-sitter-c` | C grammar | `codequery-parse` (Phase 1) |
+| `tree-sitter-cpp` | C++ grammar | `codequery-parse` (Phase 1) |
+| `tree-sitter-java` | Java grammar | `codequery-parse` (Phase 1) |
+| `rayon` | Parallel file parsing | `codequery-index` (Phase 1) |
+| `memmap2` | Memory-mapped file I/O for grep pre-filter | `codequery-index` (Phase 1) |
+| `memchr` | Fast byte search for grep pre-filter | `codequery-index` (Phase 1) |
+| `ignore` | .gitignore-compatible file walking | `codequery-core` |
+| `stack-graphs` | Scope graph name resolution | `codequery-resolve` (Phase 2) |
+| `tree-sitter-stack-graphs` | Stack graph / tree-sitter integration | `codequery-resolve` (Phase 2) |
+| `serde` + `serde_json` | JSON output format | `codequery-cli` |
 | `tempfile` | Test temp directories | dev-dependency |
 
 Adding a new dependency requires justification. Don't pull in a crate for something the standard library can do.
@@ -112,7 +112,7 @@ Adding a new dependency requires justification. Don't pull in a crate for someth
 ### Crate boundaries
 - Crate boundaries are defined during phase planning and documented in PLAN.md.
 - No circular dependencies. The dependency graph is a DAG.
-- Cross-crate communication uses well-defined trait interfaces or shared types from `cq-core`.
+- Cross-crate communication uses well-defined trait interfaces or shared types from `codequery-core`.
 - Private implementation details stay private. Only the designed public API is `pub`.
 
 ### Tree-sitter patterns
@@ -141,8 +141,8 @@ Adding a new dependency requires justification. Don't pull in a crate for someth
 
 **Resolution layer:**
 - Stack graphs consume tree-sitter parse trees and produce name bindings.
-- `cq-resolve` owns graph construction and resolution. `cq-index` consumes resolution results.
-- Per-language stack graph rules live in `cq-resolve/src/rules/`. Each language has its own module.
+- `codequery-resolve` owns graph construction and resolution. `codequery-index` consumes resolution results.
+- Per-language stack graph rules live in `codequery-resolve/src/rules/`. Each language has its own module.
 - Fallback behavior: if stack graph rules don't exist for a language, cross-reference commands use syntactic matching and metadata reflects it (`"resolution": "syntactic"`).
 
 **Performance considerations:**
@@ -156,14 +156,14 @@ Adding a new dependency requires justification. Don't pull in a crate for someth
 - `SymbolKind` is an enum: Function, Method, Struct, Class, Trait, Interface, Enum, Type, Const, Static, Module, Impl, Test.
 - `Location` is file + line + column.
 - `Reference` adds a `kind` field (Call, TypeUsage, Import, Assignment) to Location.
-- These types live in `cq-core` and are used by all other crates.
+- These types live in `codequery-core` and are used by all other crates.
 
 ### Output formatting
 
 - Three modes: Framed (default), JSON (`--json`), Raw (`--raw`).
 - Framed output uses `@@ file:line:column kind name @@` headers with raw source between them.
 - JSON is compact when piped, pretty when TTY.
-- Output formatting logic lives in `cq-cli`, not in library crates. Library crates return typed data.
+- Output formatting logic lives in `codequery-cli`, not in library crates. Library crates return typed data.
 
 ### Ownership and borrowing
 - Prefer borrowing over cloning. Clone only when ownership transfer is needed.
