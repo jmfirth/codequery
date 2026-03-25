@@ -1,8 +1,9 @@
 #![warn(clippy::pedantic)]
 
 mod args;
+mod commands;
 #[allow(dead_code)]
-// Output formatting consumed by command dispatch in Tasks 008/009
+// format_def_results and format_frame_header are consumed by Task 009 (def command)
 mod output;
 
 use args::{Command, CqArgs, ExitCode};
@@ -19,17 +20,9 @@ fn main() -> std::process::ExitCode {
     }
 }
 
-#[allow(clippy::needless_pass_by_value)]
-// Command dispatch will consume args fields (file, symbol) once Tasks 008/009 implement them
-#[allow(clippy::unnecessary_wraps)]
-// Stub always returns Ok; real command dispatch (Tasks 008/009) will produce errors
 fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
     match args.command {
-        Command::Outline { file: _ } => {
-            // TODO: Task 008 implements this
-            eprintln!("outline not yet implemented");
-            Ok(ExitCode::Success)
-        }
+        Command::Outline { file } => commands::outline::run(&file, args.project.as_deref()),
         Command::Def { symbol: _ } => {
             // TODO: Task 009 implements this
             eprintln!("def not yet implemented");
