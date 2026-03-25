@@ -6,8 +6,12 @@
 
 #![warn(clippy::pedantic)]
 
+pub mod discovery;
 pub mod error;
+pub mod project;
 pub mod symbol;
 
+pub use discovery::{discover_files, language_for_file, Language};
 pub use error::{CoreError, Result};
+pub use project::{detect_project_root, detect_project_root_or};
 pub use symbol::{Location, Symbol, SymbolKind, Visibility};
