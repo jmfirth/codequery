@@ -32,8 +32,14 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             mode,
             pretty,
         ),
-        Command::Body { .. }
-        | Command::Sig { .. }
+        Command::Body { symbol } => commands::body::run(
+            &symbol,
+            args.project.as_deref(),
+            args.scope.as_deref(),
+            mode,
+            pretty,
+        ),
+        Command::Sig { .. }
         | Command::Refs { .. }
         | Command::Callers { .. }
         | Command::Deps { .. }

@@ -26,6 +26,17 @@ pub struct DefResults {
     pub total: usize,
 }
 
+/// JSON payload for the `body` command.
+#[derive(Debug, Serialize)]
+pub struct BodyResults {
+    /// The symbol name that was searched for.
+    pub symbol: String,
+    /// Matching definitions with body text.
+    pub definitions: Vec<Symbol>,
+    /// Total number of matches.
+    pub total: usize,
+}
+
 /// JSON payload for the `outline` command.
 #[derive(Debug, Serialize)]
 pub struct OutlineResult {
@@ -97,6 +108,73 @@ fn format_def_raw(symbols: &[Symbol]) -> String {
             symbol.kind,
             symbol.name,
         );
+    }
+    output
+}
+
+// ---------------------------------------------------------------------------
+// Body formatting
+// ---------------------------------------------------------------------------
+
+/// Format `body` results in the requested mode.
+pub fn format_body(
+    symbols: &[Symbol],
+    symbol_name: &str,
+    mode: OutputMode,
+    pretty: bool,
+) -> String {
+    match mode {
+        OutputMode::Framed => format_body_framed(symbols),
+        OutputMode::Json => format_body_json(symbols, symbol_name, pretty),
+        OutputMode::Raw => format_body_raw(symbols),
+    }
+}
+
+/// Format symbol bodies — framed output.
+///
+/// Each symbol produces a frame header followed by its body text.
+/// Multiple results are separated by blank lines.
+fn format_body_framed(symbols: &[Symbol]) -> String {
+    let mut output = String::new();
+    for (i, symbol) in symbols.iter().enumerate() {
+        if i > 0 {
+            output.push_str("\n\n");
+        }
+        output.push_str(&format_frame_header(symbol));
+        if let Some(body) = &symbol.body {
+            output.push('\n');
+            output.push_str(body);
+        }
+    }
+    output
+}
+
+/// Format `body` results as JSON wrapped in `QueryResult`.
+fn format_body_json(symbols: &[Symbol], symbol_name: &str, force_pretty: bool) -> String {
+    let data = BodyResults {
+        symbol: symbol_name.to_string(),
+        definitions: symbols.to_vec(),
+        total: symbols.len(),
+    };
+    let result = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::Exhaustive,
+        note: None,
+        data,
+    };
+    serialize_json(&result, force_pretty)
+}
+
+/// Format `body` results as raw text — body text only, no framing.
+fn format_body_raw(symbols: &[Symbol]) -> String {
+    let mut output = String::new();
+    for (i, symbol) in symbols.iter().enumerate() {
+        if i > 0 {
+            output.push_str("\n\n");
+        }
+        if let Some(body) = &symbol.body {
+            output.push_str(body);
+        }
     }
     output
 }
@@ -230,6 +308,30 @@ mod tests {
             doc: None,
             body: None,
             signature: None,
+        }
+    }
+
+    fn make_symbol_with_body(
+        name: &str,
+        kind: SymbolKind,
+        file: &str,
+        line: usize,
+        column: usize,
+        visibility: Visibility,
+        body: &str,
+    ) -> Symbol {
+        Symbol {
+            name: name.to_string(),
+            kind,
+            file: PathBuf::from(file),
+            line,
+            column,
+            end_line: line + 5,
+            visibility,
+            children: vec![],
+            doc: Some("A doc comment.".to_string()),
+            body: Some(body.to_string()),
+            signature: Some(format!("fn {name}()")),
         }
     }
 
@@ -653,5 +755,181 @@ mod tests {
             format_outline_output(Path::new("src/lib.rs"), &symbols, OutputMode::Framed, false),
             format_outline(Path::new("src/lib.rs"), &symbols)
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Body framed output tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_body_framed_single_result_with_body_text() {
+        let symbols = vec![make_symbol_with_body(
+            "greet",
+            SymbolKind::Function,
+            "src/lib.rs",
+            9,
+            0,
+            Visibility::Public,
+            "pub fn greet(name: &str) -> String {\n    format!(\"Hello, {name}!\")\n}",
+        )];
+        let output = format_body(&symbols, "greet", OutputMode::Framed, false);
+        assert!(output.starts_with("@@ src/lib.rs:9:0 function greet @@\n"));
+        assert!(output.contains("pub fn greet(name: &str) -> String {"));
+        assert!(output.contains("format!(\"Hello, {name}!\")"));
+    }
+
+    #[test]
+    fn test_body_framed_multiple_results_separated_by_blank_line() {
+        let symbols = vec![
+            make_symbol_with_body(
+                "foo",
+                SymbolKind::Function,
+                "src/lib.rs",
+                1,
+                0,
+                Visibility::Public,
+                "fn foo() {}",
+            ),
+            make_symbol_with_body(
+                "foo",
+                SymbolKind::Function,
+                "src/main.rs",
+                10,
+                0,
+                Visibility::Private,
+                "fn foo() { 42 }",
+            ),
+        ];
+        let output = format_body(&symbols, "foo", OutputMode::Framed, false);
+        assert!(output.contains("@@ src/lib.rs:1:0 function foo @@\nfn foo() {}"));
+        assert!(output.contains("\n\n@@ src/main.rs:10:0 function foo @@\nfn foo() { 42 }"));
+    }
+
+    #[test]
+    fn test_body_framed_empty_results_returns_empty_string() {
+        let output = format_body(&[], "missing", OutputMode::Framed, false);
+        assert_eq!(output, "");
+    }
+
+    #[test]
+    fn test_body_framed_symbol_without_body_shows_header_only() {
+        let symbols = vec![make_symbol(
+            "foo",
+            SymbolKind::Function,
+            "src/lib.rs",
+            1,
+            0,
+            Visibility::Public,
+            vec![],
+        )];
+        let output = format_body(&symbols, "foo", OutputMode::Framed, false);
+        assert_eq!(output, "@@ src/lib.rs:1:0 function foo @@");
+    }
+
+    // -----------------------------------------------------------------------
+    // Body JSON output tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_body_json_produces_valid_json_with_body_field() {
+        let symbols = vec![make_symbol_with_body(
+            "greet",
+            SymbolKind::Function,
+            "src/lib.rs",
+            9,
+            0,
+            Visibility::Public,
+            "pub fn greet() {}",
+        )];
+        let output = format_body(&symbols, "greet", OutputMode::Json, true);
+        let json: serde_json::Value = serde_json::from_str(&output).expect("valid JSON");
+        assert_eq!(json["resolution"], "syntactic");
+        assert_eq!(json["completeness"], "exhaustive");
+        assert_eq!(json["symbol"], "greet");
+        assert_eq!(json["total"], 1);
+        assert!(json["definitions"].is_array());
+        assert_eq!(json["definitions"][0]["name"], "greet");
+        assert_eq!(json["definitions"][0]["body"], "pub fn greet() {}");
+        assert_eq!(json["definitions"][0]["signature"], "fn greet()");
+        assert_eq!(json["definitions"][0]["doc"], "A doc comment.");
+    }
+
+    #[test]
+    fn test_body_json_empty_results_has_metadata() {
+        let output = format_body(&[], "missing", OutputMode::Json, true);
+        let json: serde_json::Value = serde_json::from_str(&output).expect("valid JSON");
+        assert_eq!(json["resolution"], "syntactic");
+        assert_eq!(json["completeness"], "exhaustive");
+        assert_eq!(json["symbol"], "missing");
+        assert_eq!(json["total"], 0);
+        assert_eq!(json["definitions"], serde_json::json!([]));
+    }
+
+    // -----------------------------------------------------------------------
+    // Body raw output tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_body_raw_outputs_body_text_only() {
+        let symbols = vec![make_symbol_with_body(
+            "greet",
+            SymbolKind::Function,
+            "src/lib.rs",
+            9,
+            0,
+            Visibility::Public,
+            "pub fn greet() {\n    println!(\"hello\");\n}",
+        )];
+        let output = format_body(&symbols, "greet", OutputMode::Raw, false);
+        assert!(!output.contains("@@"));
+        assert_eq!(output, "pub fn greet() {\n    println!(\"hello\");\n}");
+    }
+
+    #[test]
+    fn test_body_raw_multiple_results_separated_by_blank_line() {
+        let symbols = vec![
+            make_symbol_with_body(
+                "foo",
+                SymbolKind::Function,
+                "src/lib.rs",
+                1,
+                0,
+                Visibility::Public,
+                "fn foo() {}",
+            ),
+            make_symbol_with_body(
+                "foo",
+                SymbolKind::Function,
+                "src/main.rs",
+                10,
+                0,
+                Visibility::Private,
+                "fn foo() { 42 }",
+            ),
+        ];
+        let output = format_body(&symbols, "foo", OutputMode::Raw, false);
+        assert!(!output.contains("@@"));
+        assert_eq!(output, "fn foo() {}\n\nfn foo() { 42 }");
+    }
+
+    #[test]
+    fn test_body_raw_empty_results_returns_empty_string() {
+        let output = format_body(&[], "missing", OutputMode::Raw, false);
+        assert_eq!(output, "");
+    }
+
+    #[test]
+    fn test_body_raw_symbol_without_body_returns_empty_string() {
+        let symbols = vec![make_symbol(
+            "foo",
+            SymbolKind::Function,
+            "src/lib.rs",
+            1,
+            0,
+            Visibility::Public,
+            vec![],
+        )];
+        let output = format_body(&symbols, "foo", OutputMode::Raw, false);
+        assert_eq!(output, "");
     }
 }
