@@ -1,13 +1,15 @@
 //! Language-aware symbol extraction dispatch.
 //!
 //! Routes extraction requests to the appropriate per-language extractor
-//! based on the `Language` parameter. Non-Rust languages return empty results
-//! until their extraction modules are implemented (Tasks 014-018).
+//! based on the `Language` parameter. Languages without extractors return
+//! empty results until their modules are implemented.
 
 use std::path::Path;
 
 use codequery_core::{Language, Symbol};
 
+use crate::languages::java::JavaExtractor;
+use crate::languages::python::PythonExtractor;
 use crate::languages::rust::RustExtractor;
 use crate::languages::LanguageExtractor;
 
@@ -30,14 +32,14 @@ pub fn extract_symbols(
 ) -> Vec<Symbol> {
     match language {
         Language::Rust => RustExtractor::extract_symbols(source, tree, file),
-        // Other languages return empty until their extraction modules land (Tasks 014-018)
+        Language::Python => PythonExtractor::extract_symbols(source, tree, file),
+        Language::Java => JavaExtractor::extract_symbols(source, tree, file),
+        // Other languages return empty until their extraction modules land
         Language::TypeScript
         | Language::JavaScript
-        | Language::Python
         | Language::Go
         | Language::C
-        | Language::Cpp
-        | Language::Java => Vec::new(),
+        | Language::Cpp => Vec::new(),
     }
 }
 
@@ -56,7 +58,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_symbols_non_rust_returns_empty() {
+    fn test_extract_symbols_python_extracts_function() {
         let mut parser = crate::Parser::for_language(Language::Python).unwrap();
         let tree = parser.parse(b"def foo():\n    pass\n").unwrap();
         let symbols = extract_symbols(
@@ -65,7 +67,8 @@ mod tests {
             Path::new("foo.py"),
             Language::Python,
         );
-        assert!(symbols.is_empty());
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "foo");
     }
 
     #[test]
@@ -129,7 +132,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_symbols_java_returns_empty() {
+    fn test_extract_symbols_java_extracts_class() {
         let mut parser = crate::Parser::for_language(Language::Java).unwrap();
         let tree = parser.parse(b"public class Foo {}").unwrap();
         let symbols = extract_symbols(
@@ -138,6 +141,7 @@ mod tests {
             Path::new("Foo.java"),
             Language::Java,
         );
-        assert!(symbols.is_empty());
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "Foo");
     }
 }

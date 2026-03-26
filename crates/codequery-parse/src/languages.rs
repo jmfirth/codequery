@@ -7,6 +7,8 @@ use std::path::Path;
 
 use codequery_core::Symbol;
 
+pub mod java;
+pub mod python;
 pub mod rust;
 
 /// Trait for language-specific symbol extraction from tree-sitter ASTs.

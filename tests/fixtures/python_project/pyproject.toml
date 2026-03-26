@@ -1,0 +1,4 @@
+[project]
+name = "python-fixture"
+version = "0.1.0"
+description = "Fixture project for codequery Python extraction tests"
