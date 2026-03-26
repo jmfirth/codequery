@@ -4,3 +4,4 @@ pub mod def;
 pub mod imports;
 pub mod outline;
 pub mod sig;
+pub mod symbols;

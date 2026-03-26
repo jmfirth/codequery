@@ -52,10 +52,17 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
         Command::Context { location } => {
             commands::context::run(&location, args.project.as_deref(), mode, pretty, args.depth)
         }
+        Command::Symbols => commands::symbols::run(
+            args.project.as_deref(),
+            args.scope.as_deref(),
+            args.kind.as_deref(),
+            args.limit,
+            mode,
+            pretty,
+        ),
         Command::Refs { .. }
         | Command::Callers { .. }
         | Command::Deps { .. }
-        | Command::Symbols
         | Command::Tree { .. } => {
             eprintln!("not yet implemented");
             Ok(ExitCode::Success)

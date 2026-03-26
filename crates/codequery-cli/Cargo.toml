@@ -13,6 +13,7 @@ anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 codequery-core = { path = "../codequery-core" }
+codequery-index = { path = "../codequery-index" }
 codequery-parse = { path = "../codequery-parse" }
 
 [dev-dependencies]

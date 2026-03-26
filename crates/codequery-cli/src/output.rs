@@ -541,6 +541,76 @@ fn format_outline_symbol(symbol: &Symbol, indent: usize, output: &mut String) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Symbols formatting
+// ---------------------------------------------------------------------------
+
+/// JSON payload for the `symbols` command.
+#[derive(Debug, Serialize)]
+pub struct SymbolsResult {
+    /// All symbols found in the project.
+    pub symbols: Vec<Symbol>,
+    /// Total number of symbols.
+    pub total: usize,
+}
+
+/// Format `symbols` results in the requested mode.
+pub fn format_symbols(symbols: &[Symbol], mode: OutputMode, pretty: bool) -> String {
+    match mode {
+        OutputMode::Framed => format_symbols_framed(symbols),
+        OutputMode::Json => format_symbols_json(symbols, pretty),
+        OutputMode::Raw => format_symbols_raw(symbols),
+    }
+}
+
+/// Format symbols as framed output: `@@ file:line:col kind name @@` per symbol.
+fn format_symbols_framed(symbols: &[Symbol]) -> String {
+    let mut output = String::new();
+    for (i, symbol) in symbols.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+        output.push_str(&format_frame_header(symbol));
+    }
+    output
+}
+
+/// Format `symbols` results as JSON wrapped in `QueryResult`.
+fn format_symbols_json(symbols: &[Symbol], force_pretty: bool) -> String {
+    let data = SymbolsResult {
+        total: symbols.len(),
+        symbols: symbols.to_vec(),
+    };
+    let result = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::Exhaustive,
+        note: None,
+        data,
+    };
+    serialize_json(&result, force_pretty)
+}
+
+/// Format `symbols` results as raw text: `file:line:col kind name` per symbol.
+fn format_symbols_raw(symbols: &[Symbol]) -> String {
+    use std::fmt::Write;
+    let mut output = String::new();
+    for (i, symbol) in symbols.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+        let _ = write!(
+            output,
+            "{}:{}:{} {} {}",
+            symbol.file.display(),
+            symbol.line,
+            symbol.column,
+            symbol.kind,
+            symbol.name,
+        );
+    }
+    output
+}
+
 /// Serialize a value to JSON, choosing pretty or compact based on TTY and flags.
 fn serialize_json<T: Serialize>(value: &T, force_pretty: bool) -> String {
     let use_pretty = force_pretty || std::io::stdout().is_terminal();
