@@ -96,6 +96,19 @@ pub struct RefsResult {
     pub total: usize,
 }
 
+/// JSON payload for the `callers` command.
+#[derive(Debug, Serialize)]
+pub struct CallersResult {
+    /// The symbol name that was searched for.
+    pub symbol: String,
+    /// Definition locations for the symbol.
+    pub definitions: Vec<Symbol>,
+    /// All call-site references found.
+    pub callers: Vec<Reference>,
+    /// Total number of callers.
+    pub total: usize,
+}
+
 /// JSON payload for a single file in the `tree` command.
 #[derive(Debug, Serialize)]
 pub struct TreeFileEntry {
@@ -955,6 +968,182 @@ fn format_refs_raw(
             r.line,
             r.column,
             r.kind,
+        );
+
+        if context_lines > 0 {
+            if let Some(source) = source_map.get(r.file.as_path()) {
+                let ctx = get_context_lines(source, r.line, context_lines);
+                for line in &ctx {
+                    output.push('\n');
+                    output.push_str(line);
+                }
+            }
+        }
+    }
+
+    output
+}
+
+// ---------------------------------------------------------------------------
+// Callers formatting
+// ---------------------------------------------------------------------------
+
+/// Format `callers` results in the requested mode.
+#[allow(clippy::too_many_arguments)]
+// All parameters are needed to support definition, reference, context, and output mode options
+pub fn format_callers(
+    definitions: &[Symbol],
+    callers: &[Reference],
+    symbol_name: &str,
+    mode: OutputMode,
+    pretty: bool,
+    context_lines: usize,
+    source_map: &HashMap<&Path, &str>,
+) -> String {
+    match mode {
+        OutputMode::Framed => {
+            format_callers_framed(definitions, callers, context_lines, source_map)
+        }
+        OutputMode::Json => format_callers_json(definitions, callers, symbol_name, pretty),
+        OutputMode::Raw => format_callers_raw(callers, context_lines, source_map),
+    }
+}
+
+/// Format callers results as framed output.
+///
+/// Shows definition location(s) first, then each call site with caller info.
+/// Ends with a summary count.
+fn format_callers_framed(
+    definitions: &[Symbol],
+    callers: &[Reference],
+    context_lines: usize,
+    source_map: &HashMap<&Path, &str>,
+) -> String {
+    use crate::commands::refs::get_context_lines;
+    use std::fmt::Write;
+
+    let mut output = String::new();
+
+    // Show definitions first
+    for (i, def) in definitions.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+        let _ = write!(
+            output,
+            "@@ {}:{}:{} {} {} (definition) @@",
+            def.file.display(),
+            def.line,
+            def.column,
+            def.kind,
+            def.name,
+        );
+    }
+
+    // Show call-site references with caller info
+    for r in callers {
+        if !output.is_empty() {
+            output.push('\n');
+        }
+
+        // Include caller function name if available
+        let caller_info = match &r.caller {
+            Some(name) => format!(" (in {name})"),
+            None => String::new(),
+        };
+
+        let _ = write!(
+            output,
+            "@@ {}:{}:{} call{} @@",
+            r.file.display(),
+            r.line,
+            r.column,
+            caller_info,
+        );
+
+        if context_lines > 0 {
+            if let Some(source) = source_map.get(r.file.as_path()) {
+                let ctx = get_context_lines(source, r.line, context_lines);
+                for line in &ctx {
+                    output.push('\n');
+                    output.push_str(line);
+                }
+            }
+        } else {
+            // Show the single context line
+            output.push('\n');
+            let trimmed = r.context.trim_start();
+            output.push_str("    ");
+            output.push_str(trimmed);
+        }
+    }
+
+    // Summary line
+    if !output.is_empty() {
+        output.push('\n');
+    }
+    let _ = write!(
+        output,
+        "\n{} caller{} (syntactic match \u{2014} may be incomplete)",
+        callers.len(),
+        if callers.len() == 1 { "" } else { "s" },
+    );
+
+    output
+}
+
+/// Format `callers` results as JSON wrapped in `QueryResult`.
+fn format_callers_json(
+    definitions: &[Symbol],
+    callers: &[Reference],
+    symbol_name: &str,
+    force_pretty: bool,
+) -> String {
+    let data = CallersResult {
+        symbol: symbol_name.to_string(),
+        definitions: definitions.to_vec(),
+        callers: callers.to_vec(),
+        total: callers.len(),
+    };
+    let result = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::BestEffort,
+        note: Some(
+            "name-based matching; may include false positives or miss renamed symbols".to_string(),
+        ),
+        data,
+    };
+    serialize_json(&result, force_pretty)
+}
+
+/// Format `callers` results as raw text (no `@@` delimiters).
+fn format_callers_raw(
+    callers: &[Reference],
+    context_lines: usize,
+    source_map: &HashMap<&Path, &str>,
+) -> String {
+    use crate::commands::refs::get_context_lines;
+    use std::fmt::Write;
+
+    let mut output = String::new();
+
+    for (i, r) in callers.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+
+        let caller_info = match &r.caller {
+            Some(name) => format!(" (in {name})"),
+            None => String::new(),
+        };
+
+        let _ = write!(
+            output,
+            "{}:{}:{} call{}",
+            r.file.display(),
+            r.line,
+            r.column,
+            caller_info,
         );
 
         if context_lines > 0 {

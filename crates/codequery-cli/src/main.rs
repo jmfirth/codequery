@@ -83,9 +83,13 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             mode,
             pretty,
         ),
-        Command::Callers { .. } => {
-            eprintln!("not yet implemented");
-            Ok(ExitCode::Success)
-        }
+        Command::Callers { symbol } => commands::callers::run(
+            &symbol,
+            args.project.as_deref(),
+            args.scope.as_deref(),
+            mode,
+            pretty,
+            args.context,
+        ),
     }
 }
