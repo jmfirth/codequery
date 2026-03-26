@@ -12,6 +12,7 @@ use crate::languages::go::GoExtractor;
 use crate::languages::java::JavaExtractor;
 use crate::languages::python::PythonExtractor;
 use crate::languages::rust::RustExtractor;
+use crate::languages::typescript::TypeScriptExtractor;
 use crate::languages::LanguageExtractor;
 
 /// Extract symbols using the appropriate language extractor.
@@ -36,8 +37,11 @@ pub fn extract_symbols(
         Language::Python => PythonExtractor::extract_symbols(source, tree, file),
         Language::Go => GoExtractor::extract_symbols(source, tree, file),
         Language::Java => JavaExtractor::extract_symbols(source, tree, file),
+        Language::TypeScript | Language::JavaScript => {
+            TypeScriptExtractor::extract_symbols(source, tree, file)
+        }
         // Other languages return empty until their extraction modules land
-        Language::TypeScript | Language::JavaScript | Language::C | Language::Cpp => Vec::new(),
+        Language::C | Language::Cpp => Vec::new(),
     }
 }
 
@@ -70,7 +74,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_symbols_typescript_returns_empty() {
+    fn test_extract_symbols_typescript_dispatches_correctly() {
         let mut parser = crate::Parser::for_language(Language::TypeScript).unwrap();
         let tree = parser.parse(b"function foo(): void {}").unwrap();
         let symbols = extract_symbols(
@@ -79,11 +83,12 @@ mod tests {
             Path::new("foo.ts"),
             Language::TypeScript,
         );
-        assert!(symbols.is_empty());
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "foo");
     }
 
     #[test]
-    fn test_extract_symbols_javascript_returns_empty() {
+    fn test_extract_symbols_javascript_dispatches_correctly() {
         let mut parser = crate::Parser::for_language(Language::JavaScript).unwrap();
         let tree = parser.parse(b"function foo() {}").unwrap();
         let symbols = extract_symbols(
@@ -92,7 +97,8 @@ mod tests {
             Path::new("foo.js"),
             Language::JavaScript,
         );
-        assert!(symbols.is_empty());
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "foo");
     }
 
     #[test]

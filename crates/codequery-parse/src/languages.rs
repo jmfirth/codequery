@@ -11,6 +11,7 @@ pub mod go;
 pub mod java;
 pub mod python;
 pub mod rust;
+pub mod typescript;
 
 /// Trait for language-specific symbol extraction from tree-sitter ASTs.
 ///
