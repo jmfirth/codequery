@@ -226,16 +226,21 @@ fn extract_top_level(node: tree_sitter::Node<'_>, source: &str, file: &Path) -> 
 
 /// Extract the function name from a `function_definition` node.
 ///
-/// The `function_definition` node has a `declarator` field containing a
-/// `function_declarator`, which itself has a `declarator` field with the identifier.
+/// The `function_definition` node has a `declarator` field. For simple
+/// return types this is a `function_declarator`. For pointer return types
+/// (e.g. `const char*`) it is a `pointer_declarator` wrapping the
+/// `function_declarator`. We unwrap through pointer declarators until
+/// we reach the `function_declarator`, then extract the name identifier.
 fn extract_function_name(node: tree_sitter::Node<'_>, source: &str) -> Option<String> {
-    let declarator = node.child_by_field_name("declarator")?;
-    // function_declarator -> declarator (identifier)
+    let mut declarator = node.child_by_field_name("declarator")?;
+    // Unwrap pointer_declarator layers (e.g. `char* func(...)`)
+    while declarator.kind() == "pointer_declarator" {
+        declarator = declarator.child_by_field_name("declarator")?;
+    }
+    // Now declarator should be function_declarator
     let name_node = declarator.child_by_field_name("declarator")?;
-    name_node
-        .utf8_text(source.as_bytes())
-        .ok()
-        .map(String::from)
+    // The name node itself could be a pointer_declarator in rare cases
+    extract_innermost_identifier(name_node, source)
 }
 
 /// Extract the typedef name from a `type_definition` node.
