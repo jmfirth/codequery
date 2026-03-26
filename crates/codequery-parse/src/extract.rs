@@ -8,6 +8,8 @@ use std::path::Path;
 
 use codequery_core::{Language, Symbol};
 
+use crate::languages::c::CExtractor;
+use crate::languages::cpp::CppExtractor;
 use crate::languages::go::GoExtractor;
 use crate::languages::java::JavaExtractor;
 use crate::languages::python::PythonExtractor;
@@ -40,8 +42,8 @@ pub fn extract_symbols(
         Language::TypeScript | Language::JavaScript => {
             TypeScriptExtractor::extract_symbols(source, tree, file)
         }
-        // Other languages return empty until their extraction modules land
-        Language::C | Language::Cpp => Vec::new(),
+        Language::C => CExtractor::extract_symbols(source, tree, file),
+        Language::Cpp => CppExtractor::extract_symbols(source, tree, file),
     }
 }
 
@@ -116,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_symbols_c_returns_empty() {
+    fn test_extract_symbols_c_dispatches_correctly() {
         let mut parser = crate::Parser::for_language(Language::C).unwrap();
         let tree = parser.parse(b"int main() { return 0; }").unwrap();
         let symbols = extract_symbols(
@@ -125,15 +127,17 @@ mod tests {
             Path::new("main.c"),
             Language::C,
         );
-        assert!(symbols.is_empty());
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "main");
     }
 
     #[test]
-    fn test_extract_symbols_cpp_returns_empty() {
+    fn test_extract_symbols_cpp_dispatches_correctly() {
         let mut parser = crate::Parser::for_language(Language::Cpp).unwrap();
         let tree = parser.parse(b"class Foo {};").unwrap();
         let symbols = extract_symbols("class Foo {};", &tree, Path::new("foo.cpp"), Language::Cpp);
-        assert!(symbols.is_empty());
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "Foo");
     }
 
     #[test]

@@ -7,6 +7,8 @@ use std::path::Path;
 
 use codequery_core::Symbol;
 
+pub mod c;
+pub mod cpp;
 pub mod go;
 pub mod java;
 pub mod python;

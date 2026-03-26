@@ -32,5 +32,17 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             mode,
             pretty,
         ),
+        Command::Body { .. }
+        | Command::Sig { .. }
+        | Command::Refs { .. }
+        | Command::Callers { .. }
+        | Command::Deps { .. }
+        | Command::Symbols
+        | Command::Imports { .. }
+        | Command::Context { .. }
+        | Command::Tree { .. } => {
+            eprintln!("not yet implemented");
+            Ok(ExitCode::Success)
+        }
     }
 }

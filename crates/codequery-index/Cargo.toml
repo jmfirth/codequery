@@ -1,0 +1,15 @@
+[package]
+name = "codequery-index"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rayon = "1"
+memmap2 = "0.9"
+memchr = "2"
+codequery-core = { path = "../codequery-core" }
+codequery-parse = { path = "../codequery-parse" }
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = { workspace = true }

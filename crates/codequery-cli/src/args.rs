@@ -36,6 +36,26 @@ pub struct CqArgs {
     #[arg(long, global = true)]
     pub pretty: bool,
 
+    /// Filter results by symbol kind
+    #[arg(long, global = true)]
+    pub kind: Option<String>,
+
+    /// Force language detection
+    #[arg(long, global = true)]
+    pub lang: Option<String>,
+
+    /// Lines of context around matches
+    #[arg(long, global = true, default_value = "0")]
+    pub context: usize,
+
+    /// Limit nesting depth (for tree, context)
+    #[arg(long, global = true)]
+    pub depth: Option<usize>,
+
+    /// Maximum number of results
+    #[arg(long, global = true)]
+    pub limit: Option<usize>,
+
     #[command(subcommand)]
     pub command: Command,
 }
@@ -65,6 +85,48 @@ pub enum Command {
     Def {
         /// Symbol name to search for
         symbol: String,
+    },
+    /// Extract the full body of a symbol
+    Body {
+        /// Symbol name to extract body for
+        symbol: String,
+    },
+    /// Extract the signature of a symbol
+    Sig {
+        /// Symbol name to extract signature for
+        symbol: String,
+    },
+    /// Find all references to a symbol
+    Refs {
+        /// Symbol name to find references for
+        symbol: String,
+    },
+    /// Find all callers of a function
+    Callers {
+        /// Function name to find callers for
+        symbol: String,
+    },
+    /// Show dependency relationships
+    Deps {
+        /// Symbol name to show dependencies for
+        symbol: String,
+    },
+    /// List all symbols in scope
+    Symbols,
+    /// List imports in a file
+    Imports {
+        /// Path to the file to list imports for
+        file: PathBuf,
+    },
+    /// Show code context around a location
+    Context {
+        /// Location in `file:line` format
+        location: String,
+    },
+    /// Show project structure tree
+    Tree {
+        /// Path to root (defaults to project root)
+        path: Option<PathBuf>,
     },
 }
 
@@ -203,5 +265,122 @@ mod tests {
         assert!(!args.json);
         assert!(!args.raw);
         assert_eq!(args.output_mode(), OutputMode::Framed);
+    }
+
+    #[test]
+    fn test_kind_flag_parsed() {
+        let args = CqArgs::parse_from(["cq", "--kind", "function", "def", "foo"]);
+        assert_eq!(args.kind, Some("function".to_string()));
+    }
+
+    #[test]
+    fn test_lang_flag_parsed() {
+        let args = CqArgs::parse_from(["cq", "--lang", "rust", "def", "foo"]);
+        assert_eq!(args.lang, Some("rust".to_string()));
+    }
+
+    #[test]
+    fn test_context_flag_parsed() {
+        let args = CqArgs::parse_from(["cq", "--context", "3", "def", "foo"]);
+        assert_eq!(args.context, 3);
+    }
+
+    #[test]
+    fn test_depth_flag_parsed() {
+        let args = CqArgs::parse_from(["cq", "--depth", "2", "def", "foo"]);
+        assert_eq!(args.depth, Some(2));
+    }
+
+    #[test]
+    fn test_limit_flag_parsed() {
+        let args = CqArgs::parse_from(["cq", "--limit", "10", "def", "foo"]);
+        assert_eq!(args.limit, Some(10));
+    }
+
+    #[test]
+    fn test_body_command_captures_symbol() {
+        let args = CqArgs::parse_from(["cq", "body", "my_func"]);
+        match args.command {
+            Command::Body { symbol } => assert_eq!(symbol, "my_func"),
+            _ => panic!("expected Body command"),
+        }
+    }
+
+    #[test]
+    fn test_sig_command_captures_symbol() {
+        let args = CqArgs::parse_from(["cq", "sig", "my_func"]);
+        match args.command {
+            Command::Sig { symbol } => assert_eq!(symbol, "my_func"),
+            _ => panic!("expected Sig command"),
+        }
+    }
+
+    #[test]
+    fn test_refs_command_captures_symbol() {
+        let args = CqArgs::parse_from(["cq", "refs", "my_func"]);
+        match args.command {
+            Command::Refs { symbol } => assert_eq!(symbol, "my_func"),
+            _ => panic!("expected Refs command"),
+        }
+    }
+
+    #[test]
+    fn test_callers_command_captures_symbol() {
+        let args = CqArgs::parse_from(["cq", "callers", "my_func"]);
+        match args.command {
+            Command::Callers { symbol } => assert_eq!(symbol, "my_func"),
+            _ => panic!("expected Callers command"),
+        }
+    }
+
+    #[test]
+    fn test_deps_command_captures_symbol() {
+        let args = CqArgs::parse_from(["cq", "deps", "my_module"]);
+        match args.command {
+            Command::Deps { symbol } => assert_eq!(symbol, "my_module"),
+            _ => panic!("expected Deps command"),
+        }
+    }
+
+    #[test]
+    fn test_symbols_command_parses() {
+        let args = CqArgs::parse_from(["cq", "symbols"]);
+        assert!(matches!(args.command, Command::Symbols));
+    }
+
+    #[test]
+    fn test_imports_command_captures_file() {
+        let args = CqArgs::parse_from(["cq", "imports", "src/main.rs"]);
+        match args.command {
+            Command::Imports { file } => assert_eq!(file, PathBuf::from("src/main.rs")),
+            _ => panic!("expected Imports command"),
+        }
+    }
+
+    #[test]
+    fn test_context_command_captures_location() {
+        let args = CqArgs::parse_from(["cq", "context", "src/main.rs:42"]);
+        match args.command {
+            Command::Context { location } => assert_eq!(location, "src/main.rs:42"),
+            _ => panic!("expected Context command"),
+        }
+    }
+
+    #[test]
+    fn test_tree_command_parses_with_path() {
+        let args = CqArgs::parse_from(["cq", "tree", "src/"]);
+        match args.command {
+            Command::Tree { path } => assert_eq!(path, Some(PathBuf::from("src/"))),
+            _ => panic!("expected Tree command"),
+        }
+    }
+
+    #[test]
+    fn test_tree_command_parses_without_path() {
+        let args = CqArgs::parse_from(["cq", "tree"]);
+        match args.command {
+            Command::Tree { path } => assert!(path.is_none()),
+            _ => panic!("expected Tree command"),
+        }
     }
 }
