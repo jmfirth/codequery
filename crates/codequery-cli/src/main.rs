@@ -60,10 +60,30 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             mode,
             pretty,
         ),
-        Command::Refs { .. }
-        | Command::Callers { .. }
-        | Command::Deps { .. }
-        | Command::Tree { .. } => {
+        Command::Tree { path } => commands::tree::run(
+            path.as_deref(),
+            args.project.as_deref(),
+            args.scope.as_deref(),
+            mode,
+            pretty,
+            args.depth,
+        ),
+        Command::Refs { symbol } => commands::refs::run(
+            &symbol,
+            args.project.as_deref(),
+            args.scope.as_deref(),
+            mode,
+            pretty,
+            args.context,
+        ),
+        Command::Deps { symbol } => commands::deps::run(
+            &symbol,
+            args.project.as_deref(),
+            args.scope.as_deref(),
+            mode,
+            pretty,
+        ),
+        Command::Callers { .. } => {
             eprintln!("not yet implemented");
             Ok(ExitCode::Success)
         }

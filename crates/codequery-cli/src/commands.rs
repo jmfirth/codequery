@@ -1,7 +1,10 @@
 pub mod body;
 pub mod context;
 pub mod def;
+pub mod deps;
 pub mod imports;
 pub mod outline;
+pub mod refs;
 pub mod sig;
 pub mod symbols;
+pub mod tree;

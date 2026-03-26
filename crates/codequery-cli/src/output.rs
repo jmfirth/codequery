@@ -4,9 +4,11 @@
 //! formats defined in SPECIFICATION.md section 9. It is pure formatting:
 //! no I/O, no parsing, only string construction from typed symbol data.
 
-use codequery_core::{Completeness, QueryResult, Resolution, Symbol};
+use codequery_core::{Completeness, QueryResult, Reference, Resolution, Symbol};
+use codequery_index::FileSymbols;
 use codequery_parse::ImportInfo;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::path::Path;
 
@@ -79,6 +81,67 @@ pub struct ContextResult {
     /// The enclosing symbol, if found.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub symbol: Option<Symbol>,
+}
+
+/// JSON payload for the `refs` command.
+#[derive(Debug, Serialize)]
+pub struct RefsResult {
+    /// The symbol name that was searched for.
+    pub symbol: String,
+    /// Definition locations for the symbol.
+    pub definitions: Vec<Symbol>,
+    /// All references found.
+    pub references: Vec<Reference>,
+    /// Total number of references.
+    pub total: usize,
+}
+
+/// JSON payload for a single file in the `tree` command.
+#[derive(Debug, Serialize)]
+pub struct TreeFileEntry {
+    /// Relative file path.
+    pub file: String,
+    /// Symbols in this file.
+    pub symbols: Vec<Symbol>,
+}
+
+/// JSON payload for the `tree` command.
+#[derive(Debug, Serialize)]
+pub struct TreeResult {
+    /// Optional scope path that was used to filter files.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+    /// Files with their symbols.
+    pub files: Vec<TreeFileEntry>,
+    /// Total number of files.
+    pub total_files: usize,
+    /// Total number of symbols across all files.
+    pub total_symbols: usize,
+}
+
+/// A single dependency of a symbol.
+#[derive(Debug, Clone, Serialize)]
+pub struct Dependency {
+    /// The name of the referenced symbol.
+    pub name: String,
+    /// The kind of reference (`call`, `type_reference`, `import`, `assignment`).
+    pub kind: String,
+    /// The file where the dependency is defined, or None if unresolvable.
+    pub defined_in: Option<String>,
+}
+
+/// JSON payload for the `deps` command.
+#[derive(Debug, Serialize)]
+pub struct DepsResult {
+    /// The symbol being analyzed.
+    pub symbol: String,
+    /// The symbol definition info, if found.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub definition: Option<Symbol>,
+    /// Dependencies found in the symbol body.
+    pub dependencies: Vec<Dependency>,
+    /// Total number of dependencies.
+    pub total: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -607,6 +670,376 @@ fn format_symbols_raw(symbols: &[Symbol]) -> String {
             symbol.kind,
             symbol.name,
         );
+    }
+    output
+}
+
+// ---------------------------------------------------------------------------
+// Tree formatting
+// ---------------------------------------------------------------------------
+
+/// Format `tree` results in the requested mode.
+pub fn format_tree_output(
+    file_symbols: &[FileSymbols],
+    scope: Option<&Path>,
+    mode: OutputMode,
+    pretty: bool,
+) -> String {
+    match mode {
+        OutputMode::Framed => format_tree_framed(file_symbols, scope),
+        OutputMode::Json => format_tree_json(file_symbols, scope, pretty),
+        OutputMode::Raw => format_tree_raw(file_symbols),
+    }
+}
+
+/// Format tree as framed output: `@@ scope @@` header, then files with indented symbols.
+fn format_tree_framed(file_symbols: &[FileSymbols], scope: Option<&Path>) -> String {
+    use std::fmt::Write;
+    let mut output = String::new();
+
+    // Scope header
+    if let Some(scope) = scope {
+        let _ = write!(output, "@@ {} @@", scope.display());
+    } else {
+        output.push_str("@@ . @@");
+    }
+
+    for fs in file_symbols {
+        output.push('\n');
+        let _ = write!(output, "{}", fs.file.display());
+        for symbol in &fs.symbols {
+            output.push('\n');
+            format_tree_symbol(symbol, 1, &mut output);
+        }
+    }
+
+    output
+}
+
+/// Format `tree` results as JSON wrapped in `QueryResult`.
+fn format_tree_json(
+    file_symbols: &[FileSymbols],
+    scope: Option<&Path>,
+    force_pretty: bool,
+) -> String {
+    let total_symbols: usize = file_symbols
+        .iter()
+        .map(|fs| count_symbols_recursive(&fs.symbols))
+        .sum();
+
+    let files: Vec<TreeFileEntry> = file_symbols
+        .iter()
+        .map(|fs| TreeFileEntry {
+            file: fs.file.display().to_string(),
+            symbols: fs.symbols.clone(),
+        })
+        .collect();
+
+    let data = TreeResult {
+        scope: scope.map(|p| p.display().to_string()),
+        total_files: files.len(),
+        total_symbols,
+        files,
+    };
+    let result = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::Exhaustive,
+        note: None,
+        data,
+    };
+    serialize_json(&result, force_pretty)
+}
+
+/// Format tree as raw text (no `@@` header), files with indented symbols.
+fn format_tree_raw(file_symbols: &[FileSymbols]) -> String {
+    let mut output = String::new();
+
+    for (i, fs) in file_symbols.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+        output.push_str(&fs.file.display().to_string());
+        for symbol in &fs.symbols {
+            output.push('\n');
+            format_tree_symbol(symbol, 1, &mut output);
+        }
+    }
+
+    output
+}
+
+/// Recursively format a symbol in the tree, with indentation.
+fn format_tree_symbol(symbol: &Symbol, indent: usize, output: &mut String) {
+    use std::fmt::Write;
+    let spaces = " ".repeat(indent * 2);
+    let _ = write!(
+        output,
+        "{spaces}{} ({}, {}) :{}",
+        symbol.name, symbol.kind, symbol.visibility, symbol.line,
+    );
+    for child in &symbol.children {
+        output.push('\n');
+        format_tree_symbol(child, indent + 1, output);
+    }
+}
+
+/// Count symbols recursively (including children).
+fn count_symbols_recursive(symbols: &[Symbol]) -> usize {
+    symbols
+        .iter()
+        .fold(0, |acc, s| acc + 1 + count_symbols_recursive(&s.children))
+}
+
+// ---------------------------------------------------------------------------
+// Refs formatting
+// ---------------------------------------------------------------------------
+
+/// Format `refs` results in the requested mode.
+#[allow(clippy::too_many_arguments)]
+// All parameters are needed to support definition, reference, context, and output mode options
+pub fn format_refs(
+    definitions: &[Symbol],
+    references: &[Reference],
+    symbol_name: &str,
+    mode: OutputMode,
+    pretty: bool,
+    context_lines: usize,
+    source_map: &HashMap<&Path, &str>,
+) -> String {
+    match mode {
+        OutputMode::Framed => {
+            format_refs_framed(definitions, references, context_lines, source_map)
+        }
+        OutputMode::Json => format_refs_json(definitions, references, symbol_name, pretty),
+        OutputMode::Raw => format_refs_raw(definitions, references, context_lines, source_map),
+    }
+}
+
+/// Format refs results as framed output.
+///
+/// Shows definition location(s) first, then each reference with its context line.
+/// Ends with a summary count.
+fn format_refs_framed(
+    definitions: &[Symbol],
+    references: &[Reference],
+    context_lines: usize,
+    source_map: &HashMap<&Path, &str>,
+) -> String {
+    use crate::commands::refs::get_context_lines;
+    use std::fmt::Write;
+
+    let mut output = String::new();
+
+    // Show definitions first
+    for (i, def) in definitions.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+        let _ = write!(
+            output,
+            "@@ {}:{}:{} {} {} (definition) @@",
+            def.file.display(),
+            def.line,
+            def.column,
+            def.kind,
+            def.name,
+        );
+    }
+
+    // Show references
+    for r in references {
+        if !output.is_empty() {
+            output.push('\n');
+        }
+        let _ = write!(
+            output,
+            "@@ {}:{}:{} {} @@",
+            r.file.display(),
+            r.line,
+            r.column,
+            r.kind,
+        );
+
+        if context_lines > 0 {
+            if let Some(source) = source_map.get(r.file.as_path()) {
+                let ctx = get_context_lines(source, r.line, context_lines);
+                for line in &ctx {
+                    output.push('\n');
+                    output.push_str(line);
+                }
+            }
+        } else {
+            // Show the single context line
+            output.push('\n');
+            let trimmed = r.context.trim_start();
+            output.push_str("    ");
+            output.push_str(trimmed);
+        }
+    }
+
+    // Summary line
+    if !output.is_empty() {
+        output.push('\n');
+    }
+    let _ = write!(
+        output,
+        "\n{} reference{} (syntactic match \u{2014} may be incomplete)",
+        references.len(),
+        if references.len() == 1 { "" } else { "s" },
+    );
+
+    output
+}
+
+/// Format `refs` results as JSON wrapped in `QueryResult`.
+fn format_refs_json(
+    definitions: &[Symbol],
+    references: &[Reference],
+    symbol_name: &str,
+    force_pretty: bool,
+) -> String {
+    let data = RefsResult {
+        symbol: symbol_name.to_string(),
+        definitions: definitions.to_vec(),
+        references: references.to_vec(),
+        total: references.len(),
+    };
+    let result = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::BestEffort,
+        note: Some(
+            "name-based matching; may include false positives or miss renamed symbols".to_string(),
+        ),
+        data,
+    };
+    serialize_json(&result, force_pretty)
+}
+
+/// Format `refs` results as raw text (no `@@` delimiters).
+fn format_refs_raw(
+    definitions: &[Symbol],
+    references: &[Reference],
+    context_lines: usize,
+    source_map: &HashMap<&Path, &str>,
+) -> String {
+    use crate::commands::refs::get_context_lines;
+    use std::fmt::Write;
+
+    let mut output = String::new();
+
+    // Show definitions
+    for (i, def) in definitions.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+        let _ = write!(
+            output,
+            "{}:{}:{} {} {} (definition)",
+            def.file.display(),
+            def.line,
+            def.column,
+            def.kind,
+            def.name,
+        );
+    }
+
+    // Show references
+    for r in references {
+        if !output.is_empty() {
+            output.push('\n');
+        }
+        let _ = write!(
+            output,
+            "{}:{}:{} {}",
+            r.file.display(),
+            r.line,
+            r.column,
+            r.kind,
+        );
+
+        if context_lines > 0 {
+            if let Some(source) = source_map.get(r.file.as_path()) {
+                let ctx = get_context_lines(source, r.line, context_lines);
+                for line in &ctx {
+                    output.push('\n');
+                    output.push_str(line);
+                }
+            }
+        }
+    }
+
+    output
+}
+
+// ---------------------------------------------------------------------------
+// Deps formatting
+// ---------------------------------------------------------------------------
+
+/// Format `deps` results in the requested mode.
+pub fn format_deps(
+    target: Option<&Symbol>,
+    deps: &[Dependency],
+    symbol_name: &str,
+    mode: OutputMode,
+    pretty: bool,
+) -> String {
+    match mode {
+        OutputMode::Framed => format_deps_framed(target, deps),
+        OutputMode::Json => format_deps_json(target, deps, symbol_name, pretty),
+        OutputMode::Raw => format_deps_raw(deps),
+    }
+}
+
+/// Format deps as framed output.
+fn format_deps_framed(target: Option<&Symbol>, deps: &[Dependency]) -> String {
+    use std::fmt::Write;
+    let mut output = String::new();
+
+    if let Some(sym) = target {
+        output.push_str(&format_frame_header(sym));
+    }
+
+    for dep in deps {
+        output.push('\n');
+        let defined = dep.defined_in.as_deref().unwrap_or("<unresolved>");
+        let _ = write!(output, "  {} ({}) -> {}", dep.name, dep.kind, defined);
+    }
+
+    output
+}
+
+/// Format `deps` results as JSON wrapped in `QueryResult`.
+fn format_deps_json(
+    target: Option<&Symbol>,
+    deps: &[Dependency],
+    symbol_name: &str,
+    force_pretty: bool,
+) -> String {
+    let data = DepsResult {
+        symbol: symbol_name.to_string(),
+        definition: target.cloned(),
+        dependencies: deps.to_vec(),
+        total: deps.len(),
+    };
+    let result = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::BestEffort,
+        note: None,
+        data,
+    };
+    serialize_json(&result, force_pretty)
+}
+
+/// Format `deps` results as raw text (no framing).
+fn format_deps_raw(deps: &[Dependency]) -> String {
+    use std::fmt::Write;
+    let mut output = String::new();
+    for (i, dep) in deps.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+        let defined = dep.defined_in.as_deref().unwrap_or("<unresolved>");
+        let _ = write!(output, "{} ({}) -> {}", dep.name, dep.kind, defined);
     }
     output
 }
