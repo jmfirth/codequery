@@ -5,6 +5,7 @@
 //! no I/O, no parsing, only string construction from typed symbol data.
 
 use codequery_core::{Completeness, QueryResult, Resolution, Symbol};
+use codequery_parse::ImportInfo;
 use serde::Serialize;
 use std::io::IsTerminal;
 use std::path::Path;
@@ -37,6 +38,17 @@ pub struct BodyResults {
     pub total: usize,
 }
 
+/// JSON payload for the `sig` command.
+#[derive(Debug, Serialize)]
+pub struct SigResults {
+    /// The symbol name that was searched for.
+    pub symbol: String,
+    /// Matching definitions with signatures.
+    pub signatures: Vec<Symbol>,
+    /// Total number of matches.
+    pub total: usize,
+}
+
 /// JSON payload for the `outline` command.
 #[derive(Debug, Serialize)]
 pub struct OutlineResult {
@@ -44,6 +56,29 @@ pub struct OutlineResult {
     pub file: String,
     /// Top-level symbols in the file.
     pub symbols: Vec<Symbol>,
+}
+
+/// JSON payload for the `imports` command.
+#[derive(Debug, Serialize)]
+pub struct ImportsResult {
+    /// The file that was analyzed.
+    pub file: String,
+    /// Import declarations found in the file.
+    pub imports: Vec<ImportInfo>,
+    /// Total number of imports.
+    pub total: usize,
+}
+
+/// JSON payload for the `context` command.
+#[derive(Debug, Serialize)]
+pub struct ContextResult {
+    /// The file being queried.
+    pub file: String,
+    /// The target line number.
+    pub target_line: usize,
+    /// The enclosing symbol, if found.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<Symbol>,
 }
 
 // ---------------------------------------------------------------------------
@@ -180,6 +215,68 @@ fn format_body_raw(symbols: &[Symbol]) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Sig formatting
+// ---------------------------------------------------------------------------
+
+/// Format `sig` results in the requested mode.
+pub fn format_sig(symbols: &[Symbol], symbol_name: &str, mode: OutputMode, pretty: bool) -> String {
+    match mode {
+        OutputMode::Framed => format_sig_framed(symbols),
+        OutputMode::Json => format_sig_json(symbols, symbol_name, pretty),
+        OutputMode::Raw => format_sig_raw(symbols),
+    }
+}
+
+/// Format symbol signatures — framed output.
+///
+/// Each symbol produces a frame header followed by its signature text.
+/// Multiple results are separated by blank lines.
+fn format_sig_framed(symbols: &[Symbol]) -> String {
+    let mut output = String::new();
+    for (i, symbol) in symbols.iter().enumerate() {
+        if i > 0 {
+            output.push_str("\n\n");
+        }
+        output.push_str(&format_frame_header(symbol));
+        if let Some(ref sig) = symbol.signature {
+            output.push('\n');
+            output.push_str(sig);
+        }
+    }
+    output
+}
+
+/// Format `sig` results as JSON wrapped in `QueryResult`.
+fn format_sig_json(symbols: &[Symbol], symbol_name: &str, force_pretty: bool) -> String {
+    let data = SigResults {
+        symbol: symbol_name.to_string(),
+        signatures: symbols.to_vec(),
+        total: symbols.len(),
+    };
+    let result = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::Exhaustive,
+        note: None,
+        data,
+    };
+    serialize_json(&result, force_pretty)
+}
+
+/// Format `sig` results as raw text — just the signature, no framing.
+fn format_sig_raw(symbols: &[Symbol]) -> String {
+    let mut output = String::new();
+    for (i, symbol) in symbols.iter().enumerate() {
+        if i > 0 {
+            output.push_str("\n\n");
+        }
+        if let Some(ref sig) = symbol.signature {
+            output.push_str(sig);
+        }
+    }
+    output
+}
+
+// ---------------------------------------------------------------------------
 // Outline formatting
 // ---------------------------------------------------------------------------
 
@@ -235,6 +332,179 @@ fn format_outline_raw(symbols: &[Symbol]) -> String {
         format_outline_symbol(symbol, 0, &mut output);
     }
     output
+}
+
+// ---------------------------------------------------------------------------
+// Imports formatting
+// ---------------------------------------------------------------------------
+
+/// Format `imports` results in the requested mode.
+pub fn format_imports_output(
+    file: &Path,
+    imports: &[ImportInfo],
+    mode: OutputMode,
+    pretty: bool,
+) -> String {
+    match mode {
+        OutputMode::Framed => format_imports_framed(file, imports),
+        OutputMode::Json => format_imports_json(file, imports, pretty),
+        OutputMode::Raw => format_imports_raw(imports),
+    }
+}
+
+/// Format imports as framed output: `@@ file:line import source @@`.
+fn format_imports_framed(file: &Path, imports: &[ImportInfo]) -> String {
+    use std::fmt::Write;
+    let mut output = format!("@@ {} @@", file.display());
+    for import in imports {
+        output.push('\n');
+        let _ = write!(
+            output,
+            "  @@ {}:{} {} {} @@",
+            file.display(),
+            import.line,
+            import.kind,
+            import.source,
+        );
+    }
+    output
+}
+
+/// Format `imports` results as JSON wrapped in `QueryResult`.
+fn format_imports_json(file: &Path, imports: &[ImportInfo], force_pretty: bool) -> String {
+    let data = ImportsResult {
+        file: file.display().to_string(),
+        imports: imports.to_vec(),
+        total: imports.len(),
+    };
+    let result = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::Exhaustive,
+        note: None,
+        data,
+    };
+    serialize_json(&result, force_pretty)
+}
+
+/// Format `imports` results as raw text (no `@@` delimiters).
+fn format_imports_raw(imports: &[ImportInfo]) -> String {
+    use std::fmt::Write;
+    let mut output = String::new();
+    for (i, import) in imports.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+        let _ = write!(output, ":{} {} {}", import.line, import.kind, import.source);
+    }
+    output
+}
+
+// ---------------------------------------------------------------------------
+// Context formatting
+// ---------------------------------------------------------------------------
+
+/// Format `context` results in the requested mode.
+pub fn format_context_output(
+    symbol: Option<&Symbol>,
+    target_line: usize,
+    file: &Path,
+    mode: OutputMode,
+    pretty: bool,
+) -> String {
+    match mode {
+        OutputMode::Framed => format_context_framed(symbol, target_line, file),
+        OutputMode::Json => format_context_json(symbol, target_line, file, pretty),
+        OutputMode::Raw => format_context_raw(symbol, target_line),
+    }
+}
+
+/// Format context result as framed output.
+fn format_context_framed(symbol: Option<&Symbol>, target_line: usize, file: &Path) -> String {
+    let Some(sym) = symbol else {
+        return format!(
+            "@@ {}:{} (no enclosing symbol) @@",
+            file.display(),
+            target_line,
+        );
+    };
+
+    let header = format!(
+        "@@ {}:{}:{} {} {} (contains line {}) @@",
+        sym.file.display(),
+        sym.line,
+        sym.column,
+        sym.kind,
+        sym.name,
+        target_line,
+    );
+
+    if let Some(body) = &sym.body {
+        let body_with_marker = insert_line_marker(body, sym.line, target_line);
+        format!("{header}\n{body_with_marker}")
+    } else {
+        header
+    }
+}
+
+/// Format context result as JSON wrapped in `QueryResult`.
+fn format_context_json(
+    symbol: Option<&Symbol>,
+    target_line: usize,
+    file: &Path,
+    force_pretty: bool,
+) -> String {
+    let data = ContextResult {
+        file: file.display().to_string(),
+        target_line,
+        symbol: symbol.cloned(),
+    };
+    let result = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::Exhaustive,
+        note: None,
+        data,
+    };
+    serialize_json(&result, force_pretty)
+}
+
+/// Format context result as raw text (body with line marker, no framing).
+fn format_context_raw(symbol: Option<&Symbol>, target_line: usize) -> String {
+    let Some(sym) = symbol else {
+        return String::new();
+    };
+
+    if let Some(body) = &sym.body {
+        insert_line_marker(body, sym.line, target_line)
+    } else {
+        format!(
+            "{}:{}:{} {} {}",
+            sym.file.display(),
+            sym.line,
+            sym.column,
+            sym.kind,
+            sym.name,
+        )
+    }
+}
+
+/// Insert a `// <- line N` marker on the appropriate line of the body text.
+///
+/// The body starts at `body_start_line` (1-based). The marker is inserted
+/// at the end of the line corresponding to `target_line`.
+fn insert_line_marker(body: &str, body_start_line: usize, target_line: usize) -> String {
+    let target_offset = target_line.saturating_sub(body_start_line);
+    let mut result = String::new();
+    for (i, line) in body.lines().enumerate() {
+        if i > 0 {
+            result.push('\n');
+        }
+        result.push_str(line);
+        if i == target_offset {
+            result.push_str("    // <- line ");
+            result.push_str(&target_line.to_string());
+        }
+    }
+    result
 }
 
 // ---------------------------------------------------------------------------
@@ -931,5 +1201,251 @@ mod tests {
         )];
         let output = format_body(&symbols, "foo", OutputMode::Raw, false);
         assert_eq!(output, "");
+    }
+
+    // -----------------------------------------------------------------------
+    // Imports output tests
+    // -----------------------------------------------------------------------
+
+    fn make_import(source: &str, kind: &str, line: usize, external: bool) -> ImportInfo {
+        ImportInfo {
+            source: source.to_string(),
+            kind: kind.to_string(),
+            line,
+            external,
+        }
+    }
+
+    #[test]
+    fn test_imports_framed_produces_file_header_and_entries() {
+        let imports = vec![
+            make_import("std::collections::HashMap", "use", 1, true),
+            make_import("crate::models::User", "use", 2, false),
+        ];
+        let output =
+            format_imports_output(Path::new("src/lib.rs"), &imports, OutputMode::Framed, false);
+        assert!(output.starts_with("@@ src/lib.rs @@"));
+        assert!(output.contains("@@ src/lib.rs:1 use std::collections::HashMap @@"));
+        assert!(output.contains("@@ src/lib.rs:2 use crate::models::User @@"));
+    }
+
+    #[test]
+    fn test_imports_framed_empty_shows_just_file_header() {
+        let output =
+            format_imports_output(Path::new("src/empty.rs"), &[], OutputMode::Framed, false);
+        assert_eq!(output, "@@ src/empty.rs @@");
+    }
+
+    #[test]
+    fn test_imports_json_produces_valid_json_with_metadata() {
+        let imports = vec![make_import("std::io", "use", 1, true)];
+        let output =
+            format_imports_output(Path::new("src/lib.rs"), &imports, OutputMode::Json, true);
+        let json: serde_json::Value = serde_json::from_str(&output).expect("valid JSON");
+        assert_eq!(json["resolution"], "syntactic");
+        assert_eq!(json["completeness"], "exhaustive");
+        assert_eq!(json["file"], "src/lib.rs");
+        assert_eq!(json["total"], 1);
+        assert!(json["imports"].is_array());
+        assert_eq!(json["imports"][0]["source"], "std::io");
+        assert_eq!(json["imports"][0]["kind"], "use");
+        assert_eq!(json["imports"][0]["line"], 1);
+        assert_eq!(json["imports"][0]["external"], true);
+    }
+
+    #[test]
+    fn test_imports_json_empty_has_metadata() {
+        let output = format_imports_output(Path::new("src/empty.rs"), &[], OutputMode::Json, true);
+        let json: serde_json::Value = serde_json::from_str(&output).expect("valid JSON");
+        assert_eq!(json["total"], 0);
+        assert_eq!(json["imports"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn test_imports_raw_strips_frame_delimiters() {
+        let imports = vec![
+            make_import("std::io", "use", 1, true),
+            make_import("crate::models", "use", 2, false),
+        ];
+        let output =
+            format_imports_output(Path::new("src/lib.rs"), &imports, OutputMode::Raw, false);
+        assert!(!output.contains("@@"));
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0], ":1 use std::io");
+        assert_eq!(lines[1], ":2 use crate::models");
+    }
+
+    #[test]
+    fn test_imports_raw_empty_is_empty() {
+        let output = format_imports_output(Path::new("src/lib.rs"), &[], OutputMode::Raw, false);
+        assert!(output.is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // Context output tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_context_framed_with_body_includes_line_marker() {
+        let sym = Symbol {
+            name: "handle_request".to_string(),
+            kind: SymbolKind::Function,
+            file: PathBuf::from("src/api/routes.rs"),
+            line: 42,
+            column: 4,
+            end_line: 46,
+            visibility: Visibility::Public,
+            children: vec![],
+            doc: None,
+            body: Some("pub async fn handle_request(req: Request) -> Response {\n    let auth = authenticate(&req).await?;\n    let data = parse_body(&req).await?;\n    process(auth, data).await\n}".to_string()),
+            signature: None,
+        };
+        let output = format_context_output(
+            Some(&sym),
+            44,
+            Path::new("src/api/routes.rs"),
+            OutputMode::Framed,
+            false,
+        );
+        assert!(output
+            .contains("@@ src/api/routes.rs:42:4 function handle_request (contains line 44) @@"));
+        assert!(output.contains("// <- line 44"));
+    }
+
+    #[test]
+    fn test_context_framed_no_symbol_shows_no_enclosing() {
+        let output =
+            format_context_output(None, 5, Path::new("src/lib.rs"), OutputMode::Framed, false);
+        assert!(output.contains("@@ src/lib.rs:5 (no enclosing symbol) @@"));
+    }
+
+    #[test]
+    fn test_context_framed_without_body_shows_header_only() {
+        let sym = Symbol {
+            name: "foo".to_string(),
+            kind: SymbolKind::Function,
+            file: PathBuf::from("src/lib.rs"),
+            line: 10,
+            column: 0,
+            end_line: 15,
+            visibility: Visibility::Public,
+            children: vec![],
+            doc: None,
+            body: None,
+            signature: None,
+        };
+        let output = format_context_output(
+            Some(&sym),
+            12,
+            Path::new("src/lib.rs"),
+            OutputMode::Framed,
+            false,
+        );
+        assert!(output.contains("@@ src/lib.rs:10:0 function foo (contains line 12) @@"));
+        // No body lines after header
+        assert_eq!(output.lines().count(), 1);
+    }
+
+    #[test]
+    fn test_context_json_produces_valid_json_with_metadata() {
+        let sym = Symbol {
+            name: "greet".to_string(),
+            kind: SymbolKind::Function,
+            file: PathBuf::from("src/lib.rs"),
+            line: 9,
+            column: 0,
+            end_line: 11,
+            visibility: Visibility::Public,
+            children: vec![],
+            doc: None,
+            body: Some("pub fn greet() {}".to_string()),
+            signature: None,
+        };
+        let output = format_context_output(
+            Some(&sym),
+            10,
+            Path::new("src/lib.rs"),
+            OutputMode::Json,
+            true,
+        );
+        let json: serde_json::Value = serde_json::from_str(&output).expect("valid JSON");
+        assert_eq!(json["resolution"], "syntactic");
+        assert_eq!(json["completeness"], "exhaustive");
+        assert_eq!(json["file"], "src/lib.rs");
+        assert_eq!(json["target_line"], 10);
+        assert!(json["symbol"].is_object());
+        assert_eq!(json["symbol"]["name"], "greet");
+    }
+
+    #[test]
+    fn test_context_json_no_symbol_has_null_symbol() {
+        let output =
+            format_context_output(None, 5, Path::new("src/lib.rs"), OutputMode::Json, true);
+        let json: serde_json::Value = serde_json::from_str(&output).expect("valid JSON");
+        assert_eq!(json["file"], "src/lib.rs");
+        assert_eq!(json["target_line"], 5);
+        assert!(json.get("symbol").is_none()); // skip_serializing_if = None
+    }
+
+    #[test]
+    fn test_context_raw_with_body_has_marker_no_framing() {
+        let sym = Symbol {
+            name: "foo".to_string(),
+            kind: SymbolKind::Function,
+            file: PathBuf::from("src/lib.rs"),
+            line: 5,
+            column: 0,
+            end_line: 8,
+            visibility: Visibility::Public,
+            children: vec![],
+            doc: None,
+            body: Some("fn foo() {\n    bar();\n    baz();\n}".to_string()),
+            signature: None,
+        };
+        let output = format_context_output(
+            Some(&sym),
+            7,
+            Path::new("src/lib.rs"),
+            OutputMode::Raw,
+            false,
+        );
+        assert!(!output.contains("@@"));
+        assert!(output.contains("// <- line 7"));
+    }
+
+    #[test]
+    fn test_context_raw_no_symbol_is_empty() {
+        let output =
+            format_context_output(None, 5, Path::new("src/lib.rs"), OutputMode::Raw, false);
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn test_insert_line_marker_first_line() {
+        let body = "fn foo() {\n    bar();\n}";
+        let result = insert_line_marker(body, 10, 10);
+        assert!(result.starts_with("fn foo() {    // <- line 10"));
+    }
+
+    #[test]
+    fn test_insert_line_marker_middle_line() {
+        let body = "fn foo() {\n    bar();\n    baz();\n}";
+        let result = insert_line_marker(body, 5, 7);
+        // line 7 is offset 2 from start line 5
+        let lines: Vec<&str> = result.lines().collect();
+        assert!(lines[2].contains("// <- line 7"));
+        // Other lines should NOT have the marker
+        assert!(!lines[0].contains("// <-"));
+        assert!(!lines[1].contains("// <-"));
+        assert!(!lines[3].contains("// <-"));
+    }
+
+    #[test]
+    fn test_insert_line_marker_last_line() {
+        let body = "fn foo() {\n    bar();\n}";
+        let result = insert_line_marker(body, 10, 12);
+        let lines: Vec<&str> = result.lines().collect();
+        assert!(lines[2].contains("// <- line 12"));
     }
 }

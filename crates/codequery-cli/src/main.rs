@@ -39,13 +39,23 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             mode,
             pretty,
         ),
-        Command::Sig { .. }
-        | Command::Refs { .. }
+        Command::Sig { symbol } => commands::sig::run(
+            &symbol,
+            args.project.as_deref(),
+            args.scope.as_deref(),
+            mode,
+            pretty,
+        ),
+        Command::Imports { file } => {
+            commands::imports::run(&file, args.project.as_deref(), mode, pretty)
+        }
+        Command::Context { location } => {
+            commands::context::run(&location, args.project.as_deref(), mode, pretty, args.depth)
+        }
+        Command::Refs { .. }
         | Command::Callers { .. }
         | Command::Deps { .. }
         | Command::Symbols
-        | Command::Imports { .. }
-        | Command::Context { .. }
         | Command::Tree { .. } => {
             eprintln!("not yet implemented");
             Ok(ExitCode::Success)

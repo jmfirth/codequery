@@ -9,10 +9,12 @@
 
 pub mod error;
 pub mod extract;
+pub mod imports;
 pub mod languages;
 pub mod parser;
 
 pub use error::{ParseError, Result};
 pub use extract::extract_symbols;
+pub use imports::{extract_imports, ImportInfo};
 pub use languages::rust::{extract_body, extract_signature};
 pub use parser::{Parser, RustParser};
