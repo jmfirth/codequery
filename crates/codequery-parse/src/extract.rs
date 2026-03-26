@@ -9,6 +9,8 @@ use std::path::Path;
 use codequery_core::{Language, Symbol};
 
 use crate::languages::go::GoExtractor;
+use crate::languages::java::JavaExtractor;
+use crate::languages::python::PythonExtractor;
 use crate::languages::rust::RustExtractor;
 use crate::languages::LanguageExtractor;
 
@@ -31,13 +33,11 @@ pub fn extract_symbols(
 ) -> Vec<Symbol> {
     match language {
         Language::Rust => RustExtractor::extract_symbols(source, tree, file),
+        Language::Python => PythonExtractor::extract_symbols(source, tree, file),
         Language::Go => GoExtractor::extract_symbols(source, tree, file),
+        Language::Java => JavaExtractor::extract_symbols(source, tree, file),
         // Other languages return empty until their extraction modules land
-        Language::TypeScript
-        | Language::JavaScript
-        | Language::Python
-        | Language::C
-        | Language::Cpp => Vec::new(),
+        Language::TypeScript | Language::JavaScript | Language::C | Language::Cpp => Vec::new(),
     }
 }
 

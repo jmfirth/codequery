@@ -13,3 +13,4 @@ Cargo.lock
 
 # cq cache
 .cache/
+.claude/
