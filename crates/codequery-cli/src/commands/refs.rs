@@ -4,7 +4,6 @@ use std::path::Path;
 
 use codequery_core::{detect_project_root_or, Reference, Symbol};
 use codequery_index::{extract_references, scan_project, SymbolIndex};
-use codequery_parse::Parser;
 
 use crate::args::{ExitCode, OutputMode};
 use crate::output::format_refs;
@@ -38,7 +37,7 @@ pub fn run(
     let index = SymbolIndex::from_scan(&scan_results);
     let definitions = index.find_by_name(symbol);
 
-    // 4. Extract references from all files, filtering by symbol name
+    // 4. Extract references from all files, reusing retained parse trees
     let mut all_refs: Vec<Reference> = Vec::new();
 
     for file_result in &scan_results {
@@ -46,13 +45,12 @@ pub fn run(
             continue;
         };
 
-        // Parse the file again for reference extraction
-        let mut parser = Parser::for_language(language)?;
-        let Ok(tree) = parser.parse(file_result.source.as_bytes()) else {
-            continue;
-        };
-
-        let file_refs = extract_references(&file_result.source, &tree, &file_result.file, language);
+        let file_refs = extract_references(
+            &file_result.source,
+            &file_result.tree,
+            &file_result.file,
+            language,
+        );
 
         // Filter: only references whose identifier text matches the symbol name
         let matching = file_refs

@@ -121,6 +121,13 @@ mod tests {
         }
     }
 
+    /// Create a dummy tree for testing (parse empty source with Rust parser).
+    fn dummy_tree() -> tree_sitter::Tree {
+        let mut parser = codequery_parse::Parser::for_language(codequery_core::Language::Rust)
+            .expect("rust parser");
+        parser.parse(b"").expect("parse empty source")
+    }
+
     // Test 1: Tree shows all files with their symbols
     #[test]
     fn test_tree_fixture_shows_all_files() {
@@ -155,6 +162,7 @@ mod tests {
             file: PathBuf::from("lib.rs"),
             symbols: vec![parent],
             source: String::new(),
+            tree: dummy_tree(),
         };
         let limited = limit_depth(vec![fs], 1);
         assert!(limited[0].symbols[0].children.is_empty());
@@ -170,6 +178,7 @@ mod tests {
             file: PathBuf::from("lib.rs"),
             symbols: vec![parent],
             source: String::new(),
+            tree: dummy_tree(),
         };
         let limited = limit_depth(vec![fs], 2);
         assert_eq!(limited[0].symbols[0].children.len(), 1);
@@ -220,6 +229,7 @@ mod tests {
             file: PathBuf::from("lib.rs"),
             symbols: vec![parent.clone()],
             source: String::new(),
+            tree: dummy_tree(),
         };
         // depth 0 should still show top-level symbols, just no children
         let limited = limit_depth(vec![fs], 0);

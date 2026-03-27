@@ -134,11 +134,19 @@ mod tests {
         }
     }
 
+    /// Create a dummy tree for testing (parse empty source with Rust parser).
+    fn dummy_tree() -> tree_sitter::Tree {
+        let mut parser = codequery_parse::Parser::for_language(codequery_core::Language::Rust)
+            .expect("rust parser");
+        parser.parse(b"").expect("parse empty source")
+    }
+
     fn make_file_symbols(file: &str, symbols: Vec<Symbol>) -> FileSymbols {
         FileSymbols {
             file: PathBuf::from(file),
             symbols,
             source: String::new(),
+            tree: dummy_tree(),
         }
     }
 

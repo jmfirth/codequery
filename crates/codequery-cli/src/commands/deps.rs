@@ -4,11 +4,12 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use codequery_core::{
-    detect_project_root_or, discover_files, language_for_file, ReferenceKind, Symbol, SymbolKind,
+    detect_project_root_or, discover_files, language_for_file, Language, ReferenceKind, Symbol,
 };
 use codequery_index::{extract_references, scan_project, SymbolIndex};
-use codequery_parse::{extract_symbols, Parser};
+use codequery_parse::Parser;
 
+use super::common::find_first_symbol_with_source;
 use crate::args::{ExitCode, OutputMode};
 use crate::output::{format_deps, Dependency};
 
@@ -28,14 +29,16 @@ pub fn run(
     scope: Option<&Path>,
     mode: OutputMode,
     pretty: bool,
+    lang_filter: Option<Language>,
 ) -> anyhow::Result<ExitCode> {
     // 1. Resolve project root
     let cwd = std::env::current_dir()?;
     let project_root = detect_project_root_or(&cwd, project)?;
 
-    // 2. Find the target symbol using narrow pipeline (same as def)
+    // 2. Find the target symbol using narrow pipeline
     let files = discover_files(&project_root, scope)?;
-    let (target, target_source) = find_target_symbol(&files, &project_root, symbol)?;
+    let (target, target_source) =
+        find_first_symbol_with_source(&files, &project_root, symbol, lang_filter)?;
 
     let Some(target_sym) = target else {
         if mode == OutputMode::Json {
@@ -59,53 +62,6 @@ pub fn run(
     print_output(&output);
 
     Ok(ExitCode::Success)
-}
-
-/// Find the target symbol across project files using text pre-filter and parsing.
-fn find_target_symbol(
-    files: &[std::path::PathBuf],
-    project_root: &Path,
-    symbol: &str,
-) -> anyhow::Result<(Option<Symbol>, Option<String>)> {
-    let mut current_parser: Option<(codequery_core::Language, Parser)> = None;
-
-    for relative_path in files {
-        let absolute_path = project_root.join(relative_path);
-
-        let Some(language) = language_for_file(relative_path) else {
-            continue;
-        };
-
-        let Ok(source) = std::fs::read_to_string(&absolute_path) else {
-            continue;
-        };
-
-        // Text pre-filter: skip files that don't contain the symbol name
-        if !source.contains(symbol) {
-            continue;
-        }
-
-        // Reuse parser if same language, otherwise create a new one
-        let parser = match &mut current_parser {
-            Some((lang, p)) if *lang == language => p,
-            _ => {
-                current_parser = Some((language, Parser::for_language(language)?));
-                &mut current_parser.as_mut().expect("just assigned").1
-            }
-        };
-
-        let Ok(tree) = parser.parse(source.as_bytes()) else {
-            continue;
-        };
-
-        let symbols = extract_symbols(&source, &tree, relative_path, language);
-
-        if let Some(found) = find_matching_symbol(&symbols, symbol) {
-            return Ok((Some(found), Some(source)));
-        }
-    }
-
-    Ok((None, None))
 }
 
 /// Extract references from the target symbol's body line range.
@@ -180,21 +136,6 @@ fn print_output(output: &str) {
     }
 }
 
-/// Find a symbol by name, including inside impl blocks.
-fn find_matching_symbol(symbols: &[Symbol], query: &str) -> Option<Symbol> {
-    for symbol in symbols {
-        if symbol.kind != SymbolKind::Impl && symbol.name == query {
-            return Some(symbol.clone());
-        }
-        for child in &symbol.children {
-            if child.name == query {
-                return Some(child.clone());
-            }
-        }
-    }
-    None
-}
-
 /// Extract the identifier name at a given line and column from source text.
 fn extract_ref_name(source: &str, line: usize, column: usize) -> Option<String> {
     let source_line = source.lines().nth(line.checked_sub(1)?)?;
@@ -214,97 +155,11 @@ fn extract_ref_name(source: &str, line: usize, column: usize) -> Option<String> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codequery_core::{SymbolKind, Visibility};
     use std::path::PathBuf;
 
     /// Path to the fixture rust project.
     fn fixture_project() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/rust_project")
-    }
-
-    /// Helper: create a Symbol for testing.
-    fn make_symbol(
-        name: &str,
-        kind: SymbolKind,
-        file: &str,
-        line: usize,
-        column: usize,
-        children: Vec<Symbol>,
-        body: Option<&str>,
-    ) -> Symbol {
-        Symbol {
-            name: name.to_string(),
-            kind,
-            file: PathBuf::from(file),
-            line,
-            column,
-            end_line: line + 5,
-            visibility: Visibility::Public,
-            children,
-            doc: None,
-            body: body.map(String::from),
-            signature: None,
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // find_matching_symbol
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn test_deps_find_symbol_top_level() {
-        let symbols = vec![make_symbol(
-            "greet",
-            SymbolKind::Function,
-            "src/lib.rs",
-            9,
-            0,
-            vec![],
-            Some("pub fn greet() {}"),
-        )];
-        let found = find_matching_symbol(&symbols, "greet");
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().name, "greet");
-    }
-
-    #[test]
-    fn test_deps_find_symbol_inside_impl() {
-        let method = make_symbol(
-            "is_adult",
-            SymbolKind::Method,
-            "src/services.rs",
-            16,
-            4,
-            vec![],
-            Some("pub fn is_adult(&self) -> bool { self.age >= 18 }"),
-        );
-        let impl_block = make_symbol(
-            "User",
-            SymbolKind::Impl,
-            "src/services.rs",
-            6,
-            0,
-            vec![method],
-            None,
-        );
-        let found = find_matching_symbol(&[impl_block], "is_adult");
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().name, "is_adult");
-    }
-
-    #[test]
-    fn test_deps_find_symbol_not_found() {
-        let symbols = vec![make_symbol(
-            "greet",
-            SymbolKind::Function,
-            "src/lib.rs",
-            9,
-            0,
-            vec![],
-            None,
-        )];
-        let found = find_matching_symbol(&symbols, "nonexistent");
-        assert!(found.is_none());
     }
 
     // -----------------------------------------------------------------------
@@ -343,7 +198,6 @@ mod tests {
     // Fixture integration tests
     // -----------------------------------------------------------------------
 
-    // Test 1: Finds function calls in a function body
     #[test]
     fn test_deps_finds_function_calls_in_body() {
         let project = fixture_project();
@@ -353,12 +207,12 @@ mod tests {
             None,
             OutputMode::Framed,
             false,
+            None,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
-    // Test 2: Finds type references in parameters/return types
     #[test]
     fn test_deps_finds_type_references() {
         let project = fixture_project();
@@ -368,21 +222,19 @@ mod tests {
             None,
             OutputMode::Framed,
             false,
+            None,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
-    // Test 3: Unresolvable dependencies have defined_in: null
     #[test]
     fn test_deps_unresolvable_has_null_defined_in() {
         let project = fixture_project();
-        // greet calls format! which won't resolve
-        let result = run("greet", Some(&project), None, OutputMode::Json, true);
+        let result = run("greet", Some(&project), None, OutputMode::Json, true, None);
         assert!(result.is_ok());
     }
 
-    // Test 4: Symbol not found returns exit code 1
     #[test]
     fn test_deps_symbol_not_found_returns_no_results() {
         let project = fixture_project();
@@ -392,12 +244,12 @@ mod tests {
             None,
             OutputMode::Framed,
             false,
+            None,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
     }
 
-    // Test 5: JSON includes best-effort metadata
     #[test]
     fn test_deps_json_includes_best_effort_metadata() {
         let project = fixture_project();
@@ -407,12 +259,12 @@ mod tests {
             None,
             OutputMode::Json,
             true,
+            None,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
-    // Test 6: All output modes work
     #[test]
     fn test_deps_raw_mode_works() {
         let project = fixture_project();
@@ -422,6 +274,7 @@ mod tests {
             None,
             OutputMode::Raw,
             false,
+            None,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -436,12 +289,12 @@ mod tests {
             None,
             OutputMode::Framed,
             false,
+            None,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
-    // Test: JSON mode with symbol not found still produces JSON output
     #[test]
     fn test_deps_json_mode_symbol_not_found() {
         let project = fixture_project();
@@ -451,6 +304,7 @@ mod tests {
             None,
             OutputMode::Json,
             true,
+            None,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);

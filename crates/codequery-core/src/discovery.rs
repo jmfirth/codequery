@@ -28,6 +28,29 @@ pub enum Language {
     Java,
 }
 
+impl Language {
+    /// Parse a language name from a user-provided string (case-insensitive).
+    ///
+    /// Accepts common names and aliases: "rust", "typescript", "ts", "javascript",
+    /// "js", "python", "py", "go", "c", "cpp", "c++", "java".
+    ///
+    /// Returns `None` if the string doesn't match any known language.
+    #[must_use]
+    pub fn from_name(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "rust" | "rs" => Some(Self::Rust),
+            "typescript" | "ts" => Some(Self::TypeScript),
+            "javascript" | "js" => Some(Self::JavaScript),
+            "python" | "py" => Some(Self::Python),
+            "go" => Some(Self::Go),
+            "c" => Some(Self::C),
+            "cpp" | "c++" | "cxx" => Some(Self::Cpp),
+            "java" => Some(Self::Java),
+            _ => None,
+        }
+    }
+}
+
 /// Detect the language of a file from its extension.
 ///
 /// Recognizes all Tier 1 language extensions.
@@ -298,5 +321,53 @@ mod tests {
             language_for_file(Path::new("Main.java")),
             Some(Language::Java)
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Language::from_name
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_language_from_name_all_languages() {
+        let cases = [
+            ("rust", Language::Rust),
+            ("rs", Language::Rust),
+            ("typescript", Language::TypeScript),
+            ("ts", Language::TypeScript),
+            ("javascript", Language::JavaScript),
+            ("js", Language::JavaScript),
+            ("python", Language::Python),
+            ("py", Language::Python),
+            ("go", Language::Go),
+            ("c", Language::C),
+            ("cpp", Language::Cpp),
+            ("c++", Language::Cpp),
+            ("cxx", Language::Cpp),
+            ("java", Language::Java),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(
+                Language::from_name(input),
+                Some(expected),
+                "failed for input: {input}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_language_from_name_case_insensitive() {
+        assert_eq!(Language::from_name("Rust"), Some(Language::Rust));
+        assert_eq!(Language::from_name("PYTHON"), Some(Language::Python));
+        assert_eq!(
+            Language::from_name("TypeScript"),
+            Some(Language::TypeScript)
+        );
+    }
+
+    #[test]
+    fn test_language_from_name_unknown_returns_none() {
+        assert_eq!(Language::from_name("unknown"), None);
+        assert_eq!(Language::from_name(""), None);
+        assert_eq!(Language::from_name("ruby"), None);
     }
 }

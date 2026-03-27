@@ -6,6 +6,7 @@ mod output;
 
 use args::{Command, CqArgs, ExitCode};
 use clap::Parser;
+use codequery_core::Language;
 
 fn main() -> std::process::ExitCode {
     let args = CqArgs::parse();
@@ -18,9 +19,23 @@ fn main() -> std::process::ExitCode {
     }
 }
 
+/// Parse the `--lang` flag into a `Language`, returning a usage error on invalid values.
+fn parse_lang_filter(lang: Option<&String>) -> anyhow::Result<Option<Language>> {
+    match lang {
+        None => Ok(None),
+        Some(s) => Language::from_name(s).map(Some).ok_or_else(|| {
+            anyhow::anyhow!(
+                "unknown language: {s}. valid languages: rust, typescript, ts, javascript, js, \
+                 python, py, go, c, cpp, c++, java"
+            )
+        }),
+    }
+}
+
 fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
     let mode = args.output_mode();
     let pretty = args.pretty;
+    let lang_filter = parse_lang_filter(args.lang.as_ref())?;
     match args.command {
         Command::Outline { file } => {
             commands::outline::run(&file, args.project.as_deref(), mode, pretty)
@@ -31,6 +46,7 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             args.scope.as_deref(),
             mode,
             pretty,
+            lang_filter,
         ),
         Command::Body { symbol } => commands::body::run(
             &symbol,
@@ -38,6 +54,7 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             args.scope.as_deref(),
             mode,
             pretty,
+            lang_filter,
         ),
         Command::Sig { symbol } => commands::sig::run(
             &symbol,
@@ -45,6 +62,7 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             args.scope.as_deref(),
             mode,
             pretty,
+            lang_filter,
         ),
         Command::Imports { file } => {
             commands::imports::run(&file, args.project.as_deref(), mode, pretty)
@@ -82,6 +100,7 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             args.scope.as_deref(),
             mode,
             pretty,
+            lang_filter,
         ),
         Command::Callers { symbol } => commands::callers::run(
             &symbol,

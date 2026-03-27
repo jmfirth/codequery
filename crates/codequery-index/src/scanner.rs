@@ -14,7 +14,10 @@ use codequery_parse::{extract_symbols, Parser};
 use crate::error::Result;
 use crate::grep;
 
-/// Result of scanning a single file: the file path, extracted symbols, and source text.
+/// Result of scanning a single file: the file path, extracted symbols, source text, and parse tree.
+///
+/// Retaining the `tree_sitter::Tree` avoids re-parsing when downstream consumers
+/// (reference extraction, Phase 2 stack graph construction) need the AST.
 #[derive(Debug)]
 pub struct FileSymbols {
     /// The relative path to the file (relative to project root).
@@ -23,6 +26,8 @@ pub struct FileSymbols {
     pub symbols: Vec<Symbol>,
     /// The full source text of the file.
     pub source: String,
+    /// The tree-sitter parse tree for this file.
+    pub tree: tree_sitter::Tree,
 }
 
 /// Scan and parse a single file, extracting its symbols.
@@ -42,6 +47,7 @@ fn scan_single_file(root: &Path, relative: &Path) -> Option<FileSymbols> {
         file: relative.to_path_buf(),
         symbols,
         source,
+        tree,
     })
 }
 
