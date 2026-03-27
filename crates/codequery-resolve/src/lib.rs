@@ -1,0 +1,14 @@
+//! Stack graph name resolution for codequery.
+//!
+//! This crate owns the construction and resolution of stack graphs, mapping
+//! tree-sitter parse trees to name bindings via per-language TSG rules.
+//! It sits between `codequery-parse` (which produces trees) and
+//! `codequery-index` (which consumes resolution results).
+
+#![warn(clippy::pedantic)]
+
+pub mod error;
+pub mod rules;
+
+pub use error::{ResolveError, Result};
+pub use rules::{has_rules, language_config};
