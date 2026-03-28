@@ -7,13 +7,17 @@
 
 #![warn(clippy::pedantic)]
 
+pub mod config;
 pub mod error;
 pub mod protocol;
+pub mod server;
 pub mod transport;
 pub mod types;
 
+pub use config::{LanguageServerRegistry, ServerConfig};
 pub use error::{LspError, Result};
 pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
+pub use server::LspServer;
 pub use transport::StdioTransport;
 pub use types::{
     ClientCapabilities, DefinitionParams, DidOpenTextDocumentParams, HoverParams, InitializeParams,
