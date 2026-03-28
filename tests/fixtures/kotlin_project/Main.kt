@@ -1,3 +1,4 @@
+import kotlin.math.PI
 /** A greeting function. */
 fun greet(name: String): String = "Hello, $name!"
 
@@ -36,3 +37,8 @@ enum class Direction {
 private fun helper(): Boolean = true
 
 internal fun internalHelper(): Int = 42
+
+fun main() {
+    val animal = Animal("Rex")
+    println(greet(animal.speak()))
+}

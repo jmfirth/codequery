@@ -15,3 +15,7 @@ say_hello() {
 goodbye() {
     echo "Bye"
 }
+
+# Main execution
+greet "World"
+log_info "Starting"
