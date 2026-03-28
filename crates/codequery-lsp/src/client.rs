@@ -376,4 +376,389 @@ mod tests {
             _ => panic!("expected Error response"),
         }
     }
+
+    // ─── language_to_daemon_string completeness ─────────────────────
+
+    #[test]
+    fn test_language_to_daemon_string_all_tier1_and_tier2() {
+        let languages = [
+            (Language::Rust, "rust"),
+            (Language::TypeScript, "typescript"),
+            (Language::JavaScript, "javascript"),
+            (Language::Python, "python"),
+            (Language::Go, "go"),
+            (Language::C, "c"),
+            (Language::Cpp, "cpp"),
+            (Language::Java, "java"),
+            (Language::Ruby, "ruby"),
+            (Language::Php, "php"),
+            (Language::CSharp, "csharp"),
+            (Language::Swift, "swift"),
+            (Language::Kotlin, "kotlin"),
+            (Language::Scala, "scala"),
+            (Language::Zig, "zig"),
+            (Language::Lua, "lua"),
+            (Language::Bash, "bash"),
+        ];
+
+        for (lang, expected) in languages {
+            let s = language_to_daemon_string(lang);
+            assert_eq!(s, expected, "language_to_daemon_string({lang:?})");
+        }
+    }
+
+    // ─── DaemonRequest construction helpers ─────────────────────────
+
+    #[test]
+    fn test_query_refs_request_structure() {
+        let request = DaemonRequest::Query {
+            project: PathBuf::from("/project"),
+            language: language_to_daemon_string(Language::Go),
+            operation: "references".to_string(),
+            file: PathBuf::from("/project/main.go"),
+            line: 20,
+            column: 8,
+            symbol: None,
+        };
+
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["Query"]["language"], "go");
+        assert_eq!(json["Query"]["operation"], "references");
+        assert_eq!(json["Query"]["line"], 20);
+    }
+
+    #[test]
+    fn test_query_definition_request_structure() {
+        let request = DaemonRequest::Query {
+            project: PathBuf::from("/project"),
+            language: language_to_daemon_string(Language::TypeScript),
+            operation: "definition".to_string(),
+            file: PathBuf::from("/project/app.ts"),
+            line: 15,
+            column: 3,
+            symbol: None,
+        };
+
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["Query"]["language"], "typescript");
+        assert_eq!(json["Query"]["operation"], "definition");
+    }
+
+    // ─── Status and Shutdown request construction ───────────────────
+
+    #[test]
+    fn test_status_request_serializes() {
+        let request = DaemonRequest::Status;
+        let json = serde_json::to_string(&request).unwrap();
+        assert_eq!(json, "\"Status\"");
+    }
+
+    #[test]
+    fn test_shutdown_request_serializes() {
+        let request = DaemonRequest::Shutdown;
+        let json = serde_json::to_string(&request).unwrap();
+        assert_eq!(json, "\"Shutdown\"");
+    }
+
+    // ─── DaemonResponse matching in send_and_receive_locations ──────
+
+    #[test]
+    fn test_ok_response_is_unexpected_for_locations_query() {
+        // When send_and_receive_locations receives DaemonResponse::Ok,
+        // it should return an error since it expected Locations.
+        use std::io::Cursor;
+
+        let response = DaemonResponse::Ok;
+        let mut buf = Vec::new();
+        write_message(&mut buf, &response).unwrap();
+
+        let mut cursor = Cursor::new(buf);
+        let parsed: DaemonResponse = read_message(&mut cursor).unwrap();
+
+        // Verify the matching logic that would be in send_and_receive_locations.
+        match parsed {
+            DaemonResponse::Locations(_) => panic!("should not be Locations"),
+            DaemonResponse::Error(_) => panic!("should not be Error"),
+            other => {
+                // This is the "unexpected response" branch.
+                let msg = format!("unexpected daemon response: {other:?}");
+                assert!(msg.contains("Ok"));
+            }
+        }
+    }
+
+    // ─── Hover response handling ────────────────────────────────────
+
+    #[test]
+    fn test_hover_response_serialization() {
+        let response = DaemonResponse::Hover(Some("fn foo() -> i32".to_string()));
+        let mut buf = Vec::new();
+        write_message(&mut buf, &response).unwrap();
+
+        let mut cursor = std::io::Cursor::new(buf);
+        let parsed: DaemonResponse = read_message(&mut cursor).unwrap();
+
+        match parsed {
+            DaemonResponse::Hover(Some(text)) => {
+                assert_eq!(text, "fn foo() -> i32");
+            }
+            _ => panic!("expected Hover response"),
+        }
+    }
+
+    #[test]
+    fn test_status_response_serialization_with_servers() {
+        use crate::socket::ServerInfo;
+
+        let response = DaemonResponse::Status {
+            servers: vec![
+                ServerInfo {
+                    project: PathBuf::from("/project1"),
+                    language: "rust".to_string(),
+                    uptime_secs: 60,
+                },
+                ServerInfo {
+                    project: PathBuf::from("/project2"),
+                    language: "python".to_string(),
+                    uptime_secs: 120,
+                },
+            ],
+            uptime_secs: 300,
+        };
+        let mut buf = Vec::new();
+        write_message(&mut buf, &response).unwrap();
+
+        let mut cursor = std::io::Cursor::new(buf);
+        let parsed: DaemonResponse = read_message(&mut cursor).unwrap();
+
+        match parsed {
+            DaemonResponse::Status {
+                servers,
+                uptime_secs,
+            } => {
+                assert_eq!(servers.len(), 2);
+                assert_eq!(uptime_secs, 300);
+            }
+            _ => panic!("expected Status response"),
+        }
+    }
+
+    // ─── DaemonClient methods via mock socket pair ──────────────────
+
+    #[test]
+    fn test_status_via_mock_socket() {
+        use crate::socket::ServerInfo;
+
+        let status_resp = DaemonResponse::Status {
+            servers: vec![ServerInfo {
+                project: PathBuf::from("/project"),
+                language: "rust".to_string(),
+                uptime_secs: 60,
+            }],
+            uptime_secs: 120,
+        };
+
+        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+
+        // Spawn a thread to simulate the daemon: read the request, write the response.
+        let handle = std::thread::spawn(move || {
+            let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
+            write_message(&mut daemon_stream, &status_resp).unwrap();
+        });
+
+        let mut client = DaemonClient {
+            stream: client_stream,
+        };
+        let resp = client.status().unwrap();
+
+        match resp {
+            DaemonResponse::Status {
+                servers,
+                uptime_secs,
+            } => {
+                assert_eq!(servers.len(), 1);
+                assert_eq!(uptime_secs, 120);
+            }
+            other => panic!("expected Status, got: {other:?}"),
+        }
+
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn test_shutdown_via_mock_socket() {
+        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+
+        let handle = std::thread::spawn(move || {
+            let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
+            write_message(&mut daemon_stream, &DaemonResponse::Ok).unwrap();
+        });
+
+        let mut client = DaemonClient {
+            stream: client_stream,
+        };
+        client.shutdown().unwrap();
+
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn test_shutdown_error_response_returns_error() {
+        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+
+        let handle = std::thread::spawn(move || {
+            let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
+            write_message(
+                &mut daemon_stream,
+                &DaemonResponse::Error("shutdown refused".to_string()),
+            )
+            .unwrap();
+        });
+
+        let mut client = DaemonClient {
+            stream: client_stream,
+        };
+        let result = client.shutdown();
+        assert!(result.is_err());
+
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn test_query_refs_via_mock_socket() {
+        let locations_resp = DaemonResponse::Locations(vec![LspLocation {
+            uri: "file:///src/main.rs".to_string(),
+            range: crate::types::Range::new(
+                crate::types::Position::new(5, 0),
+                crate::types::Position::new(5, 10),
+            ),
+        }]);
+
+        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+
+        let handle = std::thread::spawn(move || {
+            let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
+            write_message(&mut daemon_stream, &locations_resp).unwrap();
+        });
+
+        let mut client = DaemonClient {
+            stream: client_stream,
+        };
+        let locs = client
+            .query_refs(
+                Path::new("/project"),
+                Language::Rust,
+                Path::new("/project/src/main.rs"),
+                5,
+                0,
+            )
+            .unwrap();
+
+        assert_eq!(locs.len(), 1);
+        assert_eq!(locs[0].uri, "file:///src/main.rs");
+
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn test_query_definition_via_mock_socket() {
+        let locations_resp = DaemonResponse::Locations(vec![LspLocation {
+            uri: "file:///src/lib.rs".to_string(),
+            range: crate::types::Range::new(
+                crate::types::Position::new(10, 4),
+                crate::types::Position::new(10, 12),
+            ),
+        }]);
+
+        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+
+        let handle = std::thread::spawn(move || {
+            let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
+            write_message(&mut daemon_stream, &locations_resp).unwrap();
+        });
+
+        let mut client = DaemonClient {
+            stream: client_stream,
+        };
+        let locs = client
+            .query_definition(
+                Path::new("/project"),
+                Language::Rust,
+                Path::new("/project/src/main.rs"),
+                5,
+                0,
+            )
+            .unwrap();
+
+        assert_eq!(locs.len(), 1);
+        assert_eq!(locs[0].uri, "file:///src/lib.rs");
+
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn test_query_refs_error_response() {
+        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+
+        let handle = std::thread::spawn(move || {
+            let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
+            write_message(
+                &mut daemon_stream,
+                &DaemonResponse::Error("server crashed".to_string()),
+            )
+            .unwrap();
+        });
+
+        let mut client = DaemonClient {
+            stream: client_stream,
+        };
+        let result = client.query_refs(
+            Path::new("/project"),
+            Language::Rust,
+            Path::new("/project/src/main.rs"),
+            1,
+            0,
+        );
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("server crashed"));
+
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn test_query_refs_unexpected_response_type() {
+        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+
+        let handle = std::thread::spawn(move || {
+            let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
+            // Return a Status response instead of Locations.
+            write_message(
+                &mut daemon_stream,
+                &DaemonResponse::Status {
+                    servers: vec![],
+                    uptime_secs: 0,
+                },
+            )
+            .unwrap();
+        });
+
+        let mut client = DaemonClient {
+            stream: client_stream,
+        };
+        let result = client.query_refs(
+            Path::new("/project"),
+            Language::Rust,
+            Path::new("/project/src/main.rs"),
+            1,
+            0,
+        );
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("unexpected"));
+
+        handle.join().unwrap();
+    }
 }

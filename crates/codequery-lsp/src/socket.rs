@@ -392,4 +392,87 @@ mod tests {
         assert_eq!(first, DaemonRequest::Status);
         assert_eq!(second, DaemonRequest::Shutdown);
     }
+
+    // ─── read_message with invalid JSON payload ─────────────────────
+
+    #[test]
+    fn test_read_message_invalid_json_payload() {
+        // Valid length prefix, but the payload is not valid JSON for the
+        // expected type.
+        let payload = b"this is not json";
+        let len = payload.len();
+        let mut buf = Vec::new();
+        #[allow(clippy::cast_possible_truncation)]
+        buf.extend_from_slice(&(len as u32).to_be_bytes());
+        buf.extend_from_slice(payload);
+
+        let mut cursor = Cursor::new(buf);
+        let result: Result<DaemonRequest> = read_message(&mut cursor);
+        assert!(result.is_err());
+        // Should be a Json error from serde.
+        assert!(matches!(result.unwrap_err(), LspError::Json(_)));
+    }
+
+    // ─── read_message with valid JSON but wrong type ────────────────
+
+    #[test]
+    fn test_read_message_valid_json_wrong_type() {
+        // Write a DaemonResponse, try to read as DaemonRequest.
+        let resp = DaemonResponse::Ok;
+        let mut buf = Vec::new();
+        write_message(&mut buf, &resp).unwrap();
+
+        let mut cursor = Cursor::new(buf);
+        // Try to read as DaemonRequest — should fail deserialization.
+        let result: Result<DaemonRequest> = read_message(&mut cursor);
+        assert!(result.is_err());
+    }
+
+    // ─── write_message and read_message with large payload ──────────
+
+    #[test]
+    fn test_read_message_non_eof_io_error() {
+        // A reader that returns a non-EOF error on read.
+        struct BrokenReader;
+        impl std::io::Read for BrokenReader {
+            fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "simulated broken pipe",
+                ))
+            }
+        }
+
+        let mut reader = BrokenReader;
+        let result: Result<DaemonRequest> = read_message(&mut reader);
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, LspError::Io(_)),
+            "expected Io error, got: {err:?}"
+        );
+        assert!(err.to_string().contains("broken pipe"));
+    }
+
+    #[test]
+    fn test_write_and_read_large_locations_response() {
+        let locations: Vec<LspLocation> = (0..100)
+            .map(|i| LspLocation {
+                uri: format!("file:///src/file_{i}.rs"),
+                range: Range::new(Position::new(i, 0), Position::new(i, 10)),
+            })
+            .collect();
+
+        let resp = DaemonResponse::Locations(locations);
+        let mut buf = Vec::new();
+        write_message(&mut buf, &resp).unwrap();
+
+        let mut cursor = Cursor::new(buf);
+        let parsed: DaemonResponse = read_message(&mut cursor).unwrap();
+        match parsed {
+            DaemonResponse::Locations(locs) => {
+                assert_eq!(locs.len(), 100);
+            }
+            _ => panic!("expected Locations response"),
+        }
+    }
 }

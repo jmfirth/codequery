@@ -680,4 +680,170 @@ mod tests {
         assert_eq!(rr.resolution, Resolution::Semantic);
         assert_eq!(rr.symbol, "process");
     }
+
+    // ─── semantic_definition_with_wait error paths ──────────────────
+
+    #[test]
+    fn test_semantic_definition_with_wait_unsupported_language() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("test.rb");
+        std::fs::write(&file, "def foo; end").unwrap();
+
+        let result = semantic_definition_with_wait(
+            dir.path(),
+            Language::Ruby, // No config → early error
+            &file,
+            1,
+            4,
+            Duration::ZERO,
+        );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, LspError::ServerNotFound(_)));
+    }
+
+    #[test]
+    fn test_semantic_refs_with_wait_unsupported_language() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("test.swift");
+        std::fs::write(&file, "func foo() {}").unwrap();
+
+        let result = semantic_refs_with_wait(
+            dir.path(),
+            Language::Swift, // No config → early error
+            "foo",
+            &file,
+            1,
+            5,
+            Duration::ZERO,
+        );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, LspError::ServerNotFound(_)));
+    }
+
+    // ─── semantic_refs via mock server end-to-end ────────────────────
+
+    #[test]
+    fn test_semantic_refs_with_mock_server_end_to_end() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("main.rs");
+        std::fs::write(&file, "fn foo() {}\nfn bar() { foo(); }").unwrap();
+
+        let file_uri = crate::queries::path_to_uri(&file);
+        let refs_result = format!(
+            "[{{\"uri\":\"{file_uri}\",\"range\":{{\"start\":{{\"line\":1,\"character\":11}},\"end\":{{\"line\":1,\"character\":14}}}}}}]"
+        );
+
+        let config = mock_oneshot_server("{\"referencesProvider\":true}", &refs_result);
+
+        let mut server = LspServer::start(&config, dir.path()).unwrap();
+        let source = std::fs::read_to_string(&file).unwrap();
+        server.open_document(&file, &source, "rust").unwrap();
+
+        let locations = server.find_references(&file, 1, 3, false).unwrap();
+
+        // Build refs the same way the oneshot module does.
+        let refs: Vec<ResolvedReference> = locations
+            .into_iter()
+            .map(|loc| {
+                let ref_file = crate::queries::uri_to_path(&loc.uri);
+                #[allow(clippy::cast_possible_truncation)]
+                let ref_line = loc.range.start.line as usize + 1;
+                #[allow(clippy::cast_possible_truncation)]
+                let ref_column = loc.range.start.character as usize;
+                ResolvedReference {
+                    ref_file,
+                    ref_line,
+                    ref_column,
+                    symbol: "foo".to_string(),
+                    def_file: Some(file.clone()),
+                    def_line: Some(1),
+                    def_column: Some(3),
+                    resolution: Resolution::Semantic,
+                }
+            })
+            .collect();
+
+        let _ = server.shutdown();
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].resolution, Resolution::Semantic);
+    }
+
+    // ─── semantic_definition via mock server end-to-end ──────────────
+
+    #[test]
+    fn test_semantic_definition_with_mock_server_end_to_end() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("main.rs");
+        std::fs::write(&file, "fn foo() {}\nfn bar() { foo(); }").unwrap();
+
+        let file_uri = crate::queries::path_to_uri(&file);
+        let def_result = format!(
+            "{{\"uri\":\"{file_uri}\",\"range\":{{\"start\":{{\"line\":0,\"character\":3}},\"end\":{{\"line\":0,\"character\":6}}}}}}"
+        );
+
+        let config = mock_oneshot_server("{\"definitionProvider\":true}", &def_result);
+
+        let mut server = LspServer::start(&config, dir.path()).unwrap();
+        let source = std::fs::read_to_string(&file).unwrap();
+        server.open_document(&file, &source, "rust").unwrap();
+
+        let locations = server.find_definition(&file, 2, 11).unwrap();
+
+        let refs: Vec<ResolvedReference> = locations
+            .into_iter()
+            .map(|loc| {
+                let def_file = crate::queries::uri_to_path(&loc.uri);
+                #[allow(clippy::cast_possible_truncation)]
+                let def_line = loc.range.start.line as usize + 1;
+                #[allow(clippy::cast_possible_truncation)]
+                let def_column = loc.range.start.character as usize;
+                ResolvedReference {
+                    ref_file: file.clone(),
+                    ref_line: 2,
+                    ref_column: 11,
+                    symbol: String::new(),
+                    def_file: Some(def_file),
+                    def_line: Some(def_line),
+                    def_column: Some(def_column),
+                    resolution: Resolution::Semantic,
+                }
+            })
+            .collect();
+
+        let _ = server.shutdown();
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].def_line, Some(1));
+    }
+
+    // ─── multiple refs from mock server ─────────────────────────────
+
+    #[test]
+    fn test_semantic_refs_with_mock_multiple_locations() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("main.rs");
+        std::fs::write(
+            &file,
+            "fn foo() {}\nfn bar() { foo(); }\nfn baz() { foo(); }",
+        )
+        .unwrap();
+
+        let file_uri = crate::queries::path_to_uri(&file);
+        let refs_result = format!(
+            "[{{\"uri\":\"{file_uri}\",\"range\":{{\"start\":{{\"line\":1,\"character\":11}},\"end\":{{\"line\":1,\"character\":14}}}}}},\
+             {{\"uri\":\"{file_uri}\",\"range\":{{\"start\":{{\"line\":2,\"character\":11}},\"end\":{{\"line\":2,\"character\":14}}}}}}]"
+        );
+
+        let config = mock_oneshot_server("{\"referencesProvider\":true}", &refs_result);
+
+        let mut server = LspServer::start(&config, dir.path()).unwrap();
+        let source = std::fs::read_to_string(&file).unwrap();
+        server.open_document(&file, &source, "rust").unwrap();
+
+        let locations = server.find_references(&file, 1, 3, false).unwrap();
+        let _ = server.shutdown();
+
+        assert_eq!(locations.len(), 2);
+    }
 }

@@ -344,9 +344,8 @@ mod tests {
         assert!(
             recovered
                 .to_str()
-                .map_or(false, |s| s.contains("roundtrip-test")),
-            "recovered path {:?} should contain 'roundtrip-test'",
-            recovered
+                .is_some_and(|s| s.contains("roundtrip-test")),
+            "recovered path {recovered:?} should contain 'roundtrip-test'",
         );
     }
 
@@ -594,5 +593,230 @@ mod tests {
         let link: LocationLink = serde_json::from_value(json).unwrap();
         assert!(link.origin_selection_range.is_some());
         assert_eq!(link.origin_selection_range.unwrap().start.line, 5);
+    }
+
+    // ─── open_document, find_definition, find_references, hover via mock ─
+
+    /// Shell script fragments for mock LSP servers.
+    const SHELL_READ_REQUEST: &str = concat!(
+        "read_headers() { ",
+        "  CL=0; ",
+        "  while IFS= read -r line; do ",
+        "    line=$(printf '%s' \"$line\" | tr -d '\\r'); ",
+        "    [ -z \"$line\" ] && break; ",
+        "    case \"$line\" in ",
+        "      Content-Length:*) CL=$(echo \"$line\" | cut -d: -f2 | tr -d ' ') ;; ",
+        "    esac; ",
+        "  done; ",
+        "  echo $CL; ",
+        "}; ",
+        "CL=$(read_headers); ",
+        "BODY=$(dd bs=1 count=$CL 2>/dev/null); ",
+        "ID=$(echo \"$BODY\" | sed 's/.*\"id\":\\([0-9]*\\).*/\\1/'); ",
+    );
+
+    const SHELL_WRITE_MSG: &str = concat!(
+        "write_msg() { ",
+        "  local MSG=\"$1\"; ",
+        "  local LEN=$(printf '%s' \"$MSG\" | wc -c | tr -d ' '); ",
+        "  printf 'Content-Length: %s\\r\\n\\r\\n%s' \"$LEN\" \"$MSG\"; ",
+        "}; ",
+    );
+
+    /// Helper to create a mock server config that handles init, initialized,
+    /// didOpen, one query, shutdown, and exit.
+    fn mock_query_server(capabilities: &str, query_result: &str) -> crate::config::ServerConfig {
+        let script = format!(
+            "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{{\"capabilities\":{capabilities}}}}}'; \
+             {SHELL_READ_REQUEST}\
+             {SHELL_READ_REQUEST}\
+             {SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{query_result}}}'; \
+             {SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":null}}'; \
+             {SHELL_READ_REQUEST}"
+        );
+
+        crate::config::ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        }
+    }
+
+    #[test]
+    fn test_open_document_sends_did_open_and_tracks() {
+        let config = mock_query_server("{}", "null");
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("test.rs");
+        std::fs::write(&file, "fn main() {}").unwrap();
+
+        let mut server = crate::server::LspServer::start(&config, dir.path()).unwrap();
+        assert!(server.opened_docs.is_empty());
+
+        server.open_document(&file, "fn main() {}", "rust").unwrap();
+        assert_eq!(server.opened_docs.len(), 1);
+
+        // Second open is a no-op.
+        server.open_document(&file, "fn main() {}", "rust").unwrap();
+        assert_eq!(server.opened_docs.len(), 1);
+
+        server.shutdown().unwrap();
+    }
+
+    #[test]
+    fn test_find_definition_via_mock_server() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("test.rs");
+        std::fs::write(&file, "fn foo() {}\nfn bar() { foo(); }").unwrap();
+
+        let file_uri = path_to_uri(&file);
+        let result = format!(
+            "{{\"uri\":\"{file_uri}\",\"range\":{{\"start\":{{\"line\":0,\"character\":3}},\"end\":{{\"line\":0,\"character\":6}}}}}}"
+        );
+        let config = mock_query_server("{\"definitionProvider\":true}", &result);
+
+        let mut server = crate::server::LspServer::start(&config, dir.path()).unwrap();
+        let source = std::fs::read_to_string(&file).unwrap();
+        server.open_document(&file, &source, "rust").unwrap();
+
+        let locs = server.find_definition(&file, 2, 11).unwrap();
+        assert_eq!(locs.len(), 1);
+        assert_eq!(locs[0].range.start.line, 0);
+        assert_eq!(locs[0].range.start.character, 3);
+
+        server.shutdown().unwrap();
+    }
+
+    #[test]
+    fn test_find_references_via_mock_server() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("test.rs");
+        std::fs::write(&file, "fn foo() {}\nfn bar() { foo(); }").unwrap();
+
+        let file_uri = path_to_uri(&file);
+        let result = format!(
+            "[{{\"uri\":\"{file_uri}\",\"range\":{{\"start\":{{\"line\":1,\"character\":11}},\"end\":{{\"line\":1,\"character\":14}}}}}}]"
+        );
+        let config = mock_query_server("{\"referencesProvider\":true}", &result);
+
+        let mut server = crate::server::LspServer::start(&config, dir.path()).unwrap();
+        let source = std::fs::read_to_string(&file).unwrap();
+        server.open_document(&file, &source, "rust").unwrap();
+
+        let locs = server.find_references(&file, 1, 3, false).unwrap();
+        assert_eq!(locs.len(), 1);
+        assert_eq!(locs[0].range.start.line, 1);
+
+        server.shutdown().unwrap();
+    }
+
+    #[test]
+    fn test_hover_via_mock_server() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("test.rs");
+        std::fs::write(&file, "fn foo() -> i32 { 42 }").unwrap();
+
+        let hover_result =
+            r#"{"contents":{"kind":"markdown","value":"```rust\nfn foo() -> i32\n```"}}"#;
+        let config = mock_query_server("{\"hoverProvider\":true}", hover_result);
+
+        let mut server = crate::server::LspServer::start(&config, dir.path()).unwrap();
+        let source = std::fs::read_to_string(&file).unwrap();
+        server.open_document(&file, &source, "rust").unwrap();
+
+        let hover = server.hover(&file, 1, 3).unwrap();
+        assert!(hover.is_some());
+        let text = hover.unwrap();
+        assert!(text.contains("fn foo()"), "hover text: {text}");
+
+        server.shutdown().unwrap();
+    }
+
+    #[test]
+    fn test_hover_null_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("test.rs");
+        std::fs::write(&file, "fn foo() {}").unwrap();
+
+        let config = mock_query_server("{\"hoverProvider\":true}", "null");
+
+        let mut server = crate::server::LspServer::start(&config, dir.path()).unwrap();
+        let source = std::fs::read_to_string(&file).unwrap();
+        server.open_document(&file, &source, "rust").unwrap();
+
+        let hover = server.hover(&file, 1, 3).unwrap();
+        assert!(hover.is_none());
+
+        server.shutdown().unwrap();
+    }
+
+    // ─── parse_hover_contents edge cases ────────────────────────────
+
+    #[test]
+    fn test_parse_hover_contents_empty_array() {
+        let result = serde_json::json!({
+            "contents": []
+        });
+        let text = parse_hover_contents(&result);
+        // Empty array → fallback to serialization.
+        assert_eq!(text, "[]");
+    }
+
+    #[test]
+    fn test_parse_hover_contents_object_without_value_field() {
+        let result = serde_json::json!({
+            "contents": {"kind": "markdown"}
+        });
+        let text = parse_hover_contents(&result);
+        // No value field → fallback to serialization.
+        assert!(text.contains("markdown"));
+    }
+
+    // ─── parse_definition_response error paths ──────────────────────
+
+    #[test]
+    fn test_parse_definition_response_malformed_location_link() {
+        // Has targetUri (so it's detected as LocationLink) but missing required fields.
+        let result = serde_json::json!([
+            {
+                "targetUri": "file:///test.rs"
+                // Missing targetRange and targetSelectionRange
+            }
+        ]);
+        let err = parse_definition_response(&result).unwrap_err();
+        assert!(
+            matches!(err, crate::error::LspError::ConnectionFailed(_)),
+            "expected ConnectionFailed, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_parse_definition_response_malformed_location() {
+        // No targetUri, so treated as Location[], but missing range.
+        let result = serde_json::json!([
+            {
+                "uri": "file:///test.rs"
+                // Missing range
+            }
+        ]);
+        let err = parse_definition_response(&result).unwrap_err();
+        assert!(matches!(err, crate::error::LspError::ConnectionFailed(_)));
+    }
+
+    #[test]
+    fn test_parse_definition_response_malformed_single_location() {
+        // Not an array, not null — treated as single Location, but malformed.
+        let result = serde_json::json!(42);
+        let err = parse_definition_response(&result).unwrap_err();
+        assert!(matches!(err, crate::error::LspError::ConnectionFailed(_)));
+    }
+
+    #[test]
+    fn test_parse_locations_response_malformed() {
+        let result = serde_json::json!([{"uri": "file:///test.rs"}]);
+        let err = parse_locations_response(&result).unwrap_err();
+        assert!(matches!(err, crate::error::LspError::ConnectionFailed(_)));
     }
 }
