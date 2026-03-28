@@ -2,6 +2,7 @@ pub mod body;
 pub mod callers;
 pub mod common;
 pub mod context;
+pub mod daemon;
 pub mod def;
 pub mod deps;
 pub mod imports;

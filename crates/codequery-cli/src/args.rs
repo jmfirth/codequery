@@ -46,6 +46,14 @@ pub struct CqArgs {
     #[arg(long, global = true)]
     pub lang: Option<String>,
 
+    /// Use language server for semantic precision (slow without daemon)
+    #[arg(long, global = true, conflicts_with = "no_semantic")]
+    pub semantic: bool,
+
+    /// Disable semantic resolution even if daemon is running
+    #[arg(long, global = true, conflicts_with = "semantic")]
+    pub no_semantic: bool,
+
     /// Enable disk caching for faster repeated queries
     #[arg(long, global = true, conflicts_with = "no_cache")]
     pub cache: bool,
@@ -80,6 +88,21 @@ impl CqArgs {
         } else {
             OutputMode::Framed
         }
+    }
+
+    /// Determine whether semantic (LSP-backed) resolution is enabled.
+    ///
+    /// Precedence: `--no-semantic` (force off) > `--semantic` (force on) > `CQ_SEMANTIC=1` env var.
+    pub fn use_semantic(&self) -> bool {
+        if self.no_semantic {
+            return false;
+        }
+        if self.semantic {
+            return true;
+        }
+        std::env::var("CQ_SEMANTIC")
+            .map(|v| v == "1")
+            .unwrap_or(false)
     }
 
     /// Determine whether disk caching is enabled.
@@ -161,6 +184,14 @@ pub enum Command {
         #[command(subcommand)]
         action: CacheAction,
     },
+    /// Manage the LSP daemon
+    Daemon {
+        #[command(subcommand)]
+        action: DaemonAction,
+    },
+    /// Internal: run the daemon in the foreground (used by `daemon start`)
+    #[command(name = "_daemon-run", hide = true)]
+    DaemonRun,
 }
 
 /// Cache management sub-subcommands.
@@ -168,6 +199,17 @@ pub enum Command {
 pub enum CacheAction {
     /// Clear all cached data
     Clear,
+}
+
+/// Daemon management sub-subcommands.
+#[derive(Debug, Subcommand)]
+pub enum DaemonAction {
+    /// Start the daemon in the background
+    Start,
+    /// Stop a running daemon
+    Stop,
+    /// Show daemon status
+    Status,
 }
 
 /// Process exit codes following SPECIFICATION.md section 12.
@@ -527,5 +569,116 @@ mod tests {
     fn test_cache_subcommand_without_action_fails() {
         let result = CqArgs::try_parse_from(["cq", "cache"]);
         assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // Semantic flags
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_semantic_flag_parsed() {
+        let args = CqArgs::parse_from(["cq", "--semantic", "def", "foo"]);
+        assert!(args.semantic);
+        assert!(!args.no_semantic);
+    }
+
+    #[test]
+    fn test_no_semantic_flag_parsed() {
+        let args = CqArgs::parse_from(["cq", "--no-semantic", "def", "foo"]);
+        assert!(!args.semantic);
+        assert!(args.no_semantic);
+    }
+
+    #[test]
+    fn test_semantic_and_no_semantic_together_produce_error() {
+        let result = CqArgs::try_parse_from(["cq", "--semantic", "--no-semantic", "def", "foo"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_use_semantic_returns_false_by_default() {
+        let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        std::env::remove_var("CQ_SEMANTIC");
+        assert!(!args.use_semantic());
+    }
+
+    #[test]
+    fn test_use_semantic_returns_true_with_semantic_flag() {
+        let args = CqArgs::parse_from(["cq", "--semantic", "def", "foo"]);
+        assert!(args.use_semantic());
+    }
+
+    #[test]
+    fn test_use_semantic_returns_false_with_no_semantic_flag() {
+        let args = CqArgs::parse_from(["cq", "--no-semantic", "def", "foo"]);
+        // Even if env is set, --no-semantic wins
+        std::env::set_var("CQ_SEMANTIC", "1");
+        assert!(!args.use_semantic());
+        std::env::remove_var("CQ_SEMANTIC");
+    }
+
+    #[test]
+    fn test_use_semantic_respects_cq_semantic_env_var() {
+        let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        std::env::set_var("CQ_SEMANTIC", "1");
+        assert!(args.use_semantic());
+        std::env::remove_var("CQ_SEMANTIC");
+    }
+
+    #[test]
+    fn test_use_semantic_ignores_non_one_env_var() {
+        let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        std::env::set_var("CQ_SEMANTIC", "yes");
+        assert!(!args.use_semantic());
+        std::env::remove_var("CQ_SEMANTIC");
+    }
+
+    // -----------------------------------------------------------------------
+    // Daemon subcommand
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_daemon_start_subcommand_parsed() {
+        let args = CqArgs::parse_from(["cq", "daemon", "start"]);
+        match args.command {
+            Command::Daemon { action } => {
+                assert!(matches!(action, DaemonAction::Start));
+            }
+            _ => panic!("expected Daemon command"),
+        }
+    }
+
+    #[test]
+    fn test_daemon_stop_subcommand_parsed() {
+        let args = CqArgs::parse_from(["cq", "daemon", "stop"]);
+        match args.command {
+            Command::Daemon { action } => {
+                assert!(matches!(action, DaemonAction::Stop));
+            }
+            _ => panic!("expected Daemon command"),
+        }
+    }
+
+    #[test]
+    fn test_daemon_status_subcommand_parsed() {
+        let args = CqArgs::parse_from(["cq", "daemon", "status"]);
+        match args.command {
+            Command::Daemon { action } => {
+                assert!(matches!(action, DaemonAction::Status));
+            }
+            _ => panic!("expected Daemon command"),
+        }
+    }
+
+    #[test]
+    fn test_daemon_subcommand_without_action_fails() {
+        let result = CqArgs::try_parse_from(["cq", "daemon"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_daemon_run_hidden_subcommand_parsed() {
+        let args = CqArgs::parse_from(["cq", "_daemon-run"]);
+        assert!(matches!(args.command, Command::DaemonRun));
     }
 }

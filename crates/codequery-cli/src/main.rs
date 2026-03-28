@@ -4,7 +4,7 @@ mod args;
 mod commands;
 mod output;
 
-use args::{CacheAction, Command, CqArgs, ExitCode};
+use args::{CacheAction, Command, CqArgs, DaemonAction, ExitCode};
 use clap::Parser;
 use codequery_core::Language;
 
@@ -38,6 +38,7 @@ fn parse_lang_filter(lang: Option<&String>) -> anyhow::Result<Option<Language>> 
 fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
     let mode = args.output_mode();
     let pretty = args.pretty;
+    let _use_semantic = args.use_semantic();
     let use_cache = args.use_cache();
     let lang_filter = parse_lang_filter(args.lang.as_ref())?;
     match args.command {
@@ -141,5 +142,11 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
                 Err(e) => Err(anyhow::anyhow!("failed to clear cache: {e}")),
             },
         },
+        Command::Daemon { action } => match action {
+            DaemonAction::Start => commands::daemon::run_start(),
+            DaemonAction::Stop => commands::daemon::run_stop(),
+            DaemonAction::Status => commands::daemon::run_status(),
+        },
+        Command::DaemonRun => commands::daemon::run_foreground(),
     }
 }
