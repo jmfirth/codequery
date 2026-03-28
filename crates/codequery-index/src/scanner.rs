@@ -11,6 +11,7 @@ use rayon::prelude::*;
 use codequery_core::{discover_files, language_for_file, Symbol};
 use codequery_parse::{extract_symbols, Parser};
 
+use crate::cache::{self, CacheStore, CachedFile};
 use crate::error::Result;
 use crate::grep;
 
@@ -99,6 +100,102 @@ pub fn scan_with_filter(
 
     results.sort_by(|a, b| a.file.cmp(&b.file));
     Ok(results)
+}
+
+/// Scan all source files in a project, using disk cache when available.
+///
+/// When `use_cache` is true and a valid cache exists for the project,
+/// returns symbols from the cache without re-parsing. On cache miss
+/// or invalidation, performs a full scan and stores the result in cache.
+///
+/// When `use_cache` is false, behaves identically to [`scan_project`].
+///
+/// # Errors
+///
+/// Returns an error if file discovery itself fails (e.g., path does not exist).
+pub fn scan_project_cached(
+    root: &Path,
+    scope: Option<&Path>,
+    use_cache: bool,
+) -> Result<Vec<FileSymbols>> {
+    if !use_cache {
+        return scan_project(root, scope);
+    }
+
+    // Attempt to load and validate the cache
+    if let Some(store) = CacheStore::new(root) {
+        if let Ok(cached) = store.load() {
+            if store.is_valid(&cached, root) {
+                // Cache hit — rebuild FileSymbols from cached data.
+                // Note: we don't have the source text or tree in the cache,
+                // so we need to re-read source and re-parse for FileSymbols.
+                // The cache saves us the symbol extraction step.
+                // For now, we re-parse but skip extraction if cache is valid.
+                // A simpler approach: on cache hit, do a full re-parse but
+                // use the cached symbols instead of re-extracting.
+                return Ok(rebuild_from_cache(&cached, root, scope));
+            }
+        }
+    }
+
+    // Cache miss — full scan, then store
+    let results = scan_project(root, scope)?;
+
+    if let Some(store) = CacheStore::new(root) {
+        let entries = build_cache_entries(&results, root);
+        // Silently ignore write failures (read-only fs, etc.)
+        let _ = store.store(&entries);
+    }
+
+    Ok(results)
+}
+
+/// Rebuild `FileSymbols` from cached data by re-reading source and re-parsing trees,
+/// but using cached symbols to skip extraction.
+///
+/// If scope is set, only files within the scope are included.
+fn rebuild_from_cache(
+    cached: &[CachedFile],
+    root: &Path,
+    scope: Option<&Path>,
+) -> Vec<FileSymbols> {
+    let mut results: Vec<FileSymbols> = cached
+        .par_iter()
+        .filter(|entry| scope.is_none_or(|s| entry.path.starts_with(s)))
+        .filter_map(|entry| {
+            let absolute = root.join(&entry.path);
+            let language = language_for_file(&absolute)?;
+            let mut parser = Parser::for_language(language).ok()?;
+            let (source, tree) = parser.parse_file(&absolute).ok()?;
+
+            Some(FileSymbols {
+                file: entry.path.clone(),
+                symbols: entry.symbols.clone(),
+                source,
+                tree,
+            })
+        })
+        .collect();
+
+    results.sort_by(|a, b| a.file.cmp(&b.file));
+    results
+}
+
+/// Build cache entries from scan results, including file metadata.
+fn build_cache_entries(results: &[FileSymbols], root: &Path) -> Vec<CachedFile> {
+    results
+        .iter()
+        .filter_map(|fs| {
+            let abs_path = root.join(&fs.file);
+            let (mtime, size) = cache::get_file_mtime_size(&abs_path)?;
+            Some(CachedFile {
+                path: fs.file.clone(),
+                mtime,
+                size,
+                symbols: fs.symbols.clone(),
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -275,5 +372,99 @@ mod tests {
     fn test_scan_with_filter_nonexistent_root_returns_error() {
         let result = scan_with_filter(Path::new("/nonexistent/project"), None, "test");
         assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // scan_project_cached
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_scan_project_cached_without_cache_same_as_scan_project() {
+        let tmp = create_project(&[("main.rs", "fn hello() {}\n")]);
+        let results = scan_project_cached(tmp.path(), None, false).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].source, "fn hello() {}\n");
+    }
+
+    #[test]
+    fn test_scan_project_cached_populates_and_reuses_cache() {
+        let cache_tmp = TempDir::new().unwrap();
+        std::env::set_var("CQ_CACHE_DIR", cache_tmp.path());
+
+        let project = create_project(&[("lib.rs", "fn cached_func() {}\n")]);
+
+        // First scan — cache miss, should scan and store
+        let results1 = scan_project_cached(project.path(), None, true).unwrap();
+        assert_eq!(results1.len(), 1);
+        assert_eq!(results1[0].symbols[0].name, "cached_func");
+
+        // Second scan — cache hit, should use cached symbols
+        let results2 = scan_project_cached(project.path(), None, true).unwrap();
+        assert_eq!(results2.len(), 1);
+        assert_eq!(results2[0].symbols[0].name, "cached_func");
+
+        // Results should match
+        assert_eq!(results1[0].file, results2[0].file);
+        assert_eq!(results1[0].symbols.len(), results2[0].symbols.len());
+
+        std::env::remove_var("CQ_CACHE_DIR");
+    }
+
+    #[test]
+    fn test_scan_project_cached_invalidates_on_file_change() {
+        let cache_tmp = TempDir::new().unwrap();
+        std::env::set_var("CQ_CACHE_DIR", cache_tmp.path());
+
+        let project = create_project(&[("lib.rs", "fn original() {}\n")]);
+
+        // First scan — populates cache
+        let results1 = scan_project_cached(project.path(), None, true).unwrap();
+        assert_eq!(results1[0].symbols[0].name, "original");
+
+        // Modify the file (change content and thus size)
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::fs::write(project.path().join("lib.rs"), "fn modified_function() {}\n").unwrap();
+
+        // Second scan — cache should be invalidated, re-scans
+        let results2 = scan_project_cached(project.path(), None, true).unwrap();
+        assert_eq!(results2[0].symbols[0].name, "modified_function");
+
+        std::env::remove_var("CQ_CACHE_DIR");
+    }
+
+    #[test]
+    fn test_scan_project_cached_empty_project() {
+        let cache_tmp = TempDir::new().unwrap();
+        std::env::set_var("CQ_CACHE_DIR", cache_tmp.path());
+
+        let project = create_project(&[]);
+        let results = scan_project_cached(project.path(), None, true).unwrap();
+        assert!(results.is_empty());
+
+        std::env::remove_var("CQ_CACHE_DIR");
+    }
+
+    #[test]
+    fn test_scan_project_cached_nonexistent_root_returns_error() {
+        let result = scan_project_cached(Path::new("/nonexistent/project"), None, true);
+        assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // build_cache_entries
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_build_cache_entries_captures_metadata() {
+        let tmp = create_project(&[("a.rs", "fn test_func() {}")]);
+
+        let results = scan_project(tmp.path(), None).unwrap();
+        let entries = build_cache_entries(&results, tmp.path());
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].path, PathBuf::from("a.rs"));
+        assert!(entries[0].mtime > 0);
+        assert!(entries[0].size > 0);
+        assert_eq!(entries[0].symbols.len(), results[0].symbols.len());
     }
 }

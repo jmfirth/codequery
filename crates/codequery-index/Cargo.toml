@@ -11,6 +11,9 @@ tree-sitter = "0.24"
 codequery-core = { path = "../codequery-core" }
 codequery-parse = { path = "../codequery-parse" }
 thiserror = "2"
+bincode = "1"
+sha2 = "0.10"
+serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }

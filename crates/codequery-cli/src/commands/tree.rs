@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use codequery_core::detect_project_root_or;
-use codequery_index::{scan_project, FileSymbols};
+use codequery_index::{scan_project_cached, FileSymbols};
 
 use crate::args::{ExitCode, OutputMode};
 use crate::output::format_tree_output;
@@ -24,6 +24,7 @@ pub fn run(
     mode: OutputMode,
     pretty: bool,
     depth: Option<usize>,
+    use_cache: bool,
 ) -> anyhow::Result<ExitCode> {
     // 1. Resolve project root
     let cwd = std::env::current_dir()?;
@@ -32,8 +33,8 @@ pub fn run(
     // 2. Determine effective scope: path argument takes precedence over --in flag
     let effective_scope = path.or(scope);
 
-    // 3. Scan all files in parallel
-    let file_symbols = scan_project(&project_root, effective_scope)?;
+    // 3. Scan all files in parallel (with optional caching)
+    let file_symbols = scan_project_cached(&project_root, effective_scope, use_cache)?;
 
     // 4. Apply depth limiting if requested
     let file_symbols = if let Some(max_depth) = depth {
@@ -132,7 +133,15 @@ mod tests {
     #[test]
     fn test_tree_fixture_shows_all_files() {
         let project = fixture_project();
-        let result = run(None, Some(&project), None, OutputMode::Framed, false, None);
+        let result = run(
+            None,
+            Some(&project),
+            None,
+            OutputMode::Framed,
+            false,
+            None,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -148,6 +157,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -189,7 +199,15 @@ mod tests {
     #[test]
     fn test_tree_json_mode_returns_success() {
         let project = fixture_project();
-        let result = run(None, Some(&project), None, OutputMode::Json, true, None);
+        let result = run(
+            None,
+            Some(&project),
+            None,
+            OutputMode::Json,
+            true,
+            None,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -198,7 +216,15 @@ mod tests {
     #[test]
     fn test_tree_raw_mode_returns_success() {
         let project = fixture_project();
-        let result = run(None, Some(&project), None, OutputMode::Raw, false, None);
+        let result = run(
+            None,
+            Some(&project),
+            None,
+            OutputMode::Raw,
+            false,
+            None,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -215,6 +241,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);

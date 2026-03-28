@@ -15,6 +15,8 @@ pub enum OutputMode {
 /// Semantic code query tool for the command line.
 #[derive(Debug, Parser)]
 #[command(name = "cq", version, about)]
+#[allow(clippy::struct_excessive_bools)]
+// CLI flag structs naturally use booleans for each flag; refactoring would hurt clarity
 pub struct CqArgs {
     /// Explicit project root (overrides auto-detection)
     #[arg(long, global = true)]
@@ -44,6 +46,14 @@ pub struct CqArgs {
     #[arg(long, global = true)]
     pub lang: Option<String>,
 
+    /// Enable disk caching for faster repeated queries
+    #[arg(long, global = true, conflicts_with = "no_cache")]
+    pub cache: bool,
+
+    /// Disable disk caching (overrides `CQ_CACHE` env var)
+    #[arg(long, global = true, conflicts_with = "cache")]
+    pub no_cache: bool,
+
     /// Lines of context around matches
     #[arg(long, global = true, default_value = "0")]
     pub context: usize,
@@ -70,6 +80,19 @@ impl CqArgs {
         } else {
             OutputMode::Framed
         }
+    }
+
+    /// Determine whether disk caching is enabled.
+    ///
+    /// Precedence: `--no-cache` (force off) > `--cache` (force on) > `CQ_CACHE=1` env var.
+    pub fn use_cache(&self) -> bool {
+        if self.no_cache {
+            return false;
+        }
+        if self.cache {
+            return true;
+        }
+        std::env::var("CQ_CACHE").map(|v| v == "1").unwrap_or(false)
     }
 }
 
@@ -128,6 +151,18 @@ pub enum Command {
         /// Path to root (defaults to project root)
         path: Option<PathBuf>,
     },
+    /// Manage the disk cache
+    Cache {
+        #[command(subcommand)]
+        action: CacheAction,
+    },
+}
+
+/// Cache management sub-subcommands.
+#[derive(Debug, Subcommand)]
+pub enum CacheAction {
+    /// Clear all cached data
+    Clear,
 }
 
 /// Process exit codes following SPECIFICATION.md section 12.
@@ -382,5 +417,89 @@ mod tests {
             Command::Tree { path } => assert!(path.is_none()),
             _ => panic!("expected Tree command"),
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Cache flags
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_cache_flag_parsed() {
+        let args = CqArgs::parse_from(["cq", "--cache", "def", "foo"]);
+        assert!(args.cache);
+        assert!(!args.no_cache);
+    }
+
+    #[test]
+    fn test_no_cache_flag_parsed() {
+        let args = CqArgs::parse_from(["cq", "--no-cache", "def", "foo"]);
+        assert!(!args.cache);
+        assert!(args.no_cache);
+    }
+
+    #[test]
+    fn test_cache_and_no_cache_together_produce_error() {
+        let result = CqArgs::try_parse_from(["cq", "--cache", "--no-cache", "def", "foo"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_use_cache_returns_false_by_default() {
+        let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        // Remove CQ_CACHE env if set
+        std::env::remove_var("CQ_CACHE");
+        assert!(!args.use_cache());
+    }
+
+    #[test]
+    fn test_use_cache_returns_true_with_cache_flag() {
+        let args = CqArgs::parse_from(["cq", "--cache", "def", "foo"]);
+        assert!(args.use_cache());
+    }
+
+    #[test]
+    fn test_use_cache_returns_false_with_no_cache_flag() {
+        let args = CqArgs::parse_from(["cq", "--no-cache", "def", "foo"]);
+        // Even if env is set, --no-cache wins
+        std::env::set_var("CQ_CACHE", "1");
+        assert!(!args.use_cache());
+        std::env::remove_var("CQ_CACHE");
+    }
+
+    #[test]
+    fn test_use_cache_respects_cq_cache_env_var() {
+        let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        std::env::set_var("CQ_CACHE", "1");
+        assert!(args.use_cache());
+        std::env::remove_var("CQ_CACHE");
+    }
+
+    #[test]
+    fn test_use_cache_ignores_non_one_env_var() {
+        let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        std::env::set_var("CQ_CACHE", "yes");
+        assert!(!args.use_cache());
+        std::env::remove_var("CQ_CACHE");
+    }
+
+    // -----------------------------------------------------------------------
+    // Cache subcommand
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_cache_clear_subcommand_parsed() {
+        let args = CqArgs::parse_from(["cq", "cache", "clear"]);
+        match args.command {
+            Command::Cache { action } => {
+                assert!(matches!(action, CacheAction::Clear));
+            }
+            _ => panic!("expected Cache command"),
+        }
+    }
+
+    #[test]
+    fn test_cache_subcommand_without_action_fails() {
+        let result = CqArgs::try_parse_from(["cq", "cache"]);
+        assert!(result.is_err());
     }
 }

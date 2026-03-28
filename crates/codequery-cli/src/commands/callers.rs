@@ -7,7 +7,7 @@
 use std::path::Path;
 
 use codequery_core::{detect_project_root_or, Reference, ReferenceKind, Resolution, Symbol};
-use codequery_index::{extract_references, scan_project, SymbolIndex};
+use codequery_index::{extract_references, scan_project_cached, SymbolIndex};
 use codequery_resolve::StackGraphResolver;
 
 use crate::args::{ExitCode, OutputMode};
@@ -31,13 +31,14 @@ pub fn run(
     mode: OutputMode,
     pretty: bool,
     context_lines: usize,
+    use_cache: bool,
 ) -> anyhow::Result<ExitCode> {
     // 1. Resolve project root
     let cwd = std::env::current_dir()?;
     let project_root = detect_project_root_or(&cwd, project)?;
 
-    // 2. Scan all files in parallel
-    let scan_results = scan_project(&project_root, scope)?;
+    // 2. Scan all files in parallel (with optional caching)
+    let scan_results = scan_project_cached(&project_root, scope, use_cache)?;
 
     // 3. Build symbol index and find definitions
     let index = SymbolIndex::from_scan(&scan_results);
@@ -234,6 +235,7 @@ mod tests {
             OutputMode::Framed,
             false,
             0,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -244,7 +246,15 @@ mod tests {
         let project = fixture_project();
         // User is imported in services.rs but the callers command should only
         // return Call references, not imports
-        let result = run("User", Some(&project), None, OutputMode::Framed, false, 0);
+        let result = run(
+            "User",
+            Some(&project),
+            None,
+            OutputMode::Framed,
+            false,
+            0,
+            false,
+        );
         // User may have Call refs (constructor calls like User::new) or may not;
         // we just verify it doesn't error
         assert!(result.is_ok());
@@ -261,6 +271,7 @@ mod tests {
             OutputMode::Framed,
             false,
             0,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -276,6 +287,7 @@ mod tests {
             OutputMode::Framed,
             false,
             0,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
@@ -284,7 +296,15 @@ mod tests {
     #[test]
     fn test_callers_json_mode() {
         let project = fixture_project();
-        let result = run("summarize", Some(&project), None, OutputMode::Json, true, 0);
+        let result = run(
+            "summarize",
+            Some(&project),
+            None,
+            OutputMode::Json,
+            true,
+            0,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -292,7 +312,15 @@ mod tests {
     #[test]
     fn test_callers_raw_mode() {
         let project = fixture_project();
-        let result = run("summarize", Some(&project), None, OutputMode::Raw, false, 0);
+        let result = run(
+            "summarize",
+            Some(&project),
+            None,
+            OutputMode::Raw,
+            false,
+            0,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -307,6 +335,7 @@ mod tests {
             OutputMode::Json,
             true,
             0,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
@@ -322,6 +351,7 @@ mod tests {
             OutputMode::Framed,
             false,
             2,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);

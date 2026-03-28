@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use codequery_core::{detect_project_root_or, Reference, ReferenceKind, Resolution, Symbol};
-use codequery_index::{extract_references, scan_project, SymbolIndex};
+use codequery_index::{extract_references, scan_project_cached, SymbolIndex};
 use codequery_resolve::StackGraphResolver;
 
 use crate::args::{ExitCode, OutputMode};
@@ -27,13 +27,14 @@ pub fn run(
     mode: OutputMode,
     pretty: bool,
     context_lines: usize,
+    use_cache: bool,
 ) -> anyhow::Result<ExitCode> {
     // 1. Resolve project root
     let cwd = std::env::current_dir()?;
     let project_root = detect_project_root_or(&cwd, project)?;
 
-    // 2. Scan all files in parallel
-    let scan_results = scan_project(&project_root, scope)?;
+    // 2. Scan all files in parallel (with optional caching)
+    let scan_results = scan_project_cached(&project_root, scope, use_cache)?;
 
     // 3. Build symbol index and find definitions
     let index = SymbolIndex::from_scan(&scan_results);
@@ -287,7 +288,15 @@ mod tests {
     #[test]
     fn test_refs_finds_function_call_references() {
         let project = fixture_project();
-        let result = run("greet", Some(&project), None, OutputMode::Framed, false, 0);
+        let result = run(
+            "greet",
+            Some(&project),
+            None,
+            OutputMode::Framed,
+            false,
+            0,
+            false,
+        );
         assert!(result.is_ok());
         // greet is defined in lib.rs — there may or may not be call refs,
         // but the definition should be found
@@ -298,7 +307,15 @@ mod tests {
     fn test_refs_finds_import_references() {
         let project = fixture_project();
         // User is imported in services.rs
-        let result = run("User", Some(&project), None, OutputMode::Framed, false, 0);
+        let result = run(
+            "User",
+            Some(&project),
+            None,
+            OutputMode::Framed,
+            false,
+            0,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -306,7 +323,15 @@ mod tests {
     #[test]
     fn test_refs_shows_definition_location() {
         let project = fixture_project();
-        let result = run("User", Some(&project), None, OutputMode::Framed, false, 0);
+        let result = run(
+            "User",
+            Some(&project),
+            None,
+            OutputMode::Framed,
+            false,
+            0,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -321,6 +346,7 @@ mod tests {
             OutputMode::Framed,
             false,
             0,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
@@ -329,7 +355,15 @@ mod tests {
     #[test]
     fn test_refs_json_includes_best_effort_metadata() {
         let project = fixture_project();
-        let result = run("User", Some(&project), None, OutputMode::Json, true, 0);
+        let result = run(
+            "User",
+            Some(&project),
+            None,
+            OutputMode::Json,
+            true,
+            0,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -337,7 +371,15 @@ mod tests {
     #[test]
     fn test_refs_raw_mode_returns_success() {
         let project = fixture_project();
-        let result = run("User", Some(&project), None, OutputMode::Raw, false, 0);
+        let result = run(
+            "User",
+            Some(&project),
+            None,
+            OutputMode::Raw,
+            false,
+            0,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -345,7 +387,15 @@ mod tests {
     #[test]
     fn test_refs_with_context_returns_success() {
         let project = fixture_project();
-        let result = run("User", Some(&project), None, OutputMode::Framed, false, 2);
+        let result = run(
+            "User",
+            Some(&project),
+            None,
+            OutputMode::Framed,
+            false,
+            2,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -360,6 +410,7 @@ mod tests {
             OutputMode::Json,
             true,
             0,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);

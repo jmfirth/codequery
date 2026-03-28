@@ -4,7 +4,7 @@ mod args;
 mod commands;
 mod output;
 
-use args::{Command, CqArgs, ExitCode};
+use args::{CacheAction, Command, CqArgs, ExitCode};
 use clap::Parser;
 use codequery_core::Language;
 
@@ -35,6 +35,7 @@ fn parse_lang_filter(lang: Option<&String>) -> anyhow::Result<Option<Language>> 
 fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
     let mode = args.output_mode();
     let pretty = args.pretty;
+    let use_cache = args.use_cache();
     let lang_filter = parse_lang_filter(args.lang.as_ref())?;
     match args.command {
         Command::Outline { file } => {
@@ -77,6 +78,7 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             args.limit,
             mode,
             pretty,
+            use_cache,
         ),
         Command::Tree { path } => commands::tree::run(
             path.as_deref(),
@@ -85,6 +87,7 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             mode,
             pretty,
             args.depth,
+            use_cache,
         ),
         Command::Refs { symbol } => commands::refs::run(
             &symbol,
@@ -93,6 +96,7 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             mode,
             pretty,
             args.context,
+            use_cache,
         ),
         Command::Deps { symbol } => commands::deps::run(
             &symbol,
@@ -101,6 +105,7 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             mode,
             pretty,
             lang_filter,
+            use_cache,
         ),
         Command::Callers { symbol } => commands::callers::run(
             &symbol,
@@ -109,6 +114,20 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             mode,
             pretty,
             args.context,
+            use_cache,
         ),
+        Command::Cache { action } => match action {
+            CacheAction::Clear => match codequery_index::clear_all_caches() {
+                Ok(true) => {
+                    eprintln!("cache cleared");
+                    Ok(ExitCode::Success)
+                }
+                Ok(false) => {
+                    eprintln!("no cache to clear");
+                    Ok(ExitCode::Success)
+                }
+                Err(e) => Err(anyhow::anyhow!("failed to clear cache: {e}")),
+            },
+        },
     }
 }
