@@ -9,10 +9,12 @@
 
 pub mod error;
 pub mod protocol;
+pub mod transport;
 pub mod types;
 
 pub use error::{LspError, Result};
 pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
+pub use transport::StdioTransport;
 pub use types::{
     ClientCapabilities, DefinitionParams, DidOpenTextDocumentParams, HoverParams, InitializeParams,
     LspLocation, MarkupContent, Position, Range, ReferenceParams, ServerCapabilities,
