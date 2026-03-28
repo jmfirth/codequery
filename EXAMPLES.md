@@ -294,30 +294,34 @@ $ cq symbols --kind trait
 ## refs — Who references this symbol?
 
 ```bash
-$ cq refs detect_project_root --in crates/codequery-core
+$ cq refs greet --project tests/fixtures/rust_project
 ```
 
 ```
-@@ crates/codequery-core/src/project.rs:33:0 function detect_project_root (definition) @@
+@@ src/lib.rs:9:0 function greet (definition) @@
 
-0 references (syntactic match — may be incomplete)
+0 references (syntactic match -- may be incomplete)
 ```
+
+The `best-effort` label is doing its job here. The syntactic reference extractor finds cross-file references by name matching but has known limitations in Rust (the strongest extraction is via the LSP cascade). With `cq daemon` running, this upgrades to `resolution: "semantic"` and returns the actual call sites from `tests/integration.rs`.
 
 ---
 
 ## callers — Who calls this function?
 
+Same precision model as refs, filtered to call sites only:
+
 ```bash
-$ cq callers summarize --project tests/fixtures/rust_project
+$ cq callers greet --project tests/fixtures/rust_project
 ```
 
 ```
-@@ src/services.rs:32:4 method summarize (definition) @@
+@@ src/lib.rs:9:0 function greet (definition) @@
 
 0 callers (syntactic match -- may be incomplete)
 ```
 
-The precision metadata is honest: syntactic matching may miss indirect calls. With `cq daemon` running, this upgrades to `resolution: "semantic"` automatically.
+The daemon/LSP cascade is where callers reaches its full potential — type-resolved call hierarchy from the language server.
 
 ---
 
