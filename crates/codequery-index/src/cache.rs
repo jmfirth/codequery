@@ -139,8 +139,8 @@ const CACHE_VERSION: u32 = 1;
 pub struct CacheStore {
     /// The path to the cache file for this project.
     cache_path: PathBuf,
-    /// The cache directory (for `clear_all` operations).
-    cache_dir: PathBuf,
+    /// The cache directory (for future `clear_all` operations).
+    _cache_dir: PathBuf,
 }
 
 /// Errors that can occur during cache operations.
@@ -187,7 +187,7 @@ impl CacheStore {
         let cache_path = cache_dir.join(format!("{key}.bin"));
         Some(Self {
             cache_path,
-            cache_dir,
+            _cache_dir: cache_dir,
         })
     }
 
@@ -198,7 +198,7 @@ impl CacheStore {
         let cache_path = cache_dir.join(format!("{key}.bin"));
         Self {
             cache_path,
-            cache_dir,
+            _cache_dir: cache_dir,
         }
     }
 
