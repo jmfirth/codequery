@@ -8,7 +8,9 @@
 #![warn(clippy::pedantic)]
 
 pub mod error;
+pub mod graph;
 pub mod rules;
 
 pub use error::{ResolveError, Result};
+pub use graph::{build_graph, build_graph_with_timeout, GraphResult, GraphWarning};
 pub use rules::{has_rules, language_config};

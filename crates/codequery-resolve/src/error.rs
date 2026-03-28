@@ -26,8 +26,10 @@ mod tests {
 
     #[test]
     fn test_result_alias_works_with_ok() {
-        let result: Result<i32> = Ok(42);
-        assert_eq!(result.unwrap(), 42);
+        let Ok(value) = Ok(42) as Result<i32> else {
+            panic!("expected Ok");
+        };
+        assert_eq!(value, 42);
     }
 
     #[test]
