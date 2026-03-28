@@ -21,7 +21,7 @@ use crate::error;
 /// Check if a language has stack graph rules available.
 ///
 /// Returns `true` for Python, TypeScript, JavaScript, Java, Go, C, and Rust.
-/// Returns `false` for C++ (not yet supported).
+/// Returns `false` for C++ and all Tier 2 languages (not yet supported).
 #[must_use]
 pub fn has_rules(lang: Language) -> bool {
     matches!(
@@ -38,7 +38,7 @@ pub fn has_rules(lang: Language) -> bool {
 
 /// Create a `StackGraphLanguage` for the given language.
 ///
-/// Returns `None` for languages without stack graph rules (C++).
+/// Returns `None` for languages without stack graph rules (C++ and all Tier 2 languages).
 /// Returns `Some(Ok(_))` on successful rule loading, or `Some(Err(_))` if the
 /// TSG rules fail to parse.
 #[must_use]
@@ -51,7 +51,16 @@ pub fn language_config(lang: Language) -> Option<error::Result<StackGraphLanguag
         Language::Go => Some(go::create_language()),
         Language::C => Some(c::create_language()),
         Language::Rust => Some(rust::create_language()),
-        Language::Cpp => None,
+        Language::Cpp
+        | Language::Ruby
+        | Language::Php
+        | Language::CSharp
+        | Language::Swift
+        | Language::Kotlin
+        | Language::Scala
+        | Language::Zig
+        | Language::Lua
+        | Language::Bash => None,
     }
 }
 
@@ -160,5 +169,48 @@ mod tests {
     #[test]
     fn test_language_config_cpp_returns_none() {
         assert!(language_config(Language::Cpp).is_none());
+    }
+
+    // -----------------------------------------------------------------------
+    // Tier 2: has_rules returns false, language_config returns None
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_has_rules_tier2_returns_false() {
+        let tier2 = [
+            Language::Ruby,
+            Language::Php,
+            Language::CSharp,
+            Language::Swift,
+            Language::Kotlin,
+            Language::Scala,
+            Language::Zig,
+            Language::Lua,
+            Language::Bash,
+        ];
+        for lang in tier2 {
+            assert!(!has_rules(lang), "expected has_rules({lang:?}) = false");
+        }
+    }
+
+    #[test]
+    fn test_language_config_tier2_returns_none() {
+        let tier2 = [
+            Language::Ruby,
+            Language::Php,
+            Language::CSharp,
+            Language::Swift,
+            Language::Kotlin,
+            Language::Scala,
+            Language::Zig,
+            Language::Lua,
+            Language::Bash,
+        ];
+        for lang in tier2 {
+            assert!(
+                language_config(lang).is_none(),
+                "expected language_config({lang:?}) = None"
+            );
+        }
     }
 }

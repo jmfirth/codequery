@@ -44,6 +44,16 @@ pub fn extract_symbols(
         }
         Language::C => CExtractor::extract_symbols(source, tree, file),
         Language::Cpp => CppExtractor::extract_symbols(source, tree, file),
+        // Tier 2 languages — stub extractors returning empty results
+        Language::Ruby
+        | Language::Php
+        | Language::CSharp
+        | Language::Swift
+        | Language::Kotlin
+        | Language::Scala
+        | Language::Zig
+        | Language::Lua
+        | Language::Bash => Vec::new(),
     }
 }
 

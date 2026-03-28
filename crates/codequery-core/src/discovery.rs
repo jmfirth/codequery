@@ -12,6 +12,7 @@ use crate::error::{CoreError, Result};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Language {
+    // --- Tier 1 ---
     /// The Rust programming language.
     Rust,
     /// TypeScript (`.ts`, `.tsx`).
@@ -28,13 +29,31 @@ pub enum Language {
     Cpp,
     /// Java (`.java`).
     Java,
+    // --- Tier 2 ---
+    /// Ruby (`.rb`).
+    Ruby,
+    /// PHP (`.php`).
+    Php,
+    /// C# (`.cs`).
+    CSharp,
+    /// Swift (`.swift`).
+    Swift,
+    /// Kotlin (`.kt`).
+    Kotlin,
+    /// Scala (`.scala`).
+    Scala,
+    /// Zig (`.zig`).
+    Zig,
+    /// Lua (`.lua`).
+    Lua,
+    /// Bash (`.sh`, `.bash`).
+    Bash,
 }
 
 impl Language {
     /// Parse a language name from a user-provided string (case-insensitive).
     ///
-    /// Accepts common names and aliases: "rust", "typescript", "ts", "javascript",
-    /// "js", "python", "py", "go", "c", "cpp", "c++", "java".
+    /// Accepts common names and aliases for all Tier 1 and Tier 2 languages.
     ///
     /// Returns `None` if the string doesn't match any known language.
     #[must_use]
@@ -48,6 +67,15 @@ impl Language {
             "c" => Some(Self::C),
             "cpp" | "c++" | "cxx" => Some(Self::Cpp),
             "java" => Some(Self::Java),
+            "ruby" | "rb" => Some(Self::Ruby),
+            "php" => Some(Self::Php),
+            "csharp" | "c#" | "cs" => Some(Self::CSharp),
+            "swift" => Some(Self::Swift),
+            "kotlin" | "kt" => Some(Self::Kotlin),
+            "scala" => Some(Self::Scala),
+            "zig" => Some(Self::Zig),
+            "lua" => Some(Self::Lua),
+            "bash" | "sh" => Some(Self::Bash),
             _ => None,
         }
     }
@@ -55,7 +83,7 @@ impl Language {
 
 /// Detect the language of a file from its extension.
 ///
-/// Recognizes all Tier 1 language extensions.
+/// Recognizes all Tier 1 and Tier 2 language extensions.
 #[must_use]
 pub fn language_for_file(path: &Path) -> Option<Language> {
     language_for_file_with_overrides(path, &HashMap::new())
@@ -88,6 +116,15 @@ pub fn language_for_file_with_overrides<S: std::hash::BuildHasher>(
         "c" | "h" => Some(Language::C),
         "cpp" | "cc" | "cxx" | "hpp" | "hxx" | "hh" => Some(Language::Cpp),
         "java" => Some(Language::Java),
+        "rb" => Some(Language::Ruby),
+        "php" => Some(Language::Php),
+        "cs" => Some(Language::CSharp),
+        "swift" => Some(Language::Swift),
+        "kt" => Some(Language::Kotlin),
+        "scala" => Some(Language::Scala),
+        "zig" => Some(Language::Zig),
+        "lua" => Some(Language::Lua),
+        "sh" | "bash" => Some(Language::Bash),
         _ => None,
     }
 }
@@ -442,6 +479,20 @@ mod tests {
             ("c++", Language::Cpp),
             ("cxx", Language::Cpp),
             ("java", Language::Java),
+            ("ruby", Language::Ruby),
+            ("rb", Language::Ruby),
+            ("php", Language::Php),
+            ("csharp", Language::CSharp),
+            ("c#", Language::CSharp),
+            ("cs", Language::CSharp),
+            ("swift", Language::Swift),
+            ("kotlin", Language::Kotlin),
+            ("kt", Language::Kotlin),
+            ("scala", Language::Scala),
+            ("zig", Language::Zig),
+            ("lua", Language::Lua),
+            ("bash", Language::Bash),
+            ("sh", Language::Bash),
         ];
         for (input, expected) in cases {
             assert_eq!(
@@ -466,7 +517,84 @@ mod tests {
     fn test_language_from_name_unknown_returns_none() {
         assert_eq!(Language::from_name("unknown"), None);
         assert_eq!(Language::from_name(""), None);
-        assert_eq!(Language::from_name("ruby"), None);
+        assert_eq!(Language::from_name("brainfuck"), None);
+    }
+
+    // -----------------------------------------------------------------------
+    // Tier 2: language_for_file
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_language_for_file_returns_ruby_for_rb() {
+        assert_eq!(language_for_file(Path::new("app.rb")), Some(Language::Ruby));
+    }
+
+    #[test]
+    fn test_language_for_file_returns_php_for_php() {
+        assert_eq!(
+            language_for_file(Path::new("index.php")),
+            Some(Language::Php)
+        );
+    }
+
+    #[test]
+    fn test_language_for_file_returns_csharp_for_cs() {
+        assert_eq!(
+            language_for_file(Path::new("Program.cs")),
+            Some(Language::CSharp)
+        );
+    }
+
+    #[test]
+    fn test_language_for_file_returns_swift_for_swift() {
+        assert_eq!(
+            language_for_file(Path::new("main.swift")),
+            Some(Language::Swift)
+        );
+    }
+
+    #[test]
+    fn test_language_for_file_returns_kotlin_for_kt() {
+        assert_eq!(
+            language_for_file(Path::new("Main.kt")),
+            Some(Language::Kotlin)
+        );
+    }
+
+    #[test]
+    fn test_language_for_file_returns_scala_for_scala() {
+        assert_eq!(
+            language_for_file(Path::new("Main.scala")),
+            Some(Language::Scala)
+        );
+    }
+
+    #[test]
+    fn test_language_for_file_returns_zig_for_zig() {
+        assert_eq!(
+            language_for_file(Path::new("main.zig")),
+            Some(Language::Zig)
+        );
+    }
+
+    #[test]
+    fn test_language_for_file_returns_lua_for_lua() {
+        assert_eq!(
+            language_for_file(Path::new("init.lua")),
+            Some(Language::Lua)
+        );
+    }
+
+    #[test]
+    fn test_language_for_file_returns_bash_for_sh_bash() {
+        assert_eq!(
+            language_for_file(Path::new("setup.sh")),
+            Some(Language::Bash)
+        );
+        assert_eq!(
+            language_for_file(Path::new("install.bash")),
+            Some(Language::Bash)
+        );
     }
 
     // -----------------------------------------------------------------------
