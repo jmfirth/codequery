@@ -8,18 +8,23 @@
 #![warn(clippy::pedantic)]
 
 pub mod config;
+pub mod daemon;
 pub mod error;
+pub mod pid;
 pub mod protocol;
 pub mod queries;
 pub mod server;
+pub mod socket;
 pub mod transport;
 pub mod types;
 
 pub use config::{LanguageServerRegistry, ServerConfig};
+pub use daemon::Daemon;
 pub use error::{LspError, Result};
 pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 pub use queries::{path_to_uri, uri_to_path};
 pub use server::LspServer;
+pub use socket::{DaemonRequest, DaemonResponse, ServerInfo};
 pub use transport::StdioTransport;
 pub use types::{
     ClientCapabilities, DefinitionParams, DidOpenTextDocumentParams, HoverParams, InitializeParams,
