@@ -94,5 +94,6 @@ Tier 3 (loadable): drop .so/.dylib grammars in ~/.local/share/cq/grammars/
 - cq sig for API contracts without reading implementations.
 - cq deps to understand a function's dependency footprint before refactoring.
 - Check "resolution" and "completeness" in --json output to calibrate trust.
+- Use qualified names to disambiguate: cq body Router::add_route, cq def api::routes::handler.
 - Use --in to scope searches and avoid noise in large codebases.
 - Pipe --raw output directly into other tools (wc, diff, etc.).

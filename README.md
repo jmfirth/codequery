@@ -236,9 +236,9 @@ Tree-sitter AST name and structure matching. Knows definitions from references f
 
 Stack graph scope resolution. Resolves import paths, qualified names, scope chains, and re-exports. Cannot resolve type inference, trait dispatch, or generics.
 
-### Semantic (future)
+### Semantic
 
-Full type resolution via language server integration. Not in v1.0.
+Full type resolution via language server integration. When a language server is available (via daemon or `--semantic` flag), `refs`, `callers`, `deps`, and `def` upgrade to compiler-level precision -- trait dispatch, generics, macros, the full type system.
 
 **Per-command precision:**
 
@@ -250,6 +250,36 @@ Full type resolution via language server integration. Not in v1.0.
 | `refs`, `callers`, `deps` | Best-effort (scope-resolved for Tier 1 languages) |
 
 For best-effort commands, JSON output includes a `note` field explaining the limitation. Framed output appends a summary line.
+
+---
+
+## Progressive Enhancement
+
+cq adapts to what's available and tells you what it used. The resolution cascade runs automatically on every query:
+
+```
+1. Daemon running?  --> semantic precision (sub-second, compiler-level)
+2. --semantic flag?  --> start language server, query, stop (10-30s, but precise)
+3. Stack graph rules? --> scope-resolved (follows imports, qualified names)
+4. Fallback          --> syntactic (tree-sitter name matching)
+```
+
+No configuration required. A `cq refs` call on a machine with `cq daemon` running gets type-resolved results. The same call on a fresh CI box gets tree-sitter results. Both produce the same output format -- only the `resolution` metadata field changes.
+
+### Daemon mode
+
+Keep language servers warm for fast semantic queries:
+
+```
+$ cq daemon start          # background process, manages server pool
+$ cq refs authenticate     # auto-detects daemon, sub-second semantic results
+$ cq daemon status         # show running servers
+$ cq daemon stop           # clean shutdown
+```
+
+The daemon is auto-detected -- no flags needed. When running, all cross-reference commands (`refs`, `callers`, `deps`) automatically use it. Servers are started lazily per (project, language) and evicted after idle timeout (default 30 min).
+
+Supported servers: rust-analyzer, typescript-language-server, pyright, gopls, clangd. Override via `.cq.toml` or `CQ_LSP_RUST=my-analyzer` env vars.
 
 ---
 

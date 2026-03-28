@@ -305,6 +305,57 @@ $ cq refs detect_project_root --in crates/codequery-core
 
 ---
 
+## callers — Who calls this function?
+
+```bash
+$ cq callers summarize --project tests/fixtures/rust_project
+```
+
+```
+@@ src/services.rs:32:4 method summarize (definition) @@
+
+0 callers (syntactic match -- may be incomplete)
+```
+
+The precision metadata is honest: syntactic matching may miss indirect calls. With `cq daemon` running, this upgrades to `resolution: "semantic"` automatically.
+
+---
+
+## deps — What does this function depend on?
+
+```bash
+$ cq deps process_users --project tests/fixtures/rust_project
+```
+
+```
+@@ src/services.rs:38:0 function process_users @@
+  User (type_reference) -> src/models.rs
+  Vec (type_reference) -> <unresolved>
+  String (type_reference) -> <unresolved>
+  collect (call) -> <unresolved>
+  map (call) -> <unresolved>
+  iter (call) -> <unresolved>
+  summarize (call) -> src/services.rs
+```
+
+`<unresolved>` means the dependency is from the standard library or an external crate -- not defined in the project. `User` resolves to `src/models.rs`, `summarize` resolves to a method in `src/services.rs`.
+
+With `--json`, each dependency carries its own resolution metadata:
+
+```json
+{
+  "resolution": "syntactic",
+  "completeness": "best_effort",
+  "symbol": "process_users",
+  "dependencies": [
+    { "name": "User", "kind": "type_reference", "defined_in": "src/models.rs", "resolution": "syntactic" },
+    { "name": "summarize", "kind": "call", "defined_in": "src/services.rs", "resolution": "syntactic" }
+  ]
+}
+```
+
+---
+
 ## search — Structural pattern matching (raw S-expression)
 
 Find all functions that return `Result`:
