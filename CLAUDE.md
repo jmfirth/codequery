@@ -8,7 +8,7 @@ See `SPECIFICATION.md` for the full design.
 
 ## Project State
 
-Pre-implementation. Specification and process documents are established. No code exists yet.
+Phase 4 (LSP Integration) complete. 1590 tests, 6 crates, 12 commands, 16 languages. Phase 5 (Distribution) not started. 70 tasks completed across Phases 0-4.
 
 ## Key Documents
 
@@ -31,7 +31,16 @@ file discovery → language detection → tree-sitter parse → AST query → sy
 For narrow commands (def, body, sig): text pre-filter → candidate files → parse subset → extract
 For wide commands (refs, callers, symbols): parallel parse all files → index → query → merge results
 
-Crate structure will be defined during Phase 0 planning. The pipeline stages guide the decomposition.
+### Crate Structure
+
+| Crate | Purpose |
+|-------|---------|
+| `codequery-core` | Symbol types, project detection, file discovery, config |
+| `codequery-parse` | Tree-sitter parsing, per-language extraction (16 languages), search engine |
+| `codequery-index` | Parallel scanning (rayon), grep pre-filter (memchr), symbol index, reference extraction, caching |
+| `codequery-resolve` | Stack graph resolution (7 languages), TSG rules, resolver facade |
+| `codequery-lsp` | LSP client, JSON-RPC transport, server lifecycle, daemon, cascade |
+| `codequery-cli` | Binary entry point, 12 commands, output formatting |
 
 ## Architectural Invariants
 
