@@ -8,16 +8,22 @@ use std::path::Path;
 
 use codequery_core::{Language, Symbol};
 
+use crate::languages::bash::BashExtractor;
 use crate::languages::c::CExtractor;
 use crate::languages::cpp::CppExtractor;
 use crate::languages::csharp::CSharpExtractor;
 use crate::languages::go::GoExtractor;
 use crate::languages::java::JavaExtractor;
+use crate::languages::kotlin::KotlinExtractor;
+use crate::languages::lua::LuaExtractor;
 use crate::languages::php::PhpExtractor;
 use crate::languages::python::PythonExtractor;
 use crate::languages::ruby::RubyExtractor;
 use crate::languages::rust::RustExtractor;
+use crate::languages::scala::ScalaExtractor;
+use crate::languages::swift::SwiftExtractor;
 use crate::languages::typescript::TypeScriptExtractor;
+use crate::languages::zig::ZigExtractor;
 use crate::languages::LanguageExtractor;
 
 /// Extract symbols using the appropriate language extractor.
@@ -50,13 +56,12 @@ pub fn extract_symbols(
         Language::Ruby => RubyExtractor::extract_symbols(source, tree, file),
         Language::Php => PhpExtractor::extract_symbols(source, tree, file),
         Language::CSharp => CSharpExtractor::extract_symbols(source, tree, file),
-        // Tier 2 languages — stub extractors returning empty results
-        Language::Swift
-        | Language::Kotlin
-        | Language::Scala
-        | Language::Zig
-        | Language::Lua
-        | Language::Bash => Vec::new(),
+        Language::Swift => SwiftExtractor::extract_symbols(source, tree, file),
+        Language::Kotlin => KotlinExtractor::extract_symbols(source, tree, file),
+        Language::Scala => ScalaExtractor::extract_symbols(source, tree, file),
+        Language::Zig => ZigExtractor::extract_symbols(source, tree, file),
+        Language::Lua => LuaExtractor::extract_symbols(source, tree, file),
+        Language::Bash => BashExtractor::extract_symbols(source, tree, file),
     }
 }
 
@@ -165,5 +170,65 @@ mod tests {
         );
         assert_eq!(symbols.len(), 1);
         assert_eq!(symbols[0].name, "Foo");
+    }
+
+    #[test]
+    fn test_extract_symbols_swift_dispatches_correctly() {
+        let mut parser = crate::Parser::for_language(Language::Swift).unwrap();
+        let source = "func greet() {}";
+        let tree = parser.parse(source.as_bytes()).unwrap();
+        let symbols = extract_symbols(source, &tree, Path::new("test.swift"), Language::Swift);
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "greet");
+    }
+
+    #[test]
+    fn test_extract_symbols_kotlin_dispatches_correctly() {
+        let mut parser = crate::Parser::for_language(Language::Kotlin).unwrap();
+        let source = "fun greet() {}";
+        let tree = parser.parse(source.as_bytes()).unwrap();
+        let symbols = extract_symbols(source, &tree, Path::new("test.kt"), Language::Kotlin);
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "greet");
+    }
+
+    #[test]
+    fn test_extract_symbols_scala_dispatches_correctly() {
+        let mut parser = crate::Parser::for_language(Language::Scala).unwrap();
+        let source = "class Foo {}";
+        let tree = parser.parse(source.as_bytes()).unwrap();
+        let symbols = extract_symbols(source, &tree, Path::new("test.scala"), Language::Scala);
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "Foo");
+    }
+
+    #[test]
+    fn test_extract_symbols_zig_dispatches_correctly() {
+        let mut parser = crate::Parser::for_language(Language::Zig).unwrap();
+        let source = "pub fn add() void {}";
+        let tree = parser.parse(source.as_bytes()).unwrap();
+        let symbols = extract_symbols(source, &tree, Path::new("add.zig"), Language::Zig);
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "add");
+    }
+
+    #[test]
+    fn test_extract_symbols_lua_dispatches_correctly() {
+        let mut parser = crate::Parser::for_language(Language::Lua).unwrap();
+        let source = "function greet()\n  return 1\nend\n";
+        let tree = parser.parse(source.as_bytes()).unwrap();
+        let symbols = extract_symbols(source, &tree, Path::new("greet.lua"), Language::Lua);
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "greet");
+    }
+
+    #[test]
+    fn test_extract_symbols_bash_dispatches_correctly() {
+        let mut parser = crate::Parser::for_language(Language::Bash).unwrap();
+        let source = "greet() {\n  echo hello\n}\n";
+        let tree = parser.parse(source.as_bytes()).unwrap();
+        let symbols = extract_symbols(source, &tree, Path::new("greet.sh"), Language::Bash);
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "greet");
     }
 }

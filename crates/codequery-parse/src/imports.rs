@@ -42,13 +42,12 @@ pub fn extract_imports(
         Language::Ruby => extract_ruby_imports(source, tree),
         Language::Php => extract_php_imports(source, tree),
         Language::CSharp => extract_csharp_imports(source, tree),
-        // Tier 2 languages — stub extractors returning empty results
-        Language::Swift
-        | Language::Kotlin
-        | Language::Scala
-        | Language::Zig
-        | Language::Lua
-        | Language::Bash => Vec::new(),
+        Language::Swift => extract_swift_imports(source, tree),
+        Language::Kotlin => extract_kotlin_imports(source, tree),
+        Language::Scala => extract_scala_imports(source, tree),
+        Language::Zig => extract_zig_imports(source, tree),
+        Language::Lua => extract_lua_imports(source, tree),
+        Language::Bash => extract_bash_imports(source, tree),
     }
 }
 
@@ -517,6 +516,296 @@ fn extract_csharp_imports(source: &str, tree: &tree_sitter::Tree) -> Vec<ImportI
 }
 
 // ---------------------------------------------------------------------------
+// Swift imports
+// ---------------------------------------------------------------------------
+
+/// Extract `import` declarations from Swift source.
+///
+/// Swift `import` statements produce `import_declaration` nodes.
+/// All Swift imports are external (framework/module based).
+fn extract_swift_imports(source: &str, tree: &tree_sitter::Tree) -> Vec<ImportInfo> {
+    let root = tree.root_node();
+    let mut imports = Vec::new();
+    let mut cursor = root.walk();
+
+    for child in root.children(&mut cursor) {
+        if child.kind() == "import_declaration" {
+            let text = node_text(source, &child);
+            let path = text.trim_start_matches("import ").trim();
+
+            imports.push(ImportInfo {
+                source: path.to_string(),
+                kind: "import".to_string(),
+                line: child.start_position().row + 1,
+                external: true,
+            });
+        }
+    }
+
+    imports
+}
+
+// ---------------------------------------------------------------------------
+// Kotlin imports
+// ---------------------------------------------------------------------------
+
+/// Extract `import` declarations from Kotlin source.
+///
+/// Kotlin `import_header` / `import_list` nodes contain `import` children.
+/// All Kotlin imports are external (package based).
+fn extract_kotlin_imports(source: &str, tree: &tree_sitter::Tree) -> Vec<ImportInfo> {
+    let root = tree.root_node();
+    let mut imports = Vec::new();
+    let mut cursor = root.walk();
+
+    for child in root.children(&mut cursor) {
+        if child.kind() == "import_list" {
+            let mut inner_cursor = child.walk();
+            for import_child in child.children(&mut inner_cursor) {
+                if import_child.kind() == "import_header" {
+                    let text = node_text(source, &import_child);
+                    let path = text.trim_start_matches("import ").trim_end().trim();
+
+                    imports.push(ImportInfo {
+                        source: path.to_string(),
+                        kind: "import".to_string(),
+                        line: import_child.start_position().row + 1,
+                        external: true,
+                    });
+                }
+            }
+        }
+        // Some grammars also produce standalone import_header nodes
+        if child.kind() == "import_header" {
+            let text = node_text(source, &child);
+            let path = text.trim_start_matches("import ").trim_end().trim();
+
+            imports.push(ImportInfo {
+                source: path.to_string(),
+                kind: "import".to_string(),
+                line: child.start_position().row + 1,
+                external: true,
+            });
+        }
+    }
+
+    imports
+}
+
+// ---------------------------------------------------------------------------
+// Scala imports
+// ---------------------------------------------------------------------------
+
+/// Extract `import` declarations from Scala source.
+///
+/// Scala `import_declaration` nodes contain import paths.
+/// All Scala imports are external (package based).
+fn extract_scala_imports(source: &str, tree: &tree_sitter::Tree) -> Vec<ImportInfo> {
+    let root = tree.root_node();
+    let mut imports = Vec::new();
+    let mut cursor = root.walk();
+
+    for child in root.children(&mut cursor) {
+        if child.kind() == "import_declaration" {
+            let text = node_text(source, &child);
+            let path = text.trim_start_matches("import ").trim();
+
+            let kind = if path.ends_with("._") {
+                "wildcard"
+            } else {
+                "import"
+            };
+
+            imports.push(ImportInfo {
+                source: path.to_string(),
+                kind: kind.to_string(),
+                line: child.start_position().row + 1,
+                external: true,
+            });
+        }
+    }
+
+    imports
+}
+
+// ---------------------------------------------------------------------------
+// Zig imports
+// ---------------------------------------------------------------------------
+
+/// Extract `@import` calls from Zig source.
+///
+/// Zig imports use `@import("module")` inside `const` declarations:
+/// `const std = @import("std");`
+/// External imports are string literals that don't start with `.` or `./`.
+fn extract_zig_imports(source: &str, tree: &tree_sitter::Tree) -> Vec<ImportInfo> {
+    let root = tree.root_node();
+    let mut imports = Vec::new();
+    let mut cursor = root.walk();
+
+    for child in root.children(&mut cursor) {
+        if child.kind() == "variable_declaration" {
+            if let Some(info) = extract_zig_single_import(source, &child) {
+                imports.push(info);
+            }
+        }
+    }
+
+    imports
+}
+
+/// Extract a single Zig `@import` from a variable declaration node.
+fn extract_zig_single_import(source: &str, node: &tree_sitter::Node<'_>) -> Option<ImportInfo> {
+    // Look for builtin_function child with @import
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "builtin_function" {
+            let text = node_text(source, &child);
+            if text.starts_with("@import") {
+                // Extract the string argument
+                let mut inner_cursor = child.walk();
+                for inner in child.children(&mut inner_cursor) {
+                    if inner.kind() == "arguments" {
+                        let mut arg_cursor = inner.walk();
+                        for arg in inner.children(&mut arg_cursor) {
+                            if arg.kind() == "string" {
+                                let path = node_text(source, &arg).trim_matches('"').to_string();
+                                let external = !path.starts_with('.')
+                                    && !path.starts_with("./")
+                                    && !path.starts_with("../");
+                                return Some(ImportInfo {
+                                    source: path,
+                                    kind: "import".to_string(),
+                                    line: node.start_position().row + 1,
+                                    external,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+// ---------------------------------------------------------------------------
+// Lua imports
+// ---------------------------------------------------------------------------
+
+/// Extract `require` calls from Lua source.
+///
+/// Lua imports use `require("module")` typically in local variable declarations:
+/// `local M = require("module")`
+/// All Lua requires are treated as external.
+fn extract_lua_imports(source: &str, tree: &tree_sitter::Tree) -> Vec<ImportInfo> {
+    let root = tree.root_node();
+    let mut imports = Vec::new();
+    let mut cursor = root.walk();
+
+    for child in root.children(&mut cursor) {
+        extract_lua_require_from_node(source, &child, &mut imports);
+    }
+
+    imports
+}
+
+/// Recursively look for `require` function calls in a node.
+fn extract_lua_require_from_node(
+    source: &str,
+    node: &tree_sitter::Node<'_>,
+    imports: &mut Vec<ImportInfo>,
+) {
+    if node.kind() == "function_call" {
+        let text = node_text(source, node);
+        if text.starts_with("require") {
+            // Extract the string argument
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == "arguments" {
+                    let mut arg_cursor = child.walk();
+                    for arg in child.children(&mut arg_cursor) {
+                        if arg.kind() == "string" {
+                            let path = node_text(source, &arg);
+                            let path = path
+                                .trim_start_matches(['"', '\''])
+                                .trim_end_matches(['"', '\''])
+                                .to_string();
+                            imports.push(ImportInfo {
+                                source: path,
+                                kind: "require".to_string(),
+                                line: node.start_position().row + 1,
+                                external: true,
+                            });
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Recurse into children to find nested require calls
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        extract_lua_require_from_node(source, &child, imports);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Bash imports
+// ---------------------------------------------------------------------------
+
+/// Extract `source` and `.` commands from Bash source.
+///
+/// Bash sources other scripts via `source path` or `. path`.
+/// All sourced files are treated as internal (local).
+fn extract_bash_imports(source: &str, tree: &tree_sitter::Tree) -> Vec<ImportInfo> {
+    let root = tree.root_node();
+    let mut imports = Vec::new();
+    let mut cursor = root.walk();
+
+    for child in root.children(&mut cursor) {
+        if child.kind() == "command" {
+            if let Some(info) = extract_bash_source_command(source, &child) {
+                imports.push(info);
+            }
+        }
+    }
+
+    imports
+}
+
+/// Extract a single Bash `source` or `.` command.
+fn extract_bash_source_command(source: &str, node: &tree_sitter::Node<'_>) -> Option<ImportInfo> {
+    let mut cursor = node.walk();
+    let mut is_source = false;
+    let mut path = None;
+
+    for child in node.children(&mut cursor) {
+        if child.kind() == "command_name" {
+            let text = node_text(source, &child).trim().to_string();
+            if text == "source" || text == "." {
+                is_source = true;
+            }
+        } else if is_source && child.kind() == "word" {
+            path = Some(node_text(source, &child).to_string());
+        }
+    }
+
+    if is_source {
+        if let Some(p) = path {
+            return Some(ImportInfo {
+                source: p,
+                kind: "source".to_string(),
+                line: node.start_position().row + 1,
+                external: false,
+            });
+        }
+    }
+    None
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -827,6 +1116,94 @@ mod tests {
         let mut parser = Parser::for_language(Language::Rust).unwrap();
         let tree = parser.parse(source.as_bytes()).unwrap();
         let imports = extract_imports(source, &tree, Language::Rust);
+        assert!(imports.is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // Zig imports
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_imports_zig_import_extracted() {
+        let source = "const std = @import(\"std\");\nconst utils = @import(\"./utils.zig\");\n";
+        let mut parser = Parser::for_language(Language::Zig).unwrap();
+        let tree = parser.parse(source.as_bytes()).unwrap();
+        let imports = extract_imports(source, &tree, Language::Zig);
+
+        assert_eq!(imports.len(), 2);
+        assert_eq!(imports[0].source, "std");
+        assert!(imports[0].external);
+        assert_eq!(imports[0].kind, "import");
+        assert_eq!(imports[0].line, 1);
+
+        assert_eq!(imports[1].source, "./utils.zig");
+        assert!(!imports[1].external);
+    }
+
+    #[test]
+    fn test_imports_zig_no_imports_returns_empty() {
+        let source = "pub fn main() void {}\n";
+        let mut parser = Parser::for_language(Language::Zig).unwrap();
+        let tree = parser.parse(source.as_bytes()).unwrap();
+        let imports = extract_imports(source, &tree, Language::Zig);
+        assert!(imports.is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // Lua imports
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_imports_lua_require_extracted() {
+        let source = "local M = require(\"main\")\n";
+        let mut parser = Parser::for_language(Language::Lua).unwrap();
+        let tree = parser.parse(source.as_bytes()).unwrap();
+        let imports = extract_imports(source, &tree, Language::Lua);
+
+        assert_eq!(imports.len(), 1);
+        assert_eq!(imports[0].source, "main");
+        assert!(imports[0].external);
+        assert_eq!(imports[0].kind, "require");
+    }
+
+    #[test]
+    fn test_imports_lua_no_requires_returns_empty() {
+        let source = "function foo()\n  return 1\nend\n";
+        let mut parser = Parser::for_language(Language::Lua).unwrap();
+        let tree = parser.parse(source.as_bytes()).unwrap();
+        let imports = extract_imports(source, &tree, Language::Lua);
+        assert!(imports.is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // Bash imports
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_imports_bash_source_command_extracted() {
+        let source = "#!/bin/bash\nsource ./utils.sh\n. ./helpers.sh\n";
+        let mut parser = Parser::for_language(Language::Bash).unwrap();
+        let tree = parser.parse(source.as_bytes()).unwrap();
+        let imports = extract_imports(source, &tree, Language::Bash);
+
+        assert_eq!(imports.len(), 2);
+        assert_eq!(imports[0].source, "./utils.sh");
+        assert!(!imports[0].external);
+        assert_eq!(imports[0].kind, "source");
+        assert_eq!(imports[0].line, 2);
+
+        assert_eq!(imports[1].source, "./helpers.sh");
+        assert!(!imports[1].external);
+        assert_eq!(imports[1].kind, "source");
+        assert_eq!(imports[1].line, 3);
+    }
+
+    #[test]
+    fn test_imports_bash_no_sources_returns_empty() {
+        let source = "#!/bin/bash\necho hello\n";
+        let mut parser = Parser::for_language(Language::Bash).unwrap();
+        let tree = parser.parse(source.as_bytes()).unwrap();
+        let imports = extract_imports(source, &tree, Language::Bash);
         assert!(imports.is_empty());
     }
 }
