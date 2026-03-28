@@ -20,6 +20,10 @@ pub enum CoreError {
     /// A path-related error.
     #[error("{0}")]
     Path(String),
+
+    /// A configuration file error (invalid `.cq.toml`).
+    #[error("{0}")]
+    Config(String),
 }
 
 /// A specialized `Result` type for core codequery operations.
@@ -55,6 +59,12 @@ mod tests {
     fn test_core_error_path_message() {
         let err = CoreError::Path("invalid path encoding".to_string());
         assert_eq!(err.to_string(), "invalid path encoding");
+    }
+
+    #[test]
+    fn test_core_error_config_message() {
+        let err = CoreError::Config("invalid .cq.toml at /tmp/test: bad syntax".to_string());
+        assert_eq!(err.to_string(), "invalid .cq.toml at /tmp/test: bad syntax");
     }
 
     #[test]
