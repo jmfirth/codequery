@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 codequery-core = { path = "../codequery-core" }
+libloading = "0.8"
 serde = { version = "1", features = ["derive"] }
 streaming-iterator = "0.1"
 thiserror = "2"

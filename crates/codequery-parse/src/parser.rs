@@ -9,6 +9,7 @@ use std::path::Path;
 use codequery_core::Language;
 
 use crate::error::{ParseError, Result};
+use crate::runtime_grammar;
 
 /// A tree-sitter parser configured for a specific source language.
 ///
@@ -35,6 +36,42 @@ impl Parser {
             .set_language(&grammar)
             .map_err(|e| ParseError::LanguageError(e.to_string()))?;
         Ok(Self { parser, language })
+    }
+
+    /// Create a parser for a language identified by name.
+    ///
+    /// First tries to resolve `name` to a builtin language (Tier 1/2).
+    /// If that fails, attempts to load a runtime grammar from the
+    /// user's grammar directory (Tier 3).
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError::LanguageError` if the name does not match
+    /// any builtin language and no runtime grammar is available.
+    pub fn for_name(name: &str) -> Result<Self> {
+        // Try builtin languages first
+        if let Some(lang) = Language::from_name(name) {
+            return Self::for_language(lang);
+        }
+
+        // Fall back to runtime grammar loading
+        let grammar = runtime_grammar::load_runtime_grammar(name)?;
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&grammar)
+            .map_err(|e| ParseError::LanguageError(e.to_string()))?;
+
+        // Runtime grammars don't have a Language variant; use Rust as a
+        // placeholder — callers using for_name should not rely on
+        // language() for runtime grammars. A future refactor could make
+        // this an Option or introduce a RuntimeLanguage type.
+        //
+        // NOTE: This is a known limitation. The language() accessor is
+        // not meaningful for runtime-loaded grammars.
+        Ok(Self {
+            parser,
+            language: Language::Rust, // placeholder for runtime grammars
+        })
     }
 
     /// The language this parser is configured for.
@@ -454,5 +491,38 @@ mod tests {
             .parse(b"#!/bin/bash\ngreet() {\n  echo \"hello\"\n}\n")
             .unwrap();
         assert!(!tree.root_node().has_error());
+    }
+
+    // -----------------------------------------------------------------------
+    // Parser::for_name — builtin resolution
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_for_name_resolves_builtin_rust() {
+        let parser = Parser::for_name("rust");
+        assert!(parser.is_ok());
+        assert_eq!(parser.unwrap().language(), Language::Rust);
+    }
+
+    #[test]
+    fn test_for_name_resolves_builtin_python() {
+        let parser = Parser::for_name("python");
+        assert!(parser.is_ok());
+        assert_eq!(parser.unwrap().language(), Language::Python);
+    }
+
+    #[test]
+    fn test_for_name_resolves_builtin_alias() {
+        let parser = Parser::for_name("ts");
+        assert!(parser.is_ok());
+        assert_eq!(parser.unwrap().language(), Language::TypeScript);
+    }
+
+    #[test]
+    fn test_for_name_unknown_without_runtime_grammar_returns_error() {
+        // This will fail because "haskell" is not a builtin and no
+        // runtime grammar is installed in the test environment
+        let result = Parser::for_name("haskell");
+        assert!(result.is_err());
     }
 }

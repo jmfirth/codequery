@@ -12,6 +12,7 @@ pub mod extract;
 pub mod imports;
 pub mod languages;
 pub mod parser;
+pub mod runtime_grammar;
 pub mod search;
 
 pub use error::{ParseError, Result};
@@ -19,4 +20,5 @@ pub use extract::extract_symbols;
 pub use imports::{extract_imports, ImportInfo};
 pub use languages::rust::{extract_body, extract_signature};
 pub use parser::{grammar_for_language, Parser, RustParser};
+pub use runtime_grammar::{list_runtime_grammars, load_runtime_grammar};
 pub use search::{search_file, search_file_raw, SearchMatch};
