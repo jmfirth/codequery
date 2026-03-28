@@ -5,14 +5,7 @@
 
 use std::path::PathBuf;
 
-/// How a reference was resolved.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Resolution {
-    /// Resolved via stack graph path stitching.
-    Resolved,
-    /// Fell back to syntactic (text-based) matching.
-    Syntactic,
-}
+pub use codequery_core::Resolution;
 
 /// A reference that has been resolved to its definition via stack graphs.
 #[derive(Debug, Clone, PartialEq, Eq)]

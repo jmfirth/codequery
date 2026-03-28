@@ -77,7 +77,7 @@ pub fn run(
         && resolution_result
             .references
             .iter()
-            .all(|r| r.resolution == codequery_resolve::Resolution::Resolved);
+            .all(|r| r.resolution == Resolution::Resolved);
     let resolution = if all_resolved {
         Resolution::Resolved
     } else {

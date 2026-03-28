@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use codequery_core::{language_for_file, Language, ReferenceKind};
+use codequery_core::{language_for_file, Language};
 use codequery_index::{extract_references, FileSymbols};
 
 use crate::graph::build_graph;
@@ -37,7 +37,7 @@ impl StackGraphResolver {
     /// and falls back to syntactic extraction for unsupported ones. Merges
     /// results from all language groups.
     pub fn resolve_refs(&mut self, scan_results: &[FileSymbols], symbol: &str) -> ResolutionResult {
-        self.resolve_internal(scan_results, symbol, None)
+        self.resolve_internal(scan_results, symbol)
     }
 
     /// Like `resolve_refs` but filtered to `Call` references only.
@@ -46,7 +46,7 @@ impl StackGraphResolver {
         scan_results: &[FileSymbols],
         symbol: &str,
     ) -> ResolutionResult {
-        let mut result = self.resolve_internal(scan_results, symbol, None);
+        let mut result = self.resolve_internal(scan_results, symbol);
         // For syntactic references, we already filter by kind below.
         // For resolved references from stack graphs, we cannot distinguish
         // call vs. type usage at the stack graph level, so we keep all resolved
@@ -143,12 +143,7 @@ impl StackGraphResolver {
     /// Core resolution logic shared by `resolve_refs` and `resolve_callers`.
     #[allow(clippy::unused_self)]
     // &mut self reserved for future StackGraphLanguage caching
-    fn resolve_internal(
-        &mut self,
-        scan_results: &[FileSymbols],
-        symbol: &str,
-        kind_filter: Option<ReferenceKind>,
-    ) -> ResolutionResult {
+    fn resolve_internal(&mut self, scan_results: &[FileSymbols], symbol: &str) -> ResolutionResult {
         let groups = group_by_language(scan_results);
         let mut all_refs = Vec::new();
         let mut warnings = Vec::new();
@@ -166,14 +161,14 @@ impl StackGraphResolver {
                         warnings.push(format!(
                             "{lang:?}: stack graph failed ({e}), using syntactic fallback"
                         ));
-                        let syntactic = syntactic_refs_for_group(files, symbol, kind_filter);
+                        let syntactic = syntactic_refs_for_group(files, symbol);
                         all_refs.extend(syntactic);
                         any_syntactic = true;
                     }
                 }
             } else {
                 // No stack graph rules: syntactic fallback.
-                let syntactic = syntactic_refs_for_group(files, symbol, kind_filter);
+                let syntactic = syntactic_refs_for_group(files, symbol);
                 all_refs.extend(syntactic);
                 any_syntactic = true;
             }
@@ -233,11 +228,7 @@ fn resolve_language_group(
 }
 
 /// Extract syntactic references for a group of files, converting to `ResolvedReference`.
-fn syntactic_refs_for_group(
-    files: &[&FileSymbols],
-    symbol: &str,
-    kind_filter: Option<ReferenceKind>,
-) -> Vec<ResolvedReference> {
+fn syntactic_refs_for_group(files: &[&FileSymbols], symbol: &str) -> Vec<ResolvedReference> {
     let mut results = Vec::new();
     for fs in files {
         let Some(lang) = language_for_file(&fs.file) else {
@@ -249,11 +240,6 @@ fn syntactic_refs_for_group(
             let ref_text = extract_ref_text(&fs.source, r.line, r.column);
             if ref_text != symbol {
                 continue;
-            }
-            if let Some(filter) = kind_filter {
-                if r.kind != filter {
-                    continue;
-                }
             }
             results.push(ResolvedReference {
                 ref_file: r.file,
