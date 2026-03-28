@@ -18,6 +18,31 @@ pub struct ProjectConfig {
     pub language_overrides: HashMap<String, String>,
     /// Default cache setting for the project.
     pub cache_enabled: Option<bool>,
+    /// LSP server configuration overrides.
+    pub lsp: Option<LspConfig>,
+}
+
+/// LSP configuration section from `.cq.toml`.
+///
+/// Controls idle timeout and per-language server overrides.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LspConfig {
+    /// Idle timeout in minutes before shutting down a language server.
+    pub timeout: Option<u64>,
+    /// Per-language server overrides keyed by language name (e.g., `"rust"`, `"python"`).
+    pub servers: HashMap<String, LspServerOverride>,
+}
+
+/// Per-language LSP server override from `.cq.toml`.
+///
+/// Allows overriding the binary and/or arguments for a language server.
+/// Fields that are `None` fall back to the built-in defaults.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LspServerOverride {
+    /// Override the binary name or path for this language's server.
+    pub binary: Option<String>,
+    /// Override the command-line arguments for this language's server.
+    pub args: Option<Vec<String>>,
 }
 
 /// The on-disk TOML structure for `.cq.toml`.
@@ -25,6 +50,7 @@ pub struct ProjectConfig {
 struct ConfigFile {
     project: Option<ProjectSection>,
     languages: Option<HashMap<String, String>>,
+    lsp: Option<LspSection>,
 }
 
 /// The `[project]` section of `.cq.toml`.
@@ -32,6 +58,24 @@ struct ConfigFile {
 struct ProjectSection {
     exclude: Option<Vec<String>>,
     cache: Option<bool>,
+}
+
+/// The `[lsp]` section of `.cq.toml`.
+///
+/// Top-level keys (`timeout`) are parsed directly. Sub-tables like `[lsp.rust]`
+/// are collected into the `servers` map via serde's `flatten`.
+#[derive(Debug, serde::Deserialize)]
+struct LspSection {
+    timeout: Option<u64>,
+    #[serde(flatten)]
+    servers: HashMap<String, LspServerOverrideToml>,
+}
+
+/// On-disk representation of a per-language LSP server override.
+#[derive(Debug, serde::Deserialize)]
+struct LspServerOverrideToml {
+    binary: Option<String>,
+    args: Option<Vec<String>>,
 }
 
 /// Load project configuration from `.cq.toml` at the given project root.
@@ -66,10 +110,31 @@ pub fn load_config(project_root: &Path) -> Result<Option<ProjectConfig>> {
 
     let language_overrides = parsed.languages.unwrap_or_default();
 
+    let lsp = parsed.lsp.map(|lsp_section| {
+        let servers = lsp_section
+            .servers
+            .into_iter()
+            .map(|(name, override_toml)| {
+                (
+                    name,
+                    LspServerOverride {
+                        binary: override_toml.binary,
+                        args: override_toml.args,
+                    },
+                )
+            })
+            .collect();
+        LspConfig {
+            timeout: lsp_section.timeout,
+            servers,
+        }
+    });
+
     Ok(Some(ProjectConfig {
         exclude,
         language_overrides,
         cache_enabled,
+        lsp,
     }))
 }
 
@@ -237,5 +302,161 @@ exclude = "should-be-a-list"
             config.language_overrides.get(".mts"),
             Some(&"typescript".to_string())
         );
+    }
+
+    #[test]
+    fn test_load_config_parses_lsp_section_with_timeout() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".cq.toml"),
+            r#"
+[lsp]
+timeout = 30
+"#,
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path()).unwrap().unwrap();
+        let lsp = config.lsp.unwrap();
+        assert_eq!(lsp.timeout, Some(30));
+        assert!(lsp.servers.is_empty());
+    }
+
+    #[test]
+    fn test_load_config_parses_lsp_server_overrides() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".cq.toml"),
+            r#"
+[lsp]
+timeout = 15
+
+[lsp.rust]
+binary = "rust-analyzer"
+args = []
+
+[lsp.python]
+binary = "pylsp"
+args = ["--log-file", "/tmp/pylsp.log"]
+"#,
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path()).unwrap().unwrap();
+        let lsp = config.lsp.unwrap();
+        assert_eq!(lsp.timeout, Some(15));
+        assert_eq!(lsp.servers.len(), 2);
+
+        let rust_override = lsp.servers.get("rust").unwrap();
+        assert_eq!(rust_override.binary, Some("rust-analyzer".to_string()));
+        assert_eq!(rust_override.args, Some(vec![]));
+
+        let python_override = lsp.servers.get("python").unwrap();
+        assert_eq!(python_override.binary, Some("pylsp".to_string()));
+        assert_eq!(
+            python_override.args,
+            Some(vec!["--log-file".to_string(), "/tmp/pylsp.log".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_load_config_lsp_binary_only_override() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".cq.toml"),
+            r#"
+[lsp.go]
+binary = "gopls-nightly"
+"#,
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path()).unwrap().unwrap();
+        let lsp = config.lsp.unwrap();
+        assert_eq!(lsp.timeout, None);
+
+        let go_override = lsp.servers.get("go").unwrap();
+        assert_eq!(go_override.binary, Some("gopls-nightly".to_string()));
+        assert_eq!(go_override.args, None);
+    }
+
+    #[test]
+    fn test_load_config_lsp_args_only_override() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".cq.toml"),
+            r#"
+[lsp.rust]
+args = ["--log-file", "/tmp/ra.log"]
+"#,
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path()).unwrap().unwrap();
+        let lsp = config.lsp.unwrap();
+        let rust_override = lsp.servers.get("rust").unwrap();
+        assert_eq!(rust_override.binary, None);
+        assert_eq!(
+            rust_override.args,
+            Some(vec!["--log-file".to_string(), "/tmp/ra.log".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_load_config_no_lsp_section() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".cq.toml"),
+            r#"
+[project]
+cache = true
+"#,
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path()).unwrap().unwrap();
+        assert!(config.lsp.is_none());
+    }
+
+    #[test]
+    fn test_load_config_full_config_with_lsp() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".cq.toml"),
+            r#"
+[project]
+exclude = ["vendor/**"]
+cache = true
+
+[languages]
+".jsx" = "javascript"
+
+[lsp]
+timeout = 30
+
+[lsp.rust]
+binary = "rust-analyzer"
+args = []
+
+[lsp.python]
+binary = "pylsp"
+args = ["--log-file", "/tmp/pylsp.log"]
+"#,
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path()).unwrap().unwrap();
+        assert_eq!(config.exclude, vec!["vendor/**"]);
+        assert_eq!(config.cache_enabled, Some(true));
+        assert_eq!(
+            config.language_overrides.get(".jsx"),
+            Some(&"javascript".to_string())
+        );
+
+        let lsp = config.lsp.unwrap();
+        assert_eq!(lsp.timeout, Some(30));
+        assert_eq!(lsp.servers.len(), 2);
+        assert!(lsp.servers.contains_key("rust"));
+        assert!(lsp.servers.contains_key("python"));
     }
 }

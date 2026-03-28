@@ -697,6 +697,7 @@ mod tests {
             exclude: vec!["vendor/**".to_string(), "generated/**".to_string()],
             language_overrides: HashMap::new(),
             cache_enabled: None,
+            lsp: None,
         };
 
         let files = discover_files_with_config(tmp.path(), None, &config).unwrap();
@@ -711,6 +712,7 @@ mod tests {
             exclude: Vec::new(),
             language_overrides: HashMap::from([(".svelte".to_string(), "javascript".to_string())]),
             cache_enabled: None,
+            lsp: None,
         };
 
         let files = discover_files_with_config(tmp.path(), None, &config).unwrap();
@@ -731,6 +733,7 @@ mod tests {
             exclude: Vec::new(),
             language_overrides: HashMap::new(),
             cache_enabled: None,
+            lsp: None,
         };
 
         let files = discover_files_with_config(tmp.path(), None, &config).unwrap();
@@ -751,6 +754,7 @@ mod tests {
             exclude: vec!["build/**".to_string()],
             language_overrides: HashMap::new(),
             cache_enabled: None,
+            lsp: None,
         };
 
         let files = discover_files_with_config(tmp.path(), None, &config).unwrap();
@@ -765,6 +769,7 @@ mod tests {
             exclude: Vec::new(),
             language_overrides: HashMap::new(),
             cache_enabled: None,
+            lsp: None,
         };
 
         let files =
@@ -779,6 +784,7 @@ mod tests {
             exclude: Vec::new(),
             language_overrides: HashMap::new(),
             cache_enabled: None,
+            lsp: None,
         };
 
         let result =
