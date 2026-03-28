@@ -37,7 +37,7 @@ Crate structure will be defined during Phase 0 planning. The pipeline stages gui
 
 These are non-negotiable constraints from the specification:
 
-1. **Stateless by default.** No daemon, no background process, no index files. Every invocation parses what it needs. Optional caching is opt-in only.
+1. **Stateless by default.** Every invocation parses what it needs. Optional caching is opt-in only. An optional daemon mode (`cq daemon start`) provides a warm LSP connection for semantic precision; the daemon is never required -- the three-tier cascade (daemon, oneshot LSP, stack graph) falls back gracefully.
 2. **Error-tolerant.** Tree-sitter produces usable ASTs even on broken code. A parse error in one file must not block results from other files.
 3. **Cross-language from one binary.** Tier 1 grammars (Rust, TypeScript, Python, Go, C/C++, Java) are compiled into the binary. No runtime dependencies on language toolchains.
 4. **Human-readable default output.** Framed plain text with `@@ file:line:column kind name @@` delimiters. JSON and raw modes via flags.

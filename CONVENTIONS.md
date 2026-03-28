@@ -96,6 +96,7 @@ Tree-sitter parse errors on individual files are **warnings**, not fatal errors.
 | `stack-graphs` | Scope graph name resolution | `codequery-resolve` (Phase 2) |
 | `tree-sitter-stack-graphs` | Stack graph / tree-sitter integration | `codequery-resolve` (Phase 2) |
 | `serde` + `serde_json` | JSON output format | `codequery-cli` |
+| `libc` | Signal-based PID liveness checks (`kill(2)`) | `codequery-lsp` (Phase 4) |
 | `tempfile` | Test temp directories | dev-dependency |
 
 Adding a new dependency requires justification. Don't pull in a crate for something the standard library can do.
