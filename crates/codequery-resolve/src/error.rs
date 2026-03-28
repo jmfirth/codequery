@@ -6,6 +6,10 @@ pub enum ResolveError {
     /// Failed to load TSG rules for a language.
     #[error("failed to load stack graph rules: {0}")]
     RuleLoadError(String),
+
+    /// Resolution timed out.
+    #[error("resolution timed out after {0:?}")]
+    ResolutionTimeout(std::time::Duration),
 }
 
 /// A specialized `Result` type for resolve operations.
