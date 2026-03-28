@@ -7,6 +7,8 @@
 
 #![warn(clippy::pedantic)]
 
+pub mod cascade;
+pub mod client;
 pub mod config;
 pub mod daemon;
 pub mod error;
@@ -19,6 +21,8 @@ pub mod socket;
 pub mod transport;
 pub mod types;
 
+pub use cascade::resolve_with_cascade;
+pub use client::DaemonClient;
 pub use config::{LanguageServerRegistry, ServerConfig};
 pub use daemon::Daemon;
 pub use error::{LspError, Result};
