@@ -10,9 +10,12 @@ use codequery_core::{Language, Symbol};
 
 use crate::languages::c::CExtractor;
 use crate::languages::cpp::CppExtractor;
+use crate::languages::csharp::CSharpExtractor;
 use crate::languages::go::GoExtractor;
 use crate::languages::java::JavaExtractor;
+use crate::languages::php::PhpExtractor;
 use crate::languages::python::PythonExtractor;
+use crate::languages::ruby::RubyExtractor;
 use crate::languages::rust::RustExtractor;
 use crate::languages::typescript::TypeScriptExtractor;
 use crate::languages::LanguageExtractor;
@@ -44,11 +47,11 @@ pub fn extract_symbols(
         }
         Language::C => CExtractor::extract_symbols(source, tree, file),
         Language::Cpp => CppExtractor::extract_symbols(source, tree, file),
+        Language::Ruby => RubyExtractor::extract_symbols(source, tree, file),
+        Language::Php => PhpExtractor::extract_symbols(source, tree, file),
+        Language::CSharp => CSharpExtractor::extract_symbols(source, tree, file),
         // Tier 2 languages — stub extractors returning empty results
-        Language::Ruby
-        | Language::Php
-        | Language::CSharp
-        | Language::Swift
+        Language::Swift
         | Language::Kotlin
         | Language::Scala
         | Language::Zig

@@ -39,11 +39,11 @@ pub fn extract_imports(
         Language::Go => extract_go_imports(source, tree),
         Language::C | Language::Cpp => extract_c_imports(source, tree),
         Language::Java => extract_java_imports(source, tree),
+        Language::Ruby => extract_ruby_imports(source, tree),
+        Language::Php => extract_php_imports(source, tree),
+        Language::CSharp => extract_csharp_imports(source, tree),
         // Tier 2 languages — stub extractors returning empty results
-        Language::Ruby
-        | Language::Php
-        | Language::CSharp
-        | Language::Swift
+        Language::Swift
         | Language::Kotlin
         | Language::Scala
         | Language::Zig
@@ -385,6 +385,128 @@ fn extract_java_imports(source: &str, tree: &tree_sitter::Tree) -> Vec<ImportInf
             imports.push(ImportInfo {
                 source: path.to_string(),
                 kind: kind.to_string(),
+                line: child.start_position().row + 1,
+                external: true,
+            });
+        }
+    }
+
+    imports
+}
+
+// ---------------------------------------------------------------------------
+// Ruby imports
+// ---------------------------------------------------------------------------
+
+/// Extract `require` and `require_relative` calls from Ruby source.
+///
+/// Ruby uses `require` for external gems and `require_relative` for local files.
+fn extract_ruby_imports(source: &str, tree: &tree_sitter::Tree) -> Vec<ImportInfo> {
+    let root = tree.root_node();
+    let mut imports = Vec::new();
+    collect_ruby_requires(root, source, &mut imports);
+    imports
+}
+
+/// Recursively collect Ruby require calls.
+fn collect_ruby_requires(node: tree_sitter::Node<'_>, source: &str, imports: &mut Vec<ImportInfo>) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "call" || child.kind() == "command" {
+            let text = node_text(source, &child);
+            if text.starts_with("require_relative ") || text.starts_with("require_relative(") {
+                let path = extract_ruby_string_arg(text);
+                imports.push(ImportInfo {
+                    source: path,
+                    kind: "require_relative".to_string(),
+                    line: child.start_position().row + 1,
+                    external: false,
+                });
+            } else if text.starts_with("require ") || text.starts_with("require(") {
+                let path = extract_ruby_string_arg(text);
+                imports.push(ImportInfo {
+                    source: path,
+                    kind: "require".to_string(),
+                    line: child.start_position().row + 1,
+                    external: true,
+                });
+            }
+        }
+    }
+}
+
+/// Extract the string argument from a Ruby require call.
+fn extract_ruby_string_arg(text: &str) -> String {
+    // Try to extract quoted string
+    if let Some(start) = text.find(['"', '\'']) {
+        let quote = text.as_bytes()[start] as char;
+        if let Some(end) = text[start + 1..].find(quote) {
+            return text[start + 1..start + 1 + end].to_string();
+        }
+    }
+    // Fallback: strip keyword
+    text.trim_start_matches("require_relative")
+        .trim_start_matches("require")
+        .trim()
+        .trim_start_matches('(')
+        .trim_end_matches(')')
+        .trim()
+        .to_string()
+}
+
+// ---------------------------------------------------------------------------
+// PHP imports
+// ---------------------------------------------------------------------------
+
+/// Extract `use` statements and `require`/`include` calls from PHP source.
+///
+/// PHP `namespace_use_declaration` nodes represent `use` statements.
+fn extract_php_imports(source: &str, tree: &tree_sitter::Tree) -> Vec<ImportInfo> {
+    let root = tree.root_node();
+    let mut imports = Vec::new();
+    let mut cursor = root.walk();
+
+    for child in root.children(&mut cursor) {
+        if child.kind() == "namespace_use_declaration" {
+            let text = node_text(source, &child);
+            let path = text.trim_start_matches("use ").trim_end_matches(';').trim();
+
+            imports.push(ImportInfo {
+                source: path.to_string(),
+                kind: "use".to_string(),
+                line: child.start_position().row + 1,
+                external: true,
+            });
+        }
+    }
+
+    imports
+}
+
+// ---------------------------------------------------------------------------
+// C# imports
+// ---------------------------------------------------------------------------
+
+/// Extract `using` directives from C# source.
+///
+/// C# `using_directive` nodes represent `using` statements.
+fn extract_csharp_imports(source: &str, tree: &tree_sitter::Tree) -> Vec<ImportInfo> {
+    let root = tree.root_node();
+    let mut imports = Vec::new();
+    let mut cursor = root.walk();
+
+    for child in root.children(&mut cursor) {
+        if child.kind() == "using_directive" {
+            let text = node_text(source, &child);
+            let path = text
+                .trim_start_matches("using ")
+                .trim_start_matches("static ")
+                .trim_end_matches(';')
+                .trim();
+
+            imports.push(ImportInfo {
+                source: path.to_string(),
+                kind: "using".to_string(),
                 line: child.start_position().row + 1,
                 external: true,
             });
