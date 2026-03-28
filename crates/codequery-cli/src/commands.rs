@@ -7,6 +7,7 @@ pub mod deps;
 pub mod imports;
 pub mod outline;
 pub mod refs;
+pub mod search;
 pub mod sig;
 pub mod symbols;
 pub mod tree;

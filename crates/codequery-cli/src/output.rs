@@ -6,7 +6,7 @@
 
 use codequery_core::{Completeness, QueryResult, Reference, Resolution, Symbol};
 use codequery_index::FileSymbols;
-use codequery_parse::ImportInfo;
+use codequery_parse::{ImportInfo, SearchMatch};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::IsTerminal;
@@ -1272,6 +1272,111 @@ fn format_deps_raw(deps: &[Dependency]) -> String {
     output
 }
 
+// ---------------------------------------------------------------------------
+// Search formatting
+// ---------------------------------------------------------------------------
+
+/// JSON payload for a single search match.
+#[derive(Debug, Serialize)]
+pub struct SearchMatchEntry {
+    /// Relative file path.
+    pub file: String,
+    /// Start line (0-indexed).
+    pub line: usize,
+    /// Start column (0-indexed).
+    pub column: usize,
+    /// End line (0-indexed).
+    pub end_line: usize,
+    /// End column (0-indexed).
+    pub end_column: usize,
+    /// The matched source text.
+    pub matched_text: String,
+}
+
+/// JSON payload for the `search` command.
+#[derive(Debug, Serialize)]
+pub struct SearchResult {
+    /// The pattern that was searched for.
+    pub pattern: String,
+    /// All matches found.
+    pub matches: Vec<SearchMatchEntry>,
+    /// Total number of matches.
+    pub total: usize,
+}
+
+/// Format `search` results in the requested mode.
+pub fn format_search(
+    matches: &[SearchMatch],
+    pattern: &str,
+    mode: OutputMode,
+    pretty: bool,
+) -> String {
+    match mode {
+        OutputMode::Framed => format_search_framed(matches),
+        OutputMode::Json => format_search_json(matches, pattern, pretty),
+        OutputMode::Raw => format_search_raw(matches),
+    }
+}
+
+/// Format search results as framed output: `@@ file:line:col @@` followed by matched text.
+fn format_search_framed(matches: &[SearchMatch]) -> String {
+    use std::fmt::Write;
+    let mut output = String::new();
+    for (i, m) in matches.iter().enumerate() {
+        if i > 0 {
+            output.push_str("\n\n");
+        }
+        let _ = write!(
+            output,
+            "@@ {}:{}:{} @@\n{}",
+            m.file.display(),
+            m.line,
+            m.column,
+            m.matched_text,
+        );
+    }
+    output
+}
+
+/// Format `search` results as JSON wrapped in `QueryResult`.
+fn format_search_json(matches: &[SearchMatch], pattern: &str, force_pretty: bool) -> String {
+    let entries: Vec<SearchMatchEntry> = matches
+        .iter()
+        .map(|m| SearchMatchEntry {
+            file: m.file.display().to_string(),
+            line: m.line,
+            column: m.column,
+            end_line: m.end_line,
+            end_column: m.end_column,
+            matched_text: m.matched_text.clone(),
+        })
+        .collect();
+    let data = SearchResult {
+        pattern: pattern.to_string(),
+        total: entries.len(),
+        matches: entries,
+    };
+    let result = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::Exhaustive,
+        note: None,
+        data,
+    };
+    serialize_json(&result, force_pretty)
+}
+
+/// Format `search` results as raw text — matched text only.
+fn format_search_raw(matches: &[SearchMatch]) -> String {
+    let mut output = String::new();
+    for (i, m) in matches.iter().enumerate() {
+        if i > 0 {
+            output.push_str("\n\n");
+        }
+        output.push_str(&m.matched_text);
+    }
+    output
+}
+
 /// Serialize a value to JSON, choosing pretty or compact based on TTY and flags.
 fn serialize_json<T: Serialize>(value: &T, force_pretty: bool) -> String {
     let use_pretty = force_pretty || std::io::stdout().is_terminal();
@@ -2178,5 +2283,89 @@ mod tests {
         let result = insert_line_marker(body, 10, 12);
         let lines: Vec<&str> = result.lines().collect();
         assert!(lines[2].contains("// <- line 12"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Search formatting
+    // -----------------------------------------------------------------------
+
+    fn make_search_match(
+        file: &str,
+        line: usize,
+        column: usize,
+        matched_text: &str,
+    ) -> SearchMatch {
+        SearchMatch {
+            file: PathBuf::from(file),
+            line,
+            column,
+            end_line: line,
+            end_column: column + matched_text.len(),
+            matched_text: matched_text.to_string(),
+            pattern: "test_pattern".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_search_framed_single_match() {
+        let matches = vec![make_search_match("src/main.rs", 5, 3, "fn main() {}")];
+        let output = format_search(&matches, "fn $NAME() {}", OutputMode::Framed, false);
+        assert!(output.contains("@@ src/main.rs:5:3 @@"));
+        assert!(output.contains("fn main() {}"));
+    }
+
+    #[test]
+    fn test_search_framed_multiple_matches() {
+        let matches = vec![
+            make_search_match("src/a.rs", 0, 0, "fn alpha() {}"),
+            make_search_match("src/b.rs", 2, 4, "fn beta() {}"),
+        ];
+        let output = format_search(&matches, "fn $NAME() {}", OutputMode::Framed, false);
+        assert!(output.contains("@@ src/a.rs:0:0 @@"));
+        assert!(output.contains("fn alpha() {}"));
+        assert!(output.contains("@@ src/b.rs:2:4 @@"));
+        assert!(output.contains("fn beta() {}"));
+    }
+
+    #[test]
+    fn test_search_framed_empty_matches() {
+        let matches: Vec<SearchMatch> = vec![];
+        let output = format_search(&matches, "fn $NAME() {}", OutputMode::Framed, false);
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn test_search_raw_shows_matched_text_only() {
+        let matches = vec![
+            make_search_match("src/a.rs", 0, 0, "fn alpha() {}"),
+            make_search_match("src/b.rs", 2, 4, "fn beta() {}"),
+        ];
+        let output = format_search(&matches, "fn $NAME() {}", OutputMode::Raw, false);
+        assert_eq!(output, "fn alpha() {}\n\nfn beta() {}");
+    }
+
+    #[test]
+    fn test_search_json_mode() {
+        let matches = vec![make_search_match("src/main.rs", 5, 3, "fn main() {}")];
+        let output = format_search(&matches, "fn $NAME() {}", OutputMode::Json, true);
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        // QueryResult flattens data fields to top level
+        assert_eq!(parsed["pattern"], "fn $NAME() {}");
+        assert_eq!(parsed["total"], 1);
+        assert_eq!(parsed["matches"][0]["file"], "src/main.rs");
+        assert_eq!(parsed["matches"][0]["line"], 5);
+        assert_eq!(parsed["matches"][0]["column"], 3);
+        assert_eq!(parsed["matches"][0]["matched_text"], "fn main() {}");
+        assert_eq!(parsed["resolution"], "syntactic");
+        assert_eq!(parsed["completeness"], "exhaustive");
+    }
+
+    #[test]
+    fn test_search_json_empty_matches() {
+        let matches: Vec<SearchMatch> = vec![];
+        let output = format_search(&matches, "fn $NAME() {}", OutputMode::Json, true);
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(parsed["total"], 0);
+        assert!(parsed["matches"].as_array().unwrap().is_empty());
     }
 }
