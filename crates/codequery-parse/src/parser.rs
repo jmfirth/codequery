@@ -77,7 +77,11 @@ impl Parser {
 }
 
 /// Select the tree-sitter grammar for a language.
-fn grammar_for_language(language: Language) -> tree_sitter::Language {
+///
+/// Maps a `codequery_core::Language` to the corresponding `tree_sitter::Language`
+/// grammar compiled into the binary.
+#[must_use]
+pub fn grammar_for_language(language: Language) -> tree_sitter::Language {
     match language {
         Language::Rust => tree_sitter_rust::LANGUAGE.into(),
         Language::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),

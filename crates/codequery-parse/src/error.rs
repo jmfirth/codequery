@@ -14,6 +14,14 @@ pub enum ParseError {
     /// Tree-sitter returned no tree (language not set or internal failure).
     #[error("tree-sitter parse returned no tree for: {0}")]
     ParseFailed(String),
+
+    /// A tree-sitter query failed to compile.
+    #[error("invalid tree-sitter query: {0}")]
+    QueryError(String),
+
+    /// A search pattern could not be parsed as valid source code.
+    #[error("pattern failed to parse: {0}")]
+    PatternError(String),
 }
 
 /// Convenience result type for parse operations.
