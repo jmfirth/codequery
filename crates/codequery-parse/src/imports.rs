@@ -39,6 +39,16 @@ pub fn extract_imports(
         Language::Go => extract_go_imports(source, tree),
         Language::C | Language::Cpp => extract_c_imports(source, tree),
         Language::Java => extract_java_imports(source, tree),
+        // Tier 2 languages — stub extractors returning empty results
+        Language::Ruby
+        | Language::Php
+        | Language::CSharp
+        | Language::Swift
+        | Language::Kotlin
+        | Language::Scala
+        | Language::Zig
+        | Language::Lua
+        | Language::Bash => Vec::new(),
     }
 }
 

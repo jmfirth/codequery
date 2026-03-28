@@ -79,6 +79,7 @@ impl Parser {
 /// Select the tree-sitter grammar for a language.
 fn grammar_for_language(language: Language) -> tree_sitter::Language {
     match language {
+        // Tier 1
         Language::Rust => tree_sitter_rust::LANGUAGE.into(),
         Language::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
         Language::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
@@ -87,6 +88,16 @@ fn grammar_for_language(language: Language) -> tree_sitter::Language {
         Language::C => tree_sitter_c::LANGUAGE.into(),
         Language::Cpp => tree_sitter_cpp::LANGUAGE.into(),
         Language::Java => tree_sitter_java::LANGUAGE.into(),
+        // Tier 2
+        Language::Ruby => tree_sitter_ruby::LANGUAGE.into(),
+        Language::Php => tree_sitter_php::LANGUAGE_PHP.into(),
+        Language::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
+        Language::Swift => tree_sitter_swift::LANGUAGE.into(),
+        Language::Kotlin => tree_sitter_kotlin_ng::LANGUAGE.into(),
+        Language::Scala => tree_sitter_scala::LANGUAGE.into(),
+        Language::Zig => tree_sitter_zig::LANGUAGE.into(),
+        Language::Lua => tree_sitter_lua::LANGUAGE.into(),
+        Language::Bash => tree_sitter_bash::LANGUAGE.into(),
     }
 }
 
@@ -302,5 +313,142 @@ mod tests {
         let mut parser = RustParser::new().unwrap();
         let tree = parser.parse(b"fn main() {}").unwrap();
         assert_eq!(tree.root_node().kind(), "source_file");
+    }
+
+    // -----------------------------------------------------------------------
+    // Tier 2: Parser::for_language creates parsers
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_for_language_ruby_creates_parser() {
+        let parser = Parser::for_language(Language::Ruby);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_php_creates_parser() {
+        let parser = Parser::for_language(Language::Php);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_csharp_creates_parser() {
+        let parser = Parser::for_language(Language::CSharp);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_swift_creates_parser() {
+        let parser = Parser::for_language(Language::Swift);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_kotlin_creates_parser() {
+        let parser = Parser::for_language(Language::Kotlin);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_scala_creates_parser() {
+        let parser = Parser::for_language(Language::Scala);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_zig_creates_parser() {
+        let parser = Parser::for_language(Language::Zig);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_lua_creates_parser() {
+        let parser = Parser::for_language(Language::Lua);
+        assert!(parser.is_ok());
+    }
+
+    #[test]
+    fn test_for_language_bash_creates_parser() {
+        let parser = Parser::for_language(Language::Bash);
+        assert!(parser.is_ok());
+    }
+
+    // -----------------------------------------------------------------------
+    // Tier 2: Parsing produces valid trees
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_parse_ruby_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::Ruby).unwrap();
+        let tree = parser.parse(b"def greet(name)\n  name\nend\n").unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_php_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::Php).unwrap();
+        let tree = parser
+            .parse(b"<?php\nfunction greet($name) { return $name; }\n")
+            .unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_csharp_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::CSharp).unwrap();
+        let tree = parser.parse(b"class Foo { void Bar() {} }\n").unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_swift_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::Swift).unwrap();
+        let tree = parser
+            .parse(b"func greet(name: String) -> String { return name }\n")
+            .unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_kotlin_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::Kotlin).unwrap();
+        let tree = parser
+            .parse(b"fun greet(name: String): String = name\n")
+            .unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_scala_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::Scala).unwrap();
+        let tree = parser
+            .parse(b"object Main { def greet(name: String): String = name }\n")
+            .unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_zig_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::Zig).unwrap();
+        let tree = parser.parse(b"pub fn main() void {}\n").unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_lua_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::Lua).unwrap();
+        let tree = parser
+            .parse(b"function greet(name)\n  return name\nend\n")
+            .unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_parse_bash_source_produces_tree() {
+        let mut parser = Parser::for_language(Language::Bash).unwrap();
+        let tree = parser
+            .parse(b"#!/bin/bash\ngreet() {\n  echo \"hello\"\n}\n")
+            .unwrap();
+        assert!(!tree.root_node().has_error());
     }
 }

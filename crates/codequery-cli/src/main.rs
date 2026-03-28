@@ -26,7 +26,8 @@ fn parse_lang_filter(lang: Option<&String>) -> anyhow::Result<Option<Language>> 
         Some(s) => Language::from_name(s).map(Some).ok_or_else(|| {
             anyhow::anyhow!(
                 "unknown language: {s}. valid languages: rust, typescript, ts, javascript, js, \
-                 python, py, go, c, cpp, c++, java"
+                 python, py, go, c, cpp, c++, java, ruby, rb, php, csharp, c#, cs, swift, \
+                 kotlin, kt, scala, zig, lua, bash, sh"
             )
         }),
     }
