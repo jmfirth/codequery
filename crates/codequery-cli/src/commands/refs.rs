@@ -136,6 +136,12 @@ pub fn run(
         })
         .collect();
 
+    // 6b. Syntactic fallback: if resolution cascade returned nothing but we
+    // have syntactic matches, use those as the result set.
+    if all_refs.is_empty() && !syntactic_map.is_empty() {
+        all_refs = syntactic_map.into_values().collect();
+    }
+
     // 7. Sort by file path, then line number
     all_refs.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
 
