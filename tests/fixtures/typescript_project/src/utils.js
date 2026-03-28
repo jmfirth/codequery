@@ -23,3 +23,8 @@ export class ExportedLogger {
         console.info(msg);
     }
 }
+
+// Entry point
+const greeting = formatName("John", "Doe");
+const logger = new Logger("app");
+logger.log(greeting);

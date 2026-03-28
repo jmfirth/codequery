@@ -1,4 +1,5 @@
 import { User } from "./models";
+import { greet } from "./index";
 
 export class UserService {
     private users: User[];
@@ -17,6 +18,10 @@ export class UserService {
 
     private validate(user: User): boolean {
         return user.name.length > 0 && user.age > 0;
+    }
+
+    greetUser(name: string): string {
+        return greet(name);
     }
 }
 
