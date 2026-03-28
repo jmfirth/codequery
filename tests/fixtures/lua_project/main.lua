@@ -17,4 +17,6 @@ local another_private = function()
     return false
 end
 
+local result = M.greet("world")
+
 return M

@@ -1,3 +1,5 @@
+import Foundation
+
 /// A greeting function.
 public func greet(name: String) -> String {
     return "Hello, \(name)!"
@@ -50,3 +52,7 @@ private func helper() -> Bool {
 fileprivate func fileHelper() -> Int {
     return 42
 }
+
+// Entry point
+let animal = Animal(name: "Rex")
+let message = greet(name: animal.speak())

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/models.php';
 
 const GLOBAL_CONST = 100;
 
@@ -12,3 +13,5 @@ function globalFunction(string $name): string {
 function add(int $x, int $y): int {
     return $x + $y;
 }
+
+$result = globalFunction("test");

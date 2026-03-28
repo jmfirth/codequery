@@ -1,4 +1,5 @@
 # Main entry point for the Ruby project.
+require_relative 'models'
 
 # Greet a user by name.
 def greet(name)
@@ -12,3 +13,5 @@ end
 def _private_helper
   42
 end
+
+result = greet("World")

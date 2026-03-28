@@ -1,3 +1,5 @@
+using System;
+
 namespace MyApp.Models
 {
     public class User
@@ -13,6 +15,7 @@ namespace MyApp.Models
 
         public string Greet()
         {
+            ValidateAge();
             return $"Hello, {Name}";
         }
 

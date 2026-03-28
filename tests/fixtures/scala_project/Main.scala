@@ -1,3 +1,5 @@
+import scala.collection.mutable
+
 /** An animal class. */
 class Animal(val name: String) {
   def speak(): String = name
@@ -28,4 +30,11 @@ private class Secret {
 
 protected trait Guarded {
   def check(): Boolean
+}
+
+object Main {
+  def run(): String = {
+    val animal = new Animal("Rex")
+    animal.speak()
+  }
 }
