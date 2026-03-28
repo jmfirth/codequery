@@ -4,6 +4,7 @@
 //! handshake, and cleanly shutting the server down. This is the core
 //! abstraction for communicating with external language servers.
 
+use std::collections::HashSet;
 use std::fmt;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
@@ -34,6 +35,12 @@ pub struct LspServer {
 
     /// The workspace root URI used during initialization.
     root_uri: String,
+
+    /// URIs of documents that have been opened via `textDocument/didOpen`.
+    ///
+    /// Tracked to avoid sending duplicate `didOpen` notifications for the same
+    /// document, which some language servers treat as an error.
+    pub(crate) opened_docs: HashSet<String>,
 }
 
 impl fmt::Debug for LspServer {
@@ -42,6 +49,7 @@ impl fmt::Debug for LspServer {
             .field("root_uri", &self.root_uri)
             .field("capabilities", &self.capabilities)
             .field("process_id", &self.process.id())
+            .field("opened_docs_count", &self.opened_docs.len())
             .finish_non_exhaustive()
     }
 }
@@ -94,7 +102,7 @@ impl LspServer {
         let mut transport = StdioTransport::new(stdin, stdout);
 
         // Build the root URI from the project path.
-        let root_uri = path_to_uri(project_root);
+        let root_uri = crate::queries::path_to_uri(project_root);
 
         // Send the initialize request.
         let init_params = InitializeParams {
@@ -132,6 +140,7 @@ impl LspServer {
             process: child,
             capabilities,
             root_uri,
+            opened_docs: HashSet::new(),
         })
     }
 
@@ -216,13 +225,6 @@ fn check_binary_exists(binary: &str) -> Result<()> {
     }
 }
 
-/// Converts a filesystem path to a `file://` URI.
-fn path_to_uri(path: &Path) -> String {
-    // Canonicalize if possible, fall back to the original path.
-    let absolute = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-    format!("file://{}", absolute.display())
-}
-
 /// Parses `ServerCapabilities` from the `initialize` response result.
 fn parse_capabilities(result: &serde_json::Value) -> Result<ServerCapabilities> {
     let caps_value = result.get("capabilities").unwrap_or(result);
@@ -249,22 +251,6 @@ fn wait_for_exit(child: &mut Child, timeout: Duration) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // ─── path_to_uri tests ──────────────────────────────────────────
-
-    #[test]
-    fn test_path_to_uri_absolute_path() {
-        let uri = path_to_uri(Path::new("/tmp/test-project"));
-        assert!(uri.starts_with("file:///"));
-        assert!(uri.contains("test-project"));
-    }
-
-    #[test]
-    fn test_path_to_uri_resolves_relative() {
-        // Even a relative path should produce a file:// URI.
-        let uri = path_to_uri(Path::new("."));
-        assert!(uri.starts_with("file:///"));
-    }
 
     // ─── parse_capabilities tests ───────────────────────────────────
 

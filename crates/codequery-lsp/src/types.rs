@@ -129,6 +129,28 @@ pub struct LspLocation {
     pub range: Range,
 }
 
+/// A link to a location in a document, as returned by some definition responses.
+///
+/// Some language servers return `LocationLink` instead of `Location` for definition
+/// requests, providing additional context about the origin of the link.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub struct LocationLink {
+    /// The range of the origin of the link (the symbol that was queried).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin_selection_range: Option<Range>,
+
+    /// The target URI of the link.
+    pub target_uri: String,
+
+    /// The full range of the target (e.g., the entire function definition).
+    pub target_range: Range,
+
+    /// The range that should be selected and revealed when following the link
+    /// (e.g., the function name within the definition).
+    pub target_selection_range: Range,
+}
+
 /// Parameters for the `textDocument/references` request.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
