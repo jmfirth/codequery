@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use codequery_core::{detect_project_root_or, Symbol, SymbolKind};
-use codequery_index::{scan_project, SymbolIndex};
+use codequery_index::{scan_project_cached, SymbolIndex};
 
 use crate::args::{ExitCode, OutputMode};
 use crate::output::format_symbols;
@@ -24,13 +24,14 @@ pub fn run(
     limit: Option<usize>,
     mode: OutputMode,
     pretty: bool,
+    use_cache: bool,
 ) -> anyhow::Result<ExitCode> {
     // 1. Resolve project root
     let cwd = std::env::current_dir()?;
     let project_root = detect_project_root_or(&cwd, project)?;
 
-    // 2. Parallel scan all source files
-    let scan = scan_project(&project_root, scope)?;
+    // 2. Parallel scan all source files (with optional caching)
+    let scan = scan_project_cached(&project_root, scope, use_cache)?;
 
     // 3. Build index
     let index = SymbolIndex::from_scan(&scan);
@@ -155,7 +156,15 @@ mod tests {
     #[test]
     fn test_symbols_returns_all_symbols_across_project() {
         let project = fixture_project();
-        let result = run(Some(&project), None, None, None, OutputMode::Framed, false);
+        let result = run(
+            Some(&project),
+            None,
+            None,
+            None,
+            OutputMode::Framed,
+            false,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -169,6 +178,7 @@ mod tests {
             Some("function"),
             None,
             OutputMode::Framed,
+            false,
             false,
         );
         assert!(result.is_ok());
@@ -186,6 +196,7 @@ mod tests {
             Some(5),
             OutputMode::Framed,
             false,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -194,7 +205,15 @@ mod tests {
     #[test]
     fn test_symbols_json_mode_returns_success() {
         let project = fixture_project();
-        let result = run(Some(&project), None, None, None, OutputMode::Json, true);
+        let result = run(
+            Some(&project),
+            None,
+            None,
+            None,
+            OutputMode::Json,
+            true,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -202,7 +221,15 @@ mod tests {
     #[test]
     fn test_symbols_raw_mode_returns_success() {
         let project = fixture_project();
-        let result = run(Some(&project), None, None, None, OutputMode::Raw, false);
+        let result = run(
+            Some(&project),
+            None,
+            None,
+            None,
+            OutputMode::Raw,
+            false,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -219,6 +246,7 @@ mod tests {
             None,
             OutputMode::Framed,
             false,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
@@ -234,6 +262,7 @@ mod tests {
             None,
             OutputMode::Framed,
             false,
+            false,
         );
         assert!(result.is_err());
     }
@@ -247,6 +276,7 @@ mod tests {
             None,
             None,
             OutputMode::Framed,
+            false,
             false,
         );
         assert!(result.is_ok());

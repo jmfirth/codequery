@@ -4,7 +4,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 /// A source code symbol extracted from a parsed file.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Symbol {
     /// The symbol's name as it appears in source code.
     pub name: String,
@@ -34,7 +34,7 @@ pub struct Symbol {
 }
 
 /// The kind of a source code symbol.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SymbolKind {
     /// A free function.
@@ -87,7 +87,7 @@ impl fmt::Display for SymbolKind {
 }
 
 /// Source code location.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Location {
     /// The file path.
     pub file: PathBuf,
@@ -98,7 +98,7 @@ pub struct Location {
 }
 
 /// Symbol visibility level.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Visibility {
     /// Visible to all.
     #[serde(rename = "pub")]

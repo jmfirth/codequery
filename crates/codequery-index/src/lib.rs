@@ -8,14 +8,16 @@
 
 #![warn(clippy::pedantic)]
 
+pub mod cache;
 pub mod error;
 pub mod grep;
 pub mod index;
 pub mod refs;
 pub mod scanner;
 
+pub use cache::{clear_all_caches, CacheError, CacheStore, CachedFile};
 pub use error::{IndexError, Result};
 pub use grep::{file_contains_word, filter_files};
 pub use index::SymbolIndex;
 pub use refs::extract_references;
-pub use scanner::{scan_project, scan_with_filter, FileSymbols};
+pub use scanner::{scan_project, scan_project_cached, scan_with_filter, FileSymbols};

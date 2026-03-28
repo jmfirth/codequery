@@ -7,7 +7,7 @@ use codequery_core::{
     detect_project_root_or, discover_files, language_for_file, Language, ReferenceKind, Resolution,
     Symbol,
 };
-use codequery_index::{extract_references, scan_project, SymbolIndex};
+use codequery_index::{extract_references, scan_project_cached, SymbolIndex};
 use codequery_parse::Parser;
 use codequery_resolve::StackGraphResolver;
 
@@ -32,6 +32,7 @@ pub fn run(
     mode: OutputMode,
     pretty: bool,
     lang_filter: Option<Language>,
+    use_cache: bool,
 ) -> anyhow::Result<ExitCode> {
     // 1. Resolve project root
     let cwd = std::env::current_dir()?;
@@ -55,10 +56,10 @@ pub fn run(
         return Ok(ExitCode::Success);
     }
 
-    // 3. Scan project and extract body references
+    // 3. Scan project and extract body references (with optional caching)
     let source = target_source.as_deref().unwrap_or("");
     let body_refs = extract_body_references(source, &target_sym)?;
-    let scan = scan_project(&project_root, None)?;
+    let scan = scan_project_cached(&project_root, None, use_cache)?;
 
     // 4. Attempt stack graph resolution, fall back to syntactic index lookup
     let dependencies = resolve_with_stack_graphs(&scan, &target_sym, symbol, source, &body_refs)
@@ -290,6 +291,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -305,6 +307,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -313,7 +316,15 @@ mod tests {
     #[test]
     fn test_deps_unresolvable_has_null_defined_in() {
         let project = fixture_project();
-        let result = run("greet", Some(&project), None, OutputMode::Json, true, None);
+        let result = run(
+            "greet",
+            Some(&project),
+            None,
+            OutputMode::Json,
+            true,
+            None,
+            false,
+        );
         assert!(result.is_ok());
     }
 
@@ -327,6 +338,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
@@ -342,6 +354,7 @@ mod tests {
             OutputMode::Json,
             true,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -357,6 +370,7 @@ mod tests {
             OutputMode::Raw,
             false,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -372,6 +386,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -387,6 +402,7 @@ mod tests {
             OutputMode::Json,
             true,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
