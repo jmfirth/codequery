@@ -1,20 +1,24 @@
 //! Callers command: find call sites for a function/method.
 //!
-//! Thin wrapper over the refs pipeline, filtered to `ReferenceKind::Call` only.
-//! Includes the caller function name and kind in output.
+//! Uses stack graph resolution (with syntactic fallback) filtered to
+//! `ReferenceKind::Call` only. Includes the caller function name and kind in
+//! output. Same resolution pattern as the refs command.
 
 use std::path::Path;
 
-use codequery_core::{detect_project_root_or, Reference, ReferenceKind, Symbol};
+use codequery_core::{detect_project_root_or, Reference, ReferenceKind, Resolution, Symbol};
 use codequery_index::{extract_references, scan_project, SymbolIndex};
+use codequery_resolve::StackGraphResolver;
 
 use crate::args::{ExitCode, OutputMode};
 use crate::output::format_callers;
 
 /// Run the callers command: find all call sites for a function/method.
 ///
-/// Reuses the refs pipeline but filters references to only `ReferenceKind::Call`.
-/// Includes caller function name and kind in the output.
+/// Scans all source files in parallel, builds a symbol index to find the
+/// definition, then uses stack graph resolution (with syntactic fallback) to
+/// extract call-site references. This is a wide command with best-effort
+/// completeness.
 ///
 /// # Errors
 ///
@@ -39,8 +43,11 @@ pub fn run(
     let index = SymbolIndex::from_scan(&scan_results);
     let definitions = index.find_by_name(symbol);
 
-    // 4. Extract references from all files, reusing retained parse trees
-    let mut call_refs: Vec<Reference> = Vec::new();
+    // 4. Build a syntactic reference map for kind/context enrichment (Call refs only)
+    let mut syntactic_map: std::collections::HashMap<
+        (std::path::PathBuf, usize, usize),
+        Reference,
+    > = std::collections::HashMap::new();
 
     for file_result in &scan_results {
         let Some(language) = codequery_core::language_for_file(&file_result.file) else {
@@ -54,25 +61,66 @@ pub fn run(
             language,
         );
 
-        // Filter: only Call references whose identifier text matches the symbol name
-        let matching = file_refs
-            .into_iter()
-            .filter(|r| r.kind == ReferenceKind::Call)
-            .filter(|r| ref_name_matches(r, &file_result.source, symbol));
-
-        call_refs.extend(matching);
+        for r in file_refs {
+            if r.kind == ReferenceKind::Call && ref_name_matches(&r, &file_result.source, symbol) {
+                syntactic_map.insert((r.file.clone(), r.line, r.column), r);
+            }
+        }
     }
 
-    // 5. Sort by file path, then line number
-    call_refs.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
+    // 5. Use stack graph resolver for scope-aware caller resolution
+    let mut resolver = StackGraphResolver::new();
+    let resolution_result = resolver.resolve_callers(&scan_results, symbol);
 
-    // 6. Build source map for context lines
+    // Determine the top-level resolution quality
+    let all_resolved = !resolution_result.references.is_empty()
+        && resolution_result
+            .references
+            .iter()
+            .all(|r| r.resolution == codequery_resolve::Resolution::Resolved);
+    let resolution = if all_resolved {
+        Resolution::Resolved
+    } else {
+        Resolution::Syntactic
+    };
+
+    // 6. Convert ResolvedReferences to core References, enriching with syntactic data
     let source_map: std::collections::HashMap<&Path, &str> = scan_results
         .iter()
         .map(|fs| (fs.file.as_path(), fs.source.as_str()))
         .collect();
 
-    // 7. Format and output
+    let mut call_refs: Vec<Reference> = resolution_result
+        .references
+        .iter()
+        .map(|rr| {
+            let key = (rr.ref_file.clone(), rr.ref_line, rr.ref_column);
+            if let Some(syntactic_ref) = syntactic_map.get(&key) {
+                syntactic_ref.clone()
+            } else {
+                // Build a Reference from the resolved data + source context
+                let context = source_map
+                    .get(rr.ref_file.as_path())
+                    .and_then(|src| src.lines().nth(rr.ref_line.saturating_sub(1)))
+                    .unwrap_or("")
+                    .to_string();
+                Reference {
+                    file: rr.ref_file.clone(),
+                    line: rr.ref_line,
+                    column: rr.ref_column,
+                    kind: ReferenceKind::Call,
+                    context,
+                    caller: None,
+                    caller_kind: None,
+                }
+            }
+        })
+        .collect();
+
+    // 7. Sort by file path, then line number
+    call_refs.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
+
+    // 8. Format and output
     let has_results = !definitions.is_empty() || !call_refs.is_empty();
 
     if !has_results && mode != OutputMode::Json {
@@ -88,6 +136,7 @@ pub fn run(
         pretty,
         context_lines,
         &source_map,
+        resolution,
     );
     if !output.is_empty() {
         println!("{output}");

@@ -1018,12 +1018,15 @@ pub fn format_callers(
     pretty: bool,
     context_lines: usize,
     source_map: &HashMap<&Path, &str>,
+    resolution: Resolution,
 ) -> String {
     match mode {
         OutputMode::Framed => {
-            format_callers_framed(definitions, callers, context_lines, source_map)
+            format_callers_framed(definitions, callers, context_lines, source_map, resolution)
         }
-        OutputMode::Json => format_callers_json(definitions, callers, symbol_name, pretty),
+        OutputMode::Json => {
+            format_callers_json(definitions, callers, symbol_name, pretty, resolution)
+        }
         OutputMode::Raw => format_callers_raw(callers, context_lines, source_map),
     }
 }
@@ -1031,12 +1034,13 @@ pub fn format_callers(
 /// Format callers results as framed output.
 ///
 /// Shows definition location(s) first, then each call site with caller info.
-/// Ends with a summary count.
+/// Ends with a summary count indicating resolution quality.
 fn format_callers_framed(
     definitions: &[Symbol],
     callers: &[Reference],
     context_lines: usize,
     source_map: &HashMap<&Path, &str>,
+    resolution: Resolution,
 ) -> String {
     use crate::commands::refs::get_context_lines;
     use std::fmt::Write;
@@ -1097,13 +1101,17 @@ fn format_callers_framed(
         }
     }
 
-    // Summary line
+    // Summary line — indicate resolution quality
     if !output.is_empty() {
         output.push('\n');
     }
+    let summary = match resolution {
+        Resolution::Resolved => "resolved",
+        _ => "syntactic match \u{2014} may be incomplete",
+    };
     let _ = write!(
         output,
-        "\n{} caller{} (syntactic match \u{2014} may be incomplete)",
+        "\n{} caller{} ({summary})",
         callers.len(),
         if callers.len() == 1 { "" } else { "s" },
     );
@@ -1117,6 +1125,7 @@ fn format_callers_json(
     callers: &[Reference],
     symbol_name: &str,
     force_pretty: bool,
+    resolution: Resolution,
 ) -> String {
     let data = CallersResult {
         symbol: symbol_name.to_string(),
@@ -1124,12 +1133,16 @@ fn format_callers_json(
         callers: callers.to_vec(),
         total: callers.len(),
     };
-    let result = QueryResult {
-        resolution: Resolution::Syntactic,
-        completeness: Completeness::BestEffort,
-        note: Some(
+    let note = match resolution {
+        Resolution::Resolved => None,
+        _ => Some(
             "name-based matching; may include false positives or miss renamed symbols".to_string(),
         ),
+    };
+    let result = QueryResult {
+        resolution,
+        completeness: Completeness::BestEffort,
+        note,
         data,
     };
     serialize_json(&result, force_pretty)
