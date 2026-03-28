@@ -4,10 +4,12 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use codequery_core::{
-    detect_project_root_or, discover_files, language_for_file, Language, ReferenceKind, Symbol,
+    detect_project_root_or, discover_files, language_for_file, Language, ReferenceKind, Resolution,
+    Symbol,
 };
 use codequery_index::{extract_references, scan_project, SymbolIndex};
 use codequery_parse::Parser;
+use codequery_resolve::StackGraphResolver;
 
 use super::common::find_first_symbol_with_source;
 use crate::args::{ExitCode, OutputMode};
@@ -16,8 +18,8 @@ use crate::output::{format_deps, Dependency};
 /// Run the deps command: analyze internal dependencies of a symbol.
 ///
 /// Finds the target symbol using the narrow pipeline (text pre-filter + parse),
-/// extracts references from its body, then resolves each reference against a
-/// project-wide symbol index to determine where dependencies are defined.
+/// then uses stack graph resolution to determine where each dependency is defined.
+/// Falls back to syntactic symbol index lookup if stack graph resolution fails.
 ///
 /// # Errors
 ///
@@ -53,15 +55,130 @@ pub fn run(
         return Ok(ExitCode::Success);
     }
 
-    // 3. Extract references within the body, resolve via index, format output
+    // 3. Scan project and extract body references
     let source = target_source.as_deref().unwrap_or("");
     let body_refs = extract_body_references(source, &target_sym)?;
-    let dependencies = resolve_dependencies(source, &body_refs, symbol, &project_root)?;
+    let scan = scan_project(&project_root, None)?;
+
+    // 4. Attempt stack graph resolution, fall back to syntactic index lookup
+    let dependencies = resolve_with_stack_graphs(&scan, &target_sym, symbol, source, &body_refs)
+        .unwrap_or_else(|| resolve_syntactic(source, &body_refs, symbol, &scan));
 
     let output = format_deps(Some(&target_sym), &dependencies, symbol, mode, pretty);
     print_output(&output);
 
     Ok(ExitCode::Success)
+}
+
+/// Resolve dependencies via stack graph scope resolution.
+///
+/// Creates a `StackGraphResolver`, calls `resolve_deps` for the target symbol's
+/// line range, then merges resolved results with syntactic body references.
+/// Returns `None` if resolution produces no useful results, signaling the caller
+/// to fall back to pure syntactic resolution.
+fn resolve_with_stack_graphs(
+    scan: &[codequery_index::FileSymbols],
+    target: &Symbol,
+    symbol: &str,
+    source: &str,
+    body_refs: &[codequery_core::Reference],
+) -> Option<Vec<Dependency>> {
+    let mut resolver = StackGraphResolver::new();
+    let line_range = (target.line, target.end_line);
+    let result = resolver.resolve_deps(scan, &target.file, line_range, symbol);
+
+    // Build a lookup from (ref_name) -> resolved def_file for refs that came back resolved
+    let mut resolved_map: std::collections::HashMap<String, Option<String>> =
+        std::collections::HashMap::new();
+    for rr in &result.references {
+        let def_file = rr.def_file.as_ref().map(|p| p.display().to_string());
+        resolved_map.entry(rr.symbol.clone()).or_insert(def_file);
+    }
+
+    // If stack graphs returned nothing, signal fallback
+    if resolved_map.is_empty() {
+        return None;
+    }
+
+    // Merge: walk body_refs, use resolved info where available, syntactic index for the rest
+    let index = codequery_index::SymbolIndex::from_scan(scan);
+    let mut seen = HashSet::new();
+    let mut dependencies = Vec::new();
+
+    for reference in body_refs {
+        let Some(name) = extract_ref_name(source, reference.line, reference.column) else {
+            continue;
+        };
+
+        if name == symbol || !seen.insert(name.clone()) {
+            continue;
+        }
+
+        let dep_kind = ref_kind_label(reference.kind);
+
+        if let Some(def_file) = resolved_map.get(&name) {
+            dependencies.push(Dependency {
+                name,
+                kind: dep_kind.to_string(),
+                defined_in: def_file.clone(),
+                resolution: Resolution::Resolved,
+            });
+        } else {
+            // Fall back to syntactic index lookup for this specific dependency
+            let definitions = index.find_by_name(&name);
+            let defined_in = definitions
+                .first()
+                .map(|sym| sym.file.display().to_string());
+            dependencies.push(Dependency {
+                name,
+                kind: dep_kind.to_string(),
+                defined_in,
+                resolution: Resolution::Syntactic,
+            });
+        }
+    }
+
+    Some(dependencies)
+}
+
+/// Resolve body references to named dependencies via project-wide symbol index (syntactic fallback).
+fn resolve_syntactic(
+    source: &str,
+    body_refs: &[codequery_core::Reference],
+    symbol: &str,
+    scan: &[codequery_index::FileSymbols],
+) -> Vec<Dependency> {
+    let index = SymbolIndex::from_scan(scan);
+
+    let mut seen = HashSet::new();
+    let mut dependencies = Vec::new();
+
+    for reference in body_refs {
+        let Some(name) = extract_ref_name(source, reference.line, reference.column) else {
+            continue;
+        };
+
+        // Skip self-references and deduplicates
+        if name == symbol || !seen.insert(name.clone()) {
+            continue;
+        }
+
+        let dep_kind = ref_kind_label(reference.kind);
+
+        let definitions = index.find_by_name(&name);
+        let defined_in = definitions
+            .first()
+            .map(|sym| sym.file.display().to_string());
+
+        dependencies.push(Dependency {
+            name,
+            kind: dep_kind.to_string(),
+            defined_in,
+            resolution: Resolution::Syntactic,
+        });
+    }
+
+    dependencies
 }
 
 /// Extract references from the target symbol's body line range.
@@ -84,49 +201,14 @@ fn extract_body_references(
         .collect())
 }
 
-/// Resolve body references to named dependencies via project-wide symbol index.
-fn resolve_dependencies(
-    source: &str,
-    body_refs: &[codequery_core::Reference],
-    symbol: &str,
-    project_root: &Path,
-) -> anyhow::Result<Vec<Dependency>> {
-    let scan = scan_project(project_root, None)?;
-    let index = SymbolIndex::from_scan(&scan);
-
-    let mut seen = HashSet::new();
-    let mut dependencies = Vec::new();
-
-    for reference in body_refs {
-        let Some(name) = extract_ref_name(source, reference.line, reference.column) else {
-            continue;
-        };
-
-        // Skip self-references and deduplicates
-        if name == symbol || !seen.insert(name.clone()) {
-            continue;
-        }
-
-        let dep_kind = match reference.kind {
-            ReferenceKind::Call => "call",
-            ReferenceKind::TypeUsage => "type_reference",
-            ReferenceKind::Import => "import",
-            ReferenceKind::Assignment => "assignment",
-        };
-
-        let definitions = index.find_by_name(&name);
-        let defined_in = definitions
-            .first()
-            .map(|sym| sym.file.display().to_string());
-
-        dependencies.push(Dependency {
-            name,
-            kind: dep_kind.to_string(),
-            defined_in,
-        });
+/// Map a `ReferenceKind` to its string label for dependency output.
+fn ref_kind_label(kind: ReferenceKind) -> &'static str {
+    match kind {
+        ReferenceKind::Call => "call",
+        ReferenceKind::TypeUsage => "type_reference",
+        ReferenceKind::Import => "import",
+        ReferenceKind::Assignment => "assignment",
     }
-
-    Ok(dependencies)
 }
 
 /// Print output if non-empty.

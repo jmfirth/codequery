@@ -141,6 +141,8 @@ pub struct Dependency {
     pub kind: String,
     /// The file where the dependency is defined, or None if unresolvable.
     pub defined_in: Option<String>,
+    /// How the dependency was resolved (resolved via stack graph, or syntactic fallback).
+    pub resolution: Resolution,
 }
 
 /// JSON payload for the `deps` command.
@@ -1227,8 +1229,15 @@ fn format_deps_json(
         dependencies: deps.to_vec(),
         total: deps.len(),
     };
+    // Determine overall resolution: Resolved if any dependency was resolved,
+    // otherwise Syntactic.
+    let overall_resolution = if deps.iter().any(|d| d.resolution == Resolution::Resolved) {
+        Resolution::Resolved
+    } else {
+        Resolution::Syntactic
+    };
     let result = QueryResult {
-        resolution: Resolution::Syntactic,
+        resolution: overall_resolution,
         completeness: Completeness::BestEffort,
         note: None,
         data,
