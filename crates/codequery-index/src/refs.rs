@@ -115,6 +115,14 @@ fn walk_rust_node(
             }
         }
 
+        // Token trees (macro bodies): tree-sitter-rust doesn't parse the
+        // contents of macro invocations as proper AST nodes.  We scan for
+        // `identifier (` patterns and extract them as potential call references.
+        "token_tree" => {
+            extract_token_tree_calls(node, source, file, lines, refs, current_enclosing);
+            return; // We handle recursion inside extract_token_tree_calls
+        }
+
         _ => {}
     }
 
@@ -247,6 +255,103 @@ fn extract_assignment_ref(
             });
         }
     }
+}
+
+/// Extract potential function calls from inside a `token_tree` (macro body).
+///
+/// tree-sitter-rust represents macro invocation contents as flat token trees.
+/// This function scans for `identifier` nodes followed by `(` (a `token_tree`)
+/// and emits Call references for them. This catches calls like `greet("world")`
+/// inside `assert_eq!(greet("world"), ...)`.
+fn extract_token_tree_calls(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    file: &Path,
+    lines: &[&str],
+    refs: &mut Vec<Reference>,
+    enclosing: Option<(&str, SymbolKind)>,
+) {
+    let child_count = node.child_count();
+    for i in 0..child_count {
+        let Some(child) = node.child(i) else {
+            continue;
+        };
+        if child.is_error() || child.is_missing() {
+            continue;
+        }
+
+        if child.kind() == "identifier" {
+            if let Ok(text) = child.utf8_text(source.as_bytes()) {
+                // Skip common keywords and macro names (all-lowercase check
+                // avoids false positives for things like `assert_eq`).
+                if !is_common_keyword(text) && !is_rust_macro_name(text) {
+                    // Check if the next non-whitespace sibling is `(` or a token_tree
+                    // which indicates this identifier is being called.
+                    let is_call = (i + 1 < child_count)
+                        .then(|| node.child(i + 1))
+                        .flatten()
+                        .is_some_and(|next| next.kind() == "token_tree" || next.kind() == "(");
+
+                    if is_call {
+                        let row = child.start_position().row;
+                        let context = lines.get(row).unwrap_or(&"").to_string();
+                        refs.push(Reference {
+                            file: file.to_path_buf(),
+                            line: row + 1,
+                            column: child.start_position().column,
+                            kind: ReferenceKind::Call,
+                            context,
+                            caller: enclosing.map(|(n, _)| n.to_string()),
+                            caller_kind: enclosing.map(|(_, k)| k),
+                        });
+                    }
+                }
+            }
+        }
+
+        // Recurse into nested token_trees
+        if child.kind() == "token_tree" {
+            extract_token_tree_calls(child, source, file, lines, refs, enclosing);
+        }
+    }
+}
+
+/// Check if a name is a common Rust macro (to avoid false positives in token trees).
+fn is_rust_macro_name(name: &str) -> bool {
+    matches!(
+        name,
+        "assert"
+            | "assert_eq"
+            | "assert_ne"
+            | "debug_assert"
+            | "debug_assert_eq"
+            | "debug_assert_ne"
+            | "println"
+            | "print"
+            | "eprintln"
+            | "eprint"
+            | "format"
+            | "write"
+            | "writeln"
+            | "panic"
+            | "todo"
+            | "unimplemented"
+            | "unreachable"
+            | "vec"
+            | "cfg"
+            | "include"
+            | "include_str"
+            | "include_bytes"
+            | "env"
+            | "option_env"
+            | "concat"
+            | "line"
+            | "column"
+            | "file"
+            | "stringify"
+            | "module_path"
+            | "compile_error"
+    )
 }
 
 /// Check if a node is the name field of a definition node.
