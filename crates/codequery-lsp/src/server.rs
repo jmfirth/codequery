@@ -544,13 +544,14 @@ mod tests {
             .stderr(Stdio::null())
             .status();
 
-        match result {
-            Ok(status) => assert!(
+        if let Ok(status) = result {
+            // kill command succeeded — process should still be gone.
+            assert!(
                 !status.success(),
                 "process {pid} should not be running after drop"
-            ),
-            Err(_) => {} // kill command failed = process is gone, which is correct
+            );
         }
+        // Err case: kill command itself failed = process is gone, which is correct.
     }
 
     #[test]
@@ -599,5 +600,158 @@ mod tests {
         // Process should be reaped.
         let status = child.try_wait().unwrap();
         assert!(status.is_some(), "process should have been reaped");
+    }
+
+    // ─── Debug impl ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_lsp_server_debug_includes_root_uri_and_process_id() {
+        let script = mock_server_script(
+            "{}",
+            &format!(
+                "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+                 write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":null}}'; \
+                 {SHELL_READ_REQUEST}"
+            ),
+        );
+
+        let dir = tempfile::tempdir().unwrap();
+        let config = ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        };
+
+        let server = LspServer::start(&config, dir.path()).unwrap();
+        let debug_str = format!("{server:?}");
+        assert!(
+            debug_str.contains("root_uri"),
+            "debug output should contain root_uri: {debug_str}"
+        );
+        assert!(
+            debug_str.contains("process_id"),
+            "debug output should contain process_id: {debug_str}"
+        );
+        assert!(
+            debug_str.contains("capabilities"),
+            "debug output should contain capabilities: {debug_str}"
+        );
+        assert!(
+            debug_str.contains("opened_docs_count"),
+            "debug output should contain opened_docs_count: {debug_str}"
+        );
+
+        server.shutdown().unwrap();
+    }
+
+    // ─── is_ready after server exits ────────────────────────────────
+
+    #[test]
+    fn test_is_ready_false_after_server_exits() {
+        // Server that exits immediately after initialization.
+        let script = mock_server_script("{}", "exit 0");
+
+        let dir = tempfile::tempdir().unwrap();
+        let config = ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        };
+
+        let mut server = LspServer::start(&config, dir.path()).unwrap();
+        // Give the process a moment to exit.
+        std::thread::sleep(Duration::from_millis(200));
+        assert!(
+            !server.is_ready(),
+            "server should not be ready after process exits"
+        );
+    }
+
+    // ─── parse_capabilities edge cases ──────────────────────────────
+
+    #[test]
+    fn test_parse_capabilities_with_all_providers() {
+        let result = serde_json::json!({
+            "capabilities": {
+                "definitionProvider": true,
+                "referencesProvider": true,
+                "hoverProvider": true,
+                "documentSymbolProvider": true
+            }
+        });
+        let caps = parse_capabilities(&result).unwrap();
+        assert!(caps.definition_provider.is_some());
+        assert!(caps.references_provider.is_some());
+        assert!(caps.hover_provider.is_some());
+        assert!(caps.document_symbol_provider.is_some());
+    }
+
+    // ─── opened_docs deduplication ──────────────────────────────────
+
+    #[test]
+    fn test_start_with_server_that_closes_stdin_after_init() {
+        // Server responds to initialize but closes stdin immediately after,
+        // causing the initialized notification to fail.
+        let script = format!(
+            "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{{\"capabilities\":{{}}}}}}'; \
+             exec <&-; exit 0"
+        );
+
+        let config = ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        };
+
+        let dir = tempfile::tempdir().unwrap();
+        let result = LspServer::start(&config, dir.path());
+        // May succeed or fail depending on timing. If it fails, the error
+        // should relate to the initialized notification.
+        if let Err(e) = result {
+            let msg = e.to_string();
+            assert!(
+                msg.contains("initialize") || msg.contains("end of stream") || msg.contains("pipe"),
+                "unexpected error: {msg}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_open_document_deduplicates() {
+        // Mock server that handles: initialize, initialized notification,
+        // didOpen notification, shutdown, exit.
+        let script = format!(
+            "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{{\"capabilities\":{{}}}}}}'; \
+             {SHELL_READ_REQUEST}\
+             {SHELL_READ_REQUEST}\
+             {SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":null}}'; \
+             {SHELL_READ_REQUEST}"
+        );
+
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("test.rs");
+        std::fs::write(&file, "fn main() {}").unwrap();
+
+        let config = ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        };
+
+        let mut server = LspServer::start(&config, dir.path()).unwrap();
+        assert!(server.opened_docs.is_empty());
+
+        // First open should succeed and track the document.
+        server.open_document(&file, "fn main() {}", "rust").unwrap();
+        assert_eq!(server.opened_docs.len(), 1);
+
+        // Second open of same file should be a no-op.
+        server.open_document(&file, "fn main() {}", "rust").unwrap();
+        assert_eq!(server.opened_docs.len(), 1);
+
+        server.shutdown().unwrap();
     }
 }

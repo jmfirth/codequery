@@ -127,7 +127,8 @@ mod tests {
     #[test]
     fn test_result_alias_works_with_ok() {
         let result: Result<i32> = Ok(42);
-        assert_eq!(result.unwrap(), 42);
+        assert!(result.is_ok());
+        assert_eq!(result.ok(), Some(42));
     }
 
     #[test]

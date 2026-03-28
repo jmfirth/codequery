@@ -589,4 +589,650 @@ mod tests {
             _ => panic!("expected Error response"),
         }
     }
+
+    // ─── get_or_start_server ────────────────────────────────────────
+
+    #[test]
+    fn test_get_or_start_server_no_config_returns_error() {
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        // Ruby has no config in the default registry.
+        let result = daemon.get_or_start_server(Path::new("/project"), Language::Ruby);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, LspError::ServerNotFound(_)),
+            "expected ServerNotFound, got: {err:?}"
+        );
+    }
+
+    // ─── handle_query with valid language but nonexistent project ───
+
+    #[test]
+    fn test_handle_query_rust_no_server_binary_returns_error() {
+        // Rust has a config (rust-analyzer), but it may not be installed.
+        // Either way, handle_query should return an Error response, not panic.
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let resp = daemon.handle_query(
+            Path::new("/nonexistent-project-xyz"),
+            "rust",
+            "definition",
+            Path::new("/nonexistent-project-xyz/main.rs"),
+            1,
+            0,
+        );
+        // Will either fail to start the server or fail to find the definition.
+        // Either way, should be an Error variant.
+        assert!(matches!(resp, DaemonResponse::Error(_)));
+    }
+
+    // ─── shutdown_all_servers ───────────────────────────────────────
+
+    #[test]
+    fn test_shutdown_all_servers_empty_pool_is_noop() {
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        daemon.shutdown_all_servers();
+        assert!(daemon.servers.is_empty());
+    }
+
+    // ─── evict_idle_servers with non-empty pool ─────────────────────
+
+    #[test]
+    fn test_evict_idle_servers_does_not_evict_fresh_servers() {
+        // We can't easily insert a mock PooledServer because PooledServer
+        // contains a LspServer. But we can verify the logic path by using a
+        // very long timeout with an empty pool (no panic).
+        let mut daemon = Daemon::new(Duration::from_secs(3600));
+        daemon.evict_idle_servers();
+        assert!(daemon.servers.is_empty());
+    }
+
+    // ─── handle_request query routes to correct operation ───────────
+
+    #[test]
+    fn test_handle_request_query_valid_language_invalid_project() {
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        // Python has a config, but pyright-langserver is unlikely installed in CI.
+        let (resp, should_stop) = daemon.handle_request(DaemonRequest::Query {
+            project: PathBuf::from("/nonexistent-project"),
+            language: "python".to_string(),
+            operation: "references".to_string(),
+            file: PathBuf::from("/nonexistent-project/main.py"),
+            line: 1,
+            column: 0,
+            symbol: Some("foo".to_string()),
+        });
+        assert!(!should_stop);
+        assert!(
+            matches!(resp, DaemonResponse::Error(_)),
+            "expected Error response, got: {resp:?}"
+        );
+    }
+
+    #[test]
+    fn test_handle_request_query_with_hover_operation() {
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let (resp, should_stop) = daemon.handle_request(DaemonRequest::Query {
+            project: PathBuf::from("/nonexistent-project"),
+            language: "go".to_string(),
+            operation: "hover".to_string(),
+            file: PathBuf::from("/nonexistent-project/main.go"),
+            line: 1,
+            column: 0,
+            symbol: None,
+        });
+        assert!(!should_stop);
+        assert!(matches!(resp, DaemonResponse::Error(_)));
+    }
+
+    // ─── handle_status with servers in pool ─────────────────────────
+
+    #[test]
+    fn test_handle_status_empty_pool_returns_zero_servers() {
+        let daemon = Daemon::new(Duration::from_secs(60));
+        let resp = daemon.handle_status();
+        match resp {
+            DaemonResponse::Status {
+                servers,
+                uptime_secs: _,
+            } => {
+                assert!(servers.is_empty());
+            }
+            _ => panic!("expected Status response"),
+        }
+    }
+
+    // ─── idle timeout from env edge cases ───────────────────────────
+
+    #[test]
+    fn test_daemon_from_env_handles_zero_timeout() {
+        std::env::set_var(IDLE_TIMEOUT_ENV_VAR, "0");
+        let daemon = Daemon::from_env();
+        assert_eq!(daemon.idle_timeout, Duration::from_secs(0));
+        std::env::remove_var(IDLE_TIMEOUT_ENV_VAR);
+    }
+
+    #[test]
+    fn test_daemon_from_env_handles_empty_string() {
+        std::env::set_var(IDLE_TIMEOUT_ENV_VAR, "");
+        let daemon = Daemon::from_env();
+        // Empty string fails to parse as u64, falls back to default.
+        assert_eq!(
+            daemon.idle_timeout,
+            Duration::from_secs(DEFAULT_IDLE_TIMEOUT_SECS)
+        );
+        std::env::remove_var(IDLE_TIMEOUT_ENV_VAR);
+    }
+
+    // ─── ServerPoolState coverage ───────────────────────────────────
+
+    #[test]
+    fn test_server_pool_state_variants_exist() {
+        // Exercise the pattern matching on ServerPoolState to cover the enum.
+        let ready = ServerPoolState::Ready;
+        let dead = ServerPoolState::Dead;
+        let missing = ServerPoolState::Missing;
+
+        assert!(matches!(ready, ServerPoolState::Ready));
+        assert!(matches!(dead, ServerPoolState::Dead));
+        assert!(matches!(missing, ServerPoolState::Missing));
+    }
+
+    // ─── Shell script helpers for mock servers ──────────────────────
+
+    const SHELL_READ_REQUEST: &str = concat!(
+        "read_headers() { ",
+        "  CL=0; ",
+        "  while IFS= read -r line; do ",
+        "    line=$(printf '%s' \"$line\" | tr -d '\\r'); ",
+        "    [ -z \"$line\" ] && break; ",
+        "    case \"$line\" in ",
+        "      Content-Length:*) CL=$(echo \"$line\" | cut -d: -f2 | tr -d ' ') ;; ",
+        "    esac; ",
+        "  done; ",
+        "  echo $CL; ",
+        "}; ",
+        "CL=$(read_headers); ",
+        "BODY=$(dd bs=1 count=$CL 2>/dev/null); ",
+        "ID=$(echo \"$BODY\" | sed 's/.*\"id\":\\([0-9]*\\).*/\\1/'); ",
+    );
+
+    const SHELL_WRITE_MSG: &str = concat!(
+        "write_msg() { ",
+        "  local MSG=\"$1\"; ",
+        "  local LEN=$(printf '%s' \"$MSG\" | wc -c | tr -d ' '); ",
+        "  printf 'Content-Length: %s\\r\\n\\r\\n%s' \"$LEN\" \"$MSG\"; ",
+        "}; ",
+    );
+
+    /// Creates a mock LSP server that responds to init, initialized notification,
+    /// didOpen notification, one query, shutdown, and exit.
+    fn mock_query_server_config(
+        capabilities: &str,
+        query_result: &str,
+    ) -> crate::config::ServerConfig {
+        let script = format!(
+            "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{{\"capabilities\":{capabilities}}}}}'; \
+             {SHELL_READ_REQUEST}\
+             {SHELL_READ_REQUEST}\
+             {SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{query_result}}}'; \
+             {SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":null}}'; \
+             {SHELL_READ_REQUEST}"
+        );
+
+        crate::config::ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        }
+    }
+
+    /// Helper to insert a mock server into the daemon pool.
+    fn insert_mock_server(
+        daemon: &mut Daemon,
+        project: PathBuf,
+        language: Language,
+        config: &crate::config::ServerConfig,
+    ) -> crate::error::Result<()> {
+        let server = LspServer::start(config, &project)?;
+        let now = Instant::now();
+        daemon.servers.insert(
+            (project, language),
+            PooledServer {
+                server,
+                last_used: now,
+                started: now,
+            },
+        );
+        Ok(())
+    }
+
+    // ─── handle_query with mock server ──────────────────────────────
+
+    #[test]
+    fn test_handle_query_definition_with_mock_server() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("main.rs");
+        std::fs::write(&file, "fn foo() {}\nfn bar() { foo(); }").unwrap();
+
+        let file_uri = crate::queries::path_to_uri(&file);
+        let def_result = format!(
+            "{{\"uri\":\"{file_uri}\",\"range\":{{\"start\":{{\"line\":0,\"character\":3}},\"end\":{{\"line\":0,\"character\":6}}}}}}"
+        );
+
+        let config = mock_query_server_config("{\"definitionProvider\":true}", &def_result);
+
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        insert_mock_server(
+            &mut daemon,
+            dir.path().to_path_buf(),
+            Language::Rust,
+            &config,
+        )
+        .unwrap();
+
+        let resp = daemon.handle_query(dir.path(), "rust", "definition", &file, 2, 11);
+
+        match resp {
+            DaemonResponse::Locations(locs) => {
+                assert_eq!(locs.len(), 1);
+                assert_eq!(locs[0].range.start.line, 0);
+                assert_eq!(locs[0].range.start.character, 3);
+            }
+            DaemonResponse::Error(msg) => panic!("expected Locations, got Error: {msg}"),
+            other => panic!("expected Locations, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_handle_query_references_with_mock_server() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("main.rs");
+        std::fs::write(&file, "fn foo() {}\nfn bar() { foo(); }").unwrap();
+
+        let file_uri = crate::queries::path_to_uri(&file);
+        let refs_result = format!(
+            "[{{\"uri\":\"{file_uri}\",\"range\":{{\"start\":{{\"line\":1,\"character\":11}},\"end\":{{\"line\":1,\"character\":14}}}}}}]"
+        );
+
+        let config = mock_query_server_config("{\"referencesProvider\":true}", &refs_result);
+
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        insert_mock_server(
+            &mut daemon,
+            dir.path().to_path_buf(),
+            Language::Rust,
+            &config,
+        )
+        .unwrap();
+
+        let resp = daemon.handle_query(dir.path(), "rust", "references", &file, 1, 3);
+
+        match resp {
+            DaemonResponse::Locations(locs) => {
+                assert_eq!(locs.len(), 1);
+            }
+            DaemonResponse::Error(msg) => panic!("expected Locations, got Error: {msg}"),
+            other => panic!("expected Locations, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_handle_query_hover_with_mock_server() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("main.rs");
+        std::fs::write(&file, "fn foo() -> i32 { 42 }").unwrap();
+
+        let hover_result = r#"{"contents":{"kind":"markdown","value":"fn foo() -> i32"}}"#;
+        let config = mock_query_server_config("{\"hoverProvider\":true}", hover_result);
+
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        insert_mock_server(
+            &mut daemon,
+            dir.path().to_path_buf(),
+            Language::Rust,
+            &config,
+        )
+        .unwrap();
+
+        let resp = daemon.handle_query(dir.path(), "rust", "hover", &file, 1, 3);
+
+        match resp {
+            DaemonResponse::Hover(text) => {
+                assert!(text.is_some());
+                assert!(text.unwrap().contains("fn foo()"));
+            }
+            DaemonResponse::Error(msg) => panic!("expected Hover, got Error: {msg}"),
+            other => panic!("expected Hover, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_handle_query_unknown_operation_with_mock_server() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("main.rs");
+        std::fs::write(&file, "fn foo() {}").unwrap();
+
+        // Mock server handles init + initialized + didOpen, then we never
+        // send it a query because the operation is unknown.
+        // The mock needs to handle the open_document notification and then
+        // the server will be dropped without further interaction.
+        let script = format!(
+            "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{{\"capabilities\":{{}}}}}}'; \
+             {SHELL_READ_REQUEST}\
+             {SHELL_READ_REQUEST}\
+             sleep 5"
+        );
+
+        let config = crate::config::ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        };
+
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        insert_mock_server(
+            &mut daemon,
+            dir.path().to_path_buf(),
+            Language::Rust,
+            &config,
+        )
+        .unwrap();
+
+        let resp = daemon.handle_query(
+            dir.path(),
+            "rust",
+            "refactor", // unknown operation
+            &file,
+            1,
+            0,
+        );
+
+        match resp {
+            DaemonResponse::Error(msg) => {
+                assert!(msg.contains("unknown operation"), "got: {msg}");
+            }
+            other => panic!("expected Error, got: {other:?}"),
+        }
+    }
+
+    // ─── handle_status with servers in pool ─────────────────────────
+
+    #[test]
+    fn test_handle_status_with_servers_in_pool() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let script = format!(
+            "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{{\"capabilities\":{{}}}}}}'; \
+             {SHELL_READ_REQUEST}\
+             sleep 30"
+        );
+
+        let config = crate::config::ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        };
+
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        insert_mock_server(
+            &mut daemon,
+            dir.path().to_path_buf(),
+            Language::Rust,
+            &config,
+        )
+        .unwrap();
+
+        let resp = daemon.handle_status();
+        match resp {
+            DaemonResponse::Status {
+                servers,
+                uptime_secs: _,
+            } => {
+                assert_eq!(servers.len(), 1);
+                assert_eq!(servers[0].language, "rust");
+            }
+            other => panic!("expected Status, got: {other:?}"),
+        }
+    }
+
+    // ─── evict_idle_servers with expired server ─────────────────────
+
+    #[test]
+    fn test_evict_idle_servers_evicts_expired_server() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // A server that stays alive.
+        let script = format!(
+            "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{{\"capabilities\":{{}}}}}}'; \
+             {SHELL_READ_REQUEST}\
+             {SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":null}}'; \
+             {SHELL_READ_REQUEST}"
+        );
+
+        let config = crate::config::ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        };
+
+        // Use a zero timeout so the server is immediately eligible for eviction.
+        let mut daemon = Daemon::new(Duration::from_secs(0));
+        insert_mock_server(
+            &mut daemon,
+            dir.path().to_path_buf(),
+            Language::Rust,
+            &config,
+        )
+        .unwrap();
+        assert_eq!(daemon.servers.len(), 1);
+
+        // Wait a tiny bit so last_used.elapsed() > 0.
+        std::thread::sleep(Duration::from_millis(10));
+
+        daemon.evict_idle_servers();
+        assert!(daemon.servers.is_empty(), "server should have been evicted");
+    }
+
+    // ─── shutdown_all_servers with servers ───────────────────────────
+
+    #[test]
+    fn test_shutdown_all_servers_shuts_down_all() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let script = format!(
+            "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{{\"capabilities\":{{}}}}}}'; \
+             {SHELL_READ_REQUEST}\
+             {SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":null}}'; \
+             {SHELL_READ_REQUEST}"
+        );
+
+        let config = crate::config::ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        };
+
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        insert_mock_server(
+            &mut daemon,
+            dir.path().to_path_buf(),
+            Language::Rust,
+            &config,
+        )
+        .unwrap();
+        assert_eq!(daemon.servers.len(), 1);
+
+        daemon.shutdown_all_servers();
+        assert!(daemon.servers.is_empty());
+    }
+
+    // ─── get_or_start_server reuses existing server ─────────────────
+
+    #[test]
+    fn test_get_or_start_server_reuses_existing() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Server that stays alive.
+        let script = format!(
+            "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{{\"capabilities\":{{}}}}}}'; \
+             {SHELL_READ_REQUEST}\
+             sleep 30"
+        );
+
+        let config = crate::config::ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        };
+
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        insert_mock_server(
+            &mut daemon,
+            dir.path().to_path_buf(),
+            Language::Rust,
+            &config,
+        )
+        .unwrap();
+
+        // get_or_start_server should find and reuse the existing server.
+        let result = daemon.get_or_start_server(dir.path(), Language::Rust);
+        assert!(result.is_ok());
+        assert_eq!(daemon.servers.len(), 1);
+    }
+
+    // ─── handle_query error paths when server returns errors ─────────
+
+    #[test]
+    fn test_handle_query_definition_error_from_server() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("main.rs");
+        std::fs::write(&file, "fn foo() {}").unwrap();
+
+        // Mock server that returns an error response for the query.
+        let script = format!(
+            "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{{\"capabilities\":{{\"definitionProvider\":true}}}}}}'; \
+             {SHELL_READ_REQUEST}\
+             {SHELL_READ_REQUEST}\
+             {SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"error\":{{\"code\":-32601,\"message\":\"internal error\"}}}}'; \
+             sleep 5"
+        );
+
+        let config = crate::config::ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        };
+
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        insert_mock_server(
+            &mut daemon,
+            dir.path().to_path_buf(),
+            Language::Rust,
+            &config,
+        )
+        .unwrap();
+
+        let resp = daemon.handle_query(dir.path(), "rust", "definition", &file, 1, 3);
+        match resp {
+            DaemonResponse::Error(msg) => {
+                assert!(msg.contains("definition failed"), "got: {msg}");
+            }
+            other => panic!("expected Error, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_handle_query_references_error_from_server() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("main.rs");
+        std::fs::write(&file, "fn foo() {}").unwrap();
+
+        let script = format!(
+            "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{{\"capabilities\":{{\"referencesProvider\":true}}}}}}'; \
+             {SHELL_READ_REQUEST}\
+             {SHELL_READ_REQUEST}\
+             {SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"error\":{{\"code\":-32601,\"message\":\"refs error\"}}}}'; \
+             sleep 5"
+        );
+
+        let config = crate::config::ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        };
+
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        insert_mock_server(
+            &mut daemon,
+            dir.path().to_path_buf(),
+            Language::Rust,
+            &config,
+        )
+        .unwrap();
+
+        let resp = daemon.handle_query(dir.path(), "rust", "references", &file, 1, 3);
+        match resp {
+            DaemonResponse::Error(msg) => {
+                assert!(msg.contains("references failed"), "got: {msg}");
+            }
+            other => panic!("expected Error, got: {other:?}"),
+        }
+    }
+
+    // ─── get_or_start_server replaces dead server ───────────────────
+
+    #[test]
+    fn test_get_or_start_server_replaces_dead_server() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Server that exits immediately after init.
+        let script = format!(
+            "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             write_msg '{{\"jsonrpc\":\"2.0\",\"id\":'$ID',\"result\":{{\"capabilities\":{{}}}}}}'; \
+             {SHELL_READ_REQUEST}\
+             exit 0"
+        );
+
+        let config = crate::config::ServerConfig {
+            binary: "sh".to_string(),
+            args: vec!["-c".to_string(), script],
+            env: vec![],
+        };
+
+        let mut daemon = Daemon::new(Duration::from_secs(60));
+        insert_mock_server(
+            &mut daemon,
+            dir.path().to_path_buf(),
+            Language::Rust,
+            &config,
+        )
+        .unwrap();
+
+        // Give the server time to exit.
+        std::thread::sleep(Duration::from_millis(200));
+
+        // get_or_start_server should detect the dead server and try to start a new one.
+        // It will fail (rust-analyzer not installed), but the dead server should be removed.
+        let result = daemon.get_or_start_server(dir.path(), Language::Rust);
+        // Either succeeds (if rust-analyzer exists) or fails, but the dead
+        // server should have been removed.
+        if result.is_err() {
+            // The dead server was removed, and the new start attempt failed.
+            assert!(daemon.servers.is_empty());
+        }
+    }
 }

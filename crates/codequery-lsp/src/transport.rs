@@ -634,4 +634,79 @@ mod tests {
         assert!(result.is_null());
         child.wait().unwrap();
     }
+
+    // ─── Timeout behavior ───────────────────────────────────────────
+
+    #[test]
+    fn test_send_request_times_out_when_server_never_responds() {
+        // Server that reads the request but never writes a response,
+        // then sleeps long enough for the timeout to fire.
+        let script = format!("{SHELL_READ_REQUEST}sleep 30");
+
+        let mut child = Command::new("sh")
+            .arg("-c")
+            .arg(&script)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+
+        let stdin = child.stdin.take().unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let mut transport = StdioTransport::new(stdin, stdout);
+        // Very short timeout so the test doesn't block.
+        transport.set_timeout(Duration::from_millis(200));
+
+        let result = transport.send_request("test/method", serde_json::json!({}));
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        // Should be either Timeout or ConnectionFailed (EOF).
+        assert!(
+            matches!(err, LspError::Timeout(_) | LspError::ConnectionFailed(_)),
+            "expected Timeout or ConnectionFailed, got: {err:?}"
+        );
+
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    #[test]
+    fn test_send_request_timeout_after_notifications() {
+        // Server that reads the request and sends notifications (non-matching
+        // messages) until the timeout fires. This exercises the timeout check
+        // inside the read loop.
+        let script = format!(
+            "{SHELL_READ_REQUEST}{SHELL_WRITE_MSG}\
+             while true; do \
+               write_msg '{{\"jsonrpc\":\"2.0\",\"method\":\"window/logMessage\",\"params\":{{\"type\":3,\"message\":\"loading\"}}}}'; \
+               sleep 0.05; \
+             done"
+        );
+
+        let mut child = Command::new("sh")
+            .arg("-c")
+            .arg(&script)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+
+        let stdin = child.stdin.take().unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let mut transport = StdioTransport::new(stdin, stdout);
+        transport.set_timeout(Duration::from_millis(300));
+
+        let result = transport.send_request("test/method", serde_json::json!({}));
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, LspError::Timeout(_)),
+            "expected Timeout, got: {err:?}"
+        );
+
+        let _ = child.kill();
+        let _ = child.wait();
+    }
 }

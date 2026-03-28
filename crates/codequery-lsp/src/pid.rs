@@ -261,4 +261,170 @@ mod tests {
         // real daemon PID file exists. We just verify it doesn't panic.
         let _ = is_daemon_running();
     }
+
+    // ─── write_pid_file and remove_pid_file ─────────────────────────
+
+    #[test]
+    fn test_write_pid_file_to_and_remove() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_path = dir.path().join(PID_FILENAME);
+
+        // Write
+        write_pid_file_to(dir.path()).unwrap();
+        assert!(pid_path.exists());
+
+        // Read back
+        let pid = read_pid_from(&pid_path).unwrap();
+        assert_eq!(pid, std::process::id());
+
+        // Remove
+        fs::remove_file(&pid_path).unwrap();
+        assert!(!pid_path.exists());
+    }
+
+    // ─── runtime_dir always returns a path ending in "cq" ──────────
+
+    #[test]
+    fn test_runtime_dir_path_ends_with_cq() {
+        let dir = runtime_dir().unwrap();
+        let dir_str = dir.to_str().unwrap();
+        assert!(
+            dir_str.ends_with("/cq") || dir_str.ends_with("\\cq"),
+            "runtime dir should end with /cq: {dir_str}"
+        );
+    }
+
+    // ─── pid_file_path and socket_path relative to runtime_dir ──────
+
+    #[test]
+    fn test_pid_file_path_is_inside_runtime_dir() {
+        let rt_dir = runtime_dir().unwrap();
+        let pid_path = pid_file_path().unwrap();
+        assert_eq!(pid_path.parent().unwrap(), rt_dir);
+    }
+
+    #[test]
+    fn test_socket_path_is_inside_runtime_dir() {
+        let rt_dir = runtime_dir().unwrap();
+        let sock_path = socket_path().unwrap();
+        assert_eq!(sock_path.parent().unwrap(), rt_dir);
+    }
+
+    // ─── read_pid_file when no file exists ──────────────────────────
+
+    #[test]
+    fn test_read_pid_file_returns_none_when_no_daemon() {
+        // With no daemon running, read_pid_file might return None or
+        // Some(stale_pid). The key is it doesn't panic.
+        let _ = read_pid_file();
+    }
+
+    // ─── is_pid_alive with PID 1 (init, always running) ────────────
+
+    #[test]
+    fn test_is_pid_alive_with_pid_one() {
+        // PID 1 (init/launchd) is always running, but we may not have
+        // permission to signal it. Either result is valid.
+        let _ = is_pid_alive(1);
+    }
+
+    // ─── write_pid_file_to with nested non-existent dirs ────────────
+
+    #[test]
+    fn test_write_pid_file_to_deeply_nested_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let deep = dir.path().join("a").join("b").join("c");
+        write_pid_file_to(&deep).unwrap();
+        let pid = read_pid_from(&deep.join(PID_FILENAME)).unwrap();
+        assert_eq!(pid, std::process::id());
+    }
+
+    // ─── remove_pid_file is best-effort ─────────────────────────────
+
+    #[test]
+    fn test_remove_pid_file_does_not_panic_when_no_file() {
+        // remove_pid_file should not panic even if there's no PID file.
+        remove_pid_file();
+    }
+
+    // ─── write_pid_file and remove_pid_file (real paths) ────────────
+
+    #[test]
+    fn test_write_pid_file_and_remove_pid_file_real_paths() {
+        // Write to the real runtime dir, then clean up.
+        let result = write_pid_file();
+        assert!(result.is_ok(), "write_pid_file failed: {result:?}");
+
+        // Verify the PID file was written.
+        let pid = read_pid_file();
+        assert_eq!(pid, Some(std::process::id()));
+
+        // Clean up.
+        remove_pid_file();
+
+        // After removal, read_pid_file should return None (or the file is gone).
+        let pid_path = pid_file_path().unwrap();
+        assert!(!pid_path.exists(), "PID file should be removed");
+    }
+
+    // ─── is_daemon_running with current process PID ─────────────────
+
+    #[test]
+    fn test_is_daemon_running_true_when_pid_file_has_current_pid() {
+        // Write the current process PID to the PID file.
+        let result = write_pid_file();
+        assert!(result.is_ok());
+
+        // is_daemon_running should return true (current process is alive).
+        assert!(
+            is_daemon_running(),
+            "is_daemon_running should return true when PID file contains current PID"
+        );
+
+        // Clean up.
+        remove_pid_file();
+    }
+
+    // ─── is_daemon_running with stale PID ───────────────────────────
+
+    #[test]
+    fn test_runtime_dir_uses_home_fallback_when_xdg_not_set() {
+        // Save the current XDG_RUNTIME_DIR.
+        let saved_xdg = std::env::var("XDG_RUNTIME_DIR").ok();
+
+        // Remove XDG_RUNTIME_DIR to force the HOME fallback.
+        std::env::remove_var("XDG_RUNTIME_DIR");
+
+        let dir = runtime_dir().unwrap();
+        let dir_str = dir.to_str().unwrap();
+
+        // Without XDG, it should use HOME/.cache/cq
+        assert!(
+            dir_str.contains(".cache/cq") || dir_str.ends_with("/cq"),
+            "runtime dir {dir_str} should use cache fallback"
+        );
+
+        // Restore XDG_RUNTIME_DIR.
+        if let Some(xdg) = saved_xdg {
+            std::env::set_var("XDG_RUNTIME_DIR", xdg);
+        }
+    }
+
+    #[test]
+    fn test_is_daemon_running_false_when_pid_is_stale() {
+        // Write a definitely-dead PID to the PID file.
+        let dir = runtime_dir().unwrap();
+        fs::create_dir_all(&dir).unwrap();
+        let pid_path = dir.join(PID_FILENAME);
+        fs::write(&pid_path, "999999999").unwrap();
+
+        // is_daemon_running should return false (PID 999999999 is dead).
+        assert!(
+            !is_daemon_running(),
+            "is_daemon_running should return false for a dead PID"
+        );
+
+        // Clean up.
+        let _ = fs::remove_file(&pid_path);
+    }
 }

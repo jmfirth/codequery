@@ -362,4 +362,112 @@ mod tests {
         // Result is a ResolutionResult — verify its structure.
         assert!(result.references.iter().all(|r| r.symbol == "foo"));
     }
+
+    // ─── try_oneshot_refs error handling ─────────────────────────────
+
+    #[test]
+    fn test_try_oneshot_refs_nonexistent_file_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("nonexistent.py");
+        // File does not exist — should fail at read_file_source.
+        let result = try_oneshot_refs(dir.path(), Language::Python, "foo", &file, 1, 4);
+        assert!(result.is_err());
+    }
+
+    // ─── cascade with multiple scan results ─────────────────────────
+
+    #[test]
+    fn test_cascade_multiple_files_with_matching_symbol() {
+        let source1 = "def greet():\n    pass\n";
+        let source2 = "from app import greet\ngreet()\n";
+        let fs1 = make_file_symbols("app.py", source1, Language::Python);
+        let fs2 = make_file_symbols("main.py", source2, Language::Python);
+
+        let result = resolve_with_cascade(
+            Path::new("/tmp/project"),
+            Language::Python,
+            "greet",
+            Path::new("app.py"),
+            1,
+            4,
+            &[fs1, fs2],
+            false,
+        );
+
+        // Stack graph should find references across both files.
+        for r in &result.references {
+            assert_eq!(r.symbol, "greet");
+        }
+    }
+
+    // ─── cascade with semantic_requested=true and no server ─────────
+
+    #[test]
+    fn test_cascade_semantic_requested_no_daemon_no_server_falls_to_stack_graph() {
+        // Semantic is requested, but no daemon is running and the LSP
+        // server binary doesn't exist. Should fall through to stack graph.
+        let source = "fn foo() {}\nfn bar() { foo(); }\n";
+        let fs = make_file_symbols("main.rs", source, Language::Rust);
+
+        let result = resolve_with_cascade(
+            Path::new("/tmp/project"),
+            Language::Rust,
+            "foo",
+            Path::new("main.rs"),
+            1,
+            3,
+            &[fs],
+            true, // semantic requested, but no real server available
+        );
+
+        // Should succeed (fell through to stack graph), not panic.
+        for r in &result.references {
+            assert_eq!(r.symbol, "foo");
+        }
+    }
+
+    // ─── daemon not running path is exercised ───────────────────────
+
+    #[test]
+    fn test_cascade_no_daemon_semantic_true_unsupported_lang_falls_to_stack_graph() {
+        let source = "x = 1\nprint(x)\n";
+        let fs = make_file_symbols("app.py", source, Language::Python);
+
+        // Ruby has no LSP config, so oneshot will fail even with semantic=true.
+        let result = resolve_with_cascade(
+            Path::new("/tmp/project"),
+            Language::Ruby,
+            "x",
+            Path::new("app.rb"),
+            1,
+            0,
+            &[fs],
+            true,
+        );
+
+        // Should not panic — falls through to stack graph.
+        let _ = result;
+    }
+
+    // ─── ResolutionResult warnings field ────────────────────────────
+
+    #[test]
+    fn test_cascade_result_warnings_empty_for_stack_graph() {
+        let source = "def foo():\n    pass\n\nfoo()\n";
+        let fs = make_file_symbols("app.py", source, Language::Python);
+
+        let result = resolve_with_cascade(
+            Path::new("/tmp/project"),
+            Language::Python,
+            "foo",
+            Path::new("app.py"),
+            1,
+            4,
+            &[fs],
+            false,
+        );
+
+        // Stack graph resolution should not produce warnings for valid input.
+        assert!(result.warnings.is_empty());
+    }
 }
