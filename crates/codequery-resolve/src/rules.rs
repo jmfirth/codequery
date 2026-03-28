@@ -5,9 +5,12 @@
 //! factory for creating `StackGraphLanguage` instances and a predicate for
 //! checking which languages have rules available.
 
+pub mod c;
+pub mod go;
 pub mod java;
 pub mod javascript;
 pub mod python;
+pub mod rust;
 pub mod typescript;
 
 use codequery_core::Language;
@@ -17,19 +20,25 @@ use crate::error;
 
 /// Check if a language has stack graph rules available.
 ///
-/// Returns `true` for Python, TypeScript, JavaScript, and Java.
-/// Returns `false` for Rust, Go, C, and C++ (not yet supported).
+/// Returns `true` for Python, TypeScript, JavaScript, Java, Go, C, and Rust.
+/// Returns `false` for C++ (not yet supported).
 #[must_use]
 pub fn has_rules(lang: Language) -> bool {
     matches!(
         lang,
-        Language::Python | Language::TypeScript | Language::JavaScript | Language::Java
+        Language::Python
+            | Language::TypeScript
+            | Language::JavaScript
+            | Language::Java
+            | Language::Go
+            | Language::C
+            | Language::Rust
     )
 }
 
 /// Create a `StackGraphLanguage` for the given language.
 ///
-/// Returns `None` for languages without stack graph rules (Rust, Go, C, C++).
+/// Returns `None` for languages without stack graph rules (C++).
 /// Returns `Some(Ok(_))` on successful rule loading, or `Some(Err(_))` if the
 /// TSG rules fail to parse.
 #[must_use]
@@ -39,7 +48,10 @@ pub fn language_config(lang: Language) -> Option<error::Result<StackGraphLanguag
         Language::TypeScript => Some(typescript::create_language()),
         Language::JavaScript => Some(javascript::create_language()),
         Language::Java => Some(java::create_language()),
-        Language::Rust | Language::Go | Language::C | Language::Cpp => None,
+        Language::Go => Some(go::create_language()),
+        Language::C => Some(c::create_language()),
+        Language::Rust => Some(rust::create_language()),
+        Language::Cpp => None,
     }
 }
 
@@ -68,18 +80,18 @@ mod tests {
     }
 
     #[test]
-    fn test_has_rules_rust_returns_false() {
-        assert!(!has_rules(Language::Rust));
+    fn test_has_rules_rust_returns_true() {
+        assert!(has_rules(Language::Rust));
     }
 
     #[test]
-    fn test_has_rules_go_returns_false() {
-        assert!(!has_rules(Language::Go));
+    fn test_has_rules_go_returns_true() {
+        assert!(has_rules(Language::Go));
     }
 
     #[test]
-    fn test_has_rules_c_returns_false() {
-        assert!(!has_rules(Language::C));
+    fn test_has_rules_c_returns_true() {
+        assert!(has_rules(Language::C));
     }
 
     #[test]
@@ -125,18 +137,24 @@ mod tests {
     }
 
     #[test]
-    fn test_language_config_rust_returns_none() {
-        assert!(language_config(Language::Rust).is_none());
+    fn test_language_config_go_loads_successfully() {
+        let result = language_config(Language::Go);
+        assert!(result.is_some());
+        assert!(result.unwrap().is_ok(), "Go language config should load");
     }
 
     #[test]
-    fn test_language_config_go_returns_none() {
-        assert!(language_config(Language::Go).is_none());
+    fn test_language_config_c_loads_successfully() {
+        let result = language_config(Language::C);
+        assert!(result.is_some());
+        assert!(result.unwrap().is_ok(), "C language config should load");
     }
 
     #[test]
-    fn test_language_config_c_returns_none() {
-        assert!(language_config(Language::C).is_none());
+    fn test_language_config_rust_loads_successfully() {
+        let result = language_config(Language::Rust);
+        assert!(result.is_some());
+        assert!(result.unwrap().is_ok(), "Rust language config should load");
     }
 
     #[test]

@@ -1,0 +1,661 @@
+;; ------------------------------------------------------------------------------------------------
+;; Custom stack graph rules for Rust (partial)
+;;
+;; Covers: use declarations, mod declarations, function/struct/enum/trait/const/static/type
+;; definitions, impl blocks, pub visibility, and function body scopes for local variables.
+;;
+;; Explicitly NOT handled:
+;;   - Trait method resolution (which impl is used?) -- requires type inference
+;;   - Generic instantiation -- requires type checking
+;;   - Macro expansion -- requires the compiler
+;;   - Lifetime resolution
+;;   - Associated types
+;; ------------------------------------------------------------------------------------------------
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Global Variables
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+global FILE_PATH
+global ROOT_NODE
+global JUMP_TO_SCOPE_NODE
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Attribute Shorthands
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+attribute node_definition = node        => type = "pop_symbol", node_symbol = node, is_definition
+attribute node_reference = node         => type = "push_symbol", node_symbol = node, is_reference
+attribute pop_node = node               => type = "pop_symbol", node_symbol = node
+attribute pop_scoped_node = node        => type = "pop_scoped_symbol", node_symbol = node
+attribute pop_scoped_symbol = symbol    => type = "pop_scoped_symbol", symbol = symbol
+attribute pop_symbol = symbol           => type = "pop_symbol", symbol = symbol
+attribute push_node = node              => type = "push_symbol", node_symbol = node
+attribute push_scoped_node = node       => type = "push_scoped_symbol", node_symbol = node
+attribute push_scoped_symbol = symbol   => type = "push_scoped_symbol", symbol = symbol
+attribute push_symbol = symbol          => type = "push_symbol", symbol = symbol
+attribute scoped_node_definition = node => type = "pop_scoped_symbol", node_symbol = node, is_definition
+attribute scoped_node_reference = node  => type = "push_scoped_symbol", node_symbol = node, is_reference
+attribute symbol_definition = symbol    => type = "pop_symbol", symbol = symbol, is_definition
+attribute symbol_reference = symbol     => type = "push_symbol", symbol = symbol, is_reference
+
+attribute node_symbol = node            => symbol = (source-text node), source_node = node
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Node Declarations
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Source file (the root of every Rust file)
+(source_file) @src {
+  node @src.defs
+  node @src.lexical_scope
+}
+
+;; All statement/item types that can appear at module or block scope
+[
+  (use_declaration)
+  (mod_item)
+  (function_item)
+  (struct_item)
+  (enum_item)
+  (trait_item)
+  (impl_item)
+  (const_item)
+  (static_item)
+  (type_item)
+  (let_declaration)
+  (expression_statement)
+  (extern_crate_declaration)
+  (macro_invocation)
+  (macro_definition)
+] @item {
+  node @item.defs
+  node @item.lexical_scope
+}
+
+;; Block nodes (function bodies, impl bodies, etc.)
+(block) @blk {
+  node @blk.defs
+  node @blk.lexical_scope
+}
+
+(declaration_list) @dl {
+  node @dl.defs
+  node @dl.lexical_scope
+}
+
+;; Identifier nodes
+(identifier) @id {
+  node @id.ref
+  attr (@id.ref) node_reference = @id
+}
+
+;; Type identifier nodes
+(type_identifier) @tid {
+  node @tid.ref
+  attr (@tid.ref) node_reference = @tid
+}
+
+;; Field identifier nodes
+(field_identifier) @fid {
+  node @fid.ref
+  attr (@fid.ref) node_reference = @fid
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Inherited Variables
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+inherit .crate_scope
+inherit .mod_scope
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Source File (module root)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Every source_file is a module. Its definitions are reachable from ROOT_NODE
+;; via the file path, and it can reach other modules via ROOT_NODE.
+
+(source_file) @src {
+  ;; Build a module path from the file path so cross-file resolution works.
+  ;; The file path segments become chained pop_symbol nodes under ROOT_NODE.
+  node mod_def
+  node mod_ref
+
+  ;; Definitions in this file are reachable from the module scope
+  edge @src.lexical_scope -> @src.defs
+  edge @src.lexical_scope -> ROOT_NODE
+
+  ;; Wire module def into ROOT_NODE
+  edge ROOT_NODE -> mod_def
+  edge mod_def -> @src.defs
+
+  ;; Build module path from FILE_PATH
+  ;; e.g. "src/auth/mod.rs" -> auth module
+  var module_scope = mod_def
+  scan FILE_PATH {
+    "([^/]+)/"
+    {
+      attr (module_scope) pop_symbol = $1
+      node next_scope
+      edge module_scope -> next_scope
+      set module_scope = next_scope
+    }
+
+    ;; mod.rs or lib.rs - the directory IS the module, don't add another segment
+    "(mod|lib|main)\.rs$"
+    {
+      edge module_scope -> @src.defs
+    }
+
+    ;; Regular file - add the filename (sans .rs) as a module segment
+    "([^/]+)\.rs$"
+    {
+      attr (module_scope) pop_symbol = $1
+      node file_scope
+      edge module_scope -> file_scope
+      edge file_scope -> @src.defs
+    }
+  }
+
+  ;; Set up inherited scope variables
+  let @src.crate_scope = ROOT_NODE
+  let @src.mod_scope = @src.defs
+}
+
+;; Wire child items in source_file to the file's definition scope
+(source_file (_) @child) @src {
+  edge @src.defs -> @child.defs
+  edge @child.lexical_scope -> @src.lexical_scope
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Module Declarations
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; `mod name;` (external module) -- creates a definition node in the current scope
+;; that can be resolved to the corresponding file's definitions.
+(mod_item
+  name: (identifier) @name
+  !body
+) @mod {
+  node mod_def
+  attr (mod_def) node_definition = @name
+
+  ;; The mod name is a definition in the enclosing scope
+  edge @mod.defs -> mod_def
+
+  ;; The mod name resolves into ROOT_NODE so it can find the file module
+  node mod_ref
+  attr (mod_ref) node_reference = @name
+  edge mod_def -> mod_ref
+  edge mod_ref -> ROOT_NODE
+}
+
+;; `mod name { ... }` (inline module) -- creates a scope for the body
+(mod_item
+  name: (identifier) @name
+  body: (declaration_list) @body
+) @mod {
+  node mod_def
+  attr (mod_def) node_definition = @name
+
+  ;; The mod name is a definition in the enclosing scope
+  edge @mod.defs -> mod_def
+
+  ;; The mod body definitions are reachable through the mod name
+  edge mod_def -> @body.defs
+
+  ;; The body can see its own definitions plus the parent scope
+  edge @body.lexical_scope -> @body.defs
+  edge @body.lexical_scope -> @mod.lexical_scope
+
+  let @body.mod_scope = @body.defs
+}
+
+;; Items inside a declaration_list (inline mod body, impl body, trait body)
+(declaration_list (_) @child) @dl {
+  edge @dl.defs -> @child.defs
+  edge @child.lexical_scope -> @dl.lexical_scope
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Use Declarations
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Simple use: `use foo::bar;`
+;; The last identifier in the path becomes a definition in the current scope.
+;; The full path is a reference chain that resolves through ROOT_NODE.
+
+;; use path::to::name;
+(use_declaration
+  argument: (scoped_identifier
+    name: (identifier) @name)
+) @use_decl {
+  node use_def
+  attr (use_def) node_definition = @name
+  edge @use_decl.defs -> use_def
+  edge use_def -> @name.ref
+}
+
+;; use name;  (bare identifier, e.g. `use std;`)
+(use_declaration
+  argument: (identifier) @name
+) @use_decl {
+  node use_def
+  attr (use_def) node_definition = @name
+  edge @use_decl.defs -> use_def
+  edge use_def -> @name.ref
+  edge @name.ref -> @use_decl.lexical_scope
+}
+
+;; use path as alias;
+(use_declaration
+  argument: (use_as_clause
+    alias: (identifier) @alias)
+) @use_decl {
+  node use_def
+  attr (use_def) node_definition = @alias
+  edge @use_decl.defs -> use_def
+}
+
+;; Scoped identifier chains: path::name
+;; Connect the name's reference through the path
+(scoped_identifier
+  path: (identifier) @path_id
+  name: (identifier) @name
+) {
+  node dot
+  attr (dot) push_symbol = "::"
+
+  edge @name.ref -> dot
+  edge dot -> @path_id.ref
+}
+
+;; Nested scoped identifiers: a::b::c
+;; The inner scoped_identifier acts as the path
+(scoped_identifier
+  path: (scoped_identifier
+    name: (identifier) @inner_name)
+  name: (identifier) @outer_name
+) {
+  node dot
+  attr (dot) push_symbol = "::"
+
+  edge @outer_name.ref -> dot
+  edge dot -> @inner_name.ref
+}
+
+;; `crate::` prefix -- resolve from crate root
+(scoped_identifier
+  path: (crate) @_crate_kw
+  name: (identifier) @name
+) {
+  edge @name.ref -> @name.crate_scope
+}
+
+;; `self::` prefix -- resolve from current module
+(scoped_identifier
+  path: (self) @_self_kw
+  name: (identifier) @name
+) {
+  edge @name.ref -> @name.mod_scope
+}
+
+;; `super::` prefix -- resolve from parent module
+;; Note: multi-level super (super::super::) is handled by nesting
+(scoped_identifier
+  path: (super)
+  name: (identifier) @name
+) {
+  ;; super resolves through ROOT_NODE (we don't track parent module directly)
+  edge @name.ref -> ROOT_NODE
+}
+
+;; Use lists: `use path::{a, b, c};`
+(scoped_use_list
+  path: (_) @path
+  list: (use_list
+    (_) @item)
+) {
+  ;; Each item in the list resolves through the path
+  edge @item.lexical_scope -> @path.ref
+}
+
+;; Items inside use_list that are identifiers
+(use_list (identifier) @name) @list {
+  node use_item_def
+  attr (use_item_def) node_definition = @name
+  edge @list.defs -> use_item_def
+  edge use_item_def -> @name.ref
+  edge @name.ref -> @list.lexical_scope
+}
+
+;; Items inside use_list that are scoped identifiers
+(use_list (scoped_identifier
+  name: (identifier) @name)) @list {
+  node use_item_def
+  attr (use_item_def) node_definition = @name
+  edge @list.defs -> use_item_def
+  edge use_item_def -> @name.ref
+}
+
+;; Items inside use_list that have aliases
+(use_list (use_as_clause
+  alias: (identifier) @alias)) @list {
+  node use_item_def
+  attr (use_item_def) node_definition = @alias
+  edge @list.defs -> use_item_def
+}
+
+;; Wildcard use: `use path::*;`
+;; Makes all definitions from the path visible in current scope
+(use_declaration
+  argument: (use_wildcard
+    (scoped_identifier
+      name: (identifier) @last_seg))
+) @use_decl {
+  edge @use_decl.defs -> @last_seg.ref
+}
+
+;; Connect use_declaration identifiers to lexical scope for resolution
+(use_declaration
+  argument: (scoped_identifier
+    . (_) @first)
+) @use_decl {
+  edge @first.ref -> @use_decl.lexical_scope
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Function Definitions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Function items create a definition and a new scope for their body.
+(function_item
+  name: (identifier) @name
+  parameters: (parameters) @params
+  body: (block) @body
+) @func {
+  ;; Create function definition in enclosing scope
+  node func_def
+  attr (func_def) node_definition = @name
+  attr (func_def) definiens_node = @func
+  edge @func.defs -> func_def
+
+  ;; Function body has its own lexical scope
+  ;; It can see: parameters, enclosing scope
+  edge @body.lexical_scope -> @body.defs
+  edge @body.lexical_scope -> @params.defs
+  edge @body.lexical_scope -> @func.lexical_scope
+
+  ;; Drop scopes for the function call pattern
+  node call
+  node drop_scope
+  attr (call) pop_scoped_symbol = "()"
+  attr (drop_scope) type = "drop_scopes"
+  edge func_def -> call
+  edge call -> drop_scope
+  edge drop_scope -> @body.defs
+}
+
+;; Parameters create definitions in the parameter scope
+(parameters (parameter
+  pattern: (identifier) @param_name)) @params {
+  node param_def
+  attr (param_def) node_definition = @param_name
+  edge @params.defs -> param_def
+}
+
+;; Self parameter
+(parameters (self_parameter) @_self_param) @params {
+  node self_def
+  attr (self_def) symbol_definition = "self"
+  edge @params.defs -> self_def
+}
+
+;; Parameters node
+(parameters) @params {
+  node @params.defs
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Struct Definitions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(struct_item
+  name: (type_identifier) @name
+) @struct_def {
+  node sdef
+  attr (sdef) node_definition = @name
+  attr (sdef) definiens_node = @struct_def
+  edge @struct_def.defs -> sdef
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Enum Definitions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(enum_item
+  name: (type_identifier) @name
+) @enum_def {
+  node edef
+  attr (edef) node_definition = @name
+  attr (edef) definiens_node = @enum_def
+  edge @enum_def.defs -> edef
+}
+
+;; Enum variants are accessible through the enum name
+(enum_item
+  name: (type_identifier) @enum_name
+  body: (enum_variant_list
+    (enum_variant
+      name: (identifier) @variant_name))
+) {
+  node variant_def
+  attr (variant_def) node_definition = @variant_name
+
+  node dot
+  attr (dot) pop_symbol = "::"
+
+  edge @enum_name.ref -> dot
+  edge dot -> variant_def
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Trait Definitions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(trait_item
+  name: (type_identifier) @name
+  body: (declaration_list) @body
+) @trait_def {
+  node tdef
+  attr (tdef) node_definition = @name
+  attr (tdef) definiens_node = @trait_def
+  edge @trait_def.defs -> tdef
+
+  ;; Trait body items are accessible through the trait name
+  edge tdef -> @body.defs
+  edge @body.lexical_scope -> @body.defs
+  edge @body.lexical_scope -> @trait_def.lexical_scope
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Impl Blocks
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Inherent impl: `impl Type { ... }`
+;; Methods are accessible through the type name
+(impl_item
+  type: (_) @impl_type
+  !trait
+  body: (declaration_list) @body
+) @impl_def {
+  ;; Impl body items are definitions
+  edge @body.lexical_scope -> @body.defs
+  edge @body.lexical_scope -> @impl_def.lexical_scope
+
+  ;; Methods are accessible through the type
+  ;; We connect the impl body defs through a :: edge from the type
+  node dot
+  attr (dot) pop_symbol = "::"
+  edge @impl_type.ref -> dot
+  edge dot -> @body.defs
+}
+
+;; Trait impl: `impl Trait for Type { ... }`
+(impl_item
+  trait: (_) @_impl_trait
+  type: (_) @impl_type
+  body: (declaration_list) @body
+) @impl_def {
+  edge @body.lexical_scope -> @body.defs
+  edge @body.lexical_scope -> @impl_def.lexical_scope
+
+  ;; Methods are accessible through the type
+  node dot
+  attr (dot) pop_symbol = "::"
+  edge @impl_type.ref -> dot
+  edge dot -> @body.defs
+}
+
+;; Function items inside impl/trait declaration_list (methods)
+;; These use the same pattern as top-level function_item but are already
+;; wired into the declaration_list scope by the generic child rule above.
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Const, Static, Type Definitions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(const_item
+  name: (identifier) @name
+) @cdef {
+  node const_def
+  attr (const_def) node_definition = @name
+  attr (const_def) definiens_node = @cdef
+  edge @cdef.defs -> const_def
+}
+
+(static_item
+  name: (identifier) @name
+) @sdef {
+  node static_def
+  attr (static_def) node_definition = @name
+  attr (static_def) definiens_node = @sdef
+  edge @sdef.defs -> static_def
+}
+
+(type_item
+  name: (type_identifier) @name
+) @tdef {
+  node type_def
+  attr (type_def) node_definition = @name
+  attr (type_def) definiens_node = @tdef
+  edge @tdef.defs -> type_def
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Let Declarations (local variable bindings)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Simple let binding: `let x = ...;`
+(let_declaration
+  pattern: (identifier) @name
+) @let_decl {
+  node let_def
+  attr (let_def) node_definition = @name
+  edge @let_decl.defs -> let_def
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Block Scoping
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Statements inside blocks create sequential scope chains.
+;; Each statement's definitions are visible to subsequent statements.
+
+(block (_) @child) @blk {
+  edge @blk.defs -> @child.defs
+  edge @child.lexical_scope -> @blk.lexical_scope
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Visibility (pub)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Items with `pub` visibility get an `is_exported` flag, making them accessible
+;; from outside their defining module.
+;;
+;; We mark definitions with pub as exported. Non-pub items are still definitions
+;; but only resolve within their own module scope.
+
+[
+  (function_item (visibility_modifier) @_vis name: (identifier) @name)
+  (struct_item (visibility_modifier) @_vis name: (type_identifier) @name)
+  (enum_item (visibility_modifier) @_vis name: (type_identifier) @name)
+  (trait_item (visibility_modifier) @_vis name: (type_identifier) @name)
+  (const_item (visibility_modifier) @_vis name: (identifier) @name)
+  (static_item (visibility_modifier) @_vis name: (identifier) @name)
+  (type_item (visibility_modifier) @_vis name: (type_identifier) @name)
+  (mod_item (visibility_modifier) @_vis name: (identifier) @name)
+] {
+  ;; Mark as exported for cross-module visibility
+  node pub_def
+  attr (pub_def) node_definition = @name, is_exported
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Extern Crate
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; `extern crate foo;` -- creates a definition that resolves to the crate root
+(extern_crate_declaration
+  name: (identifier) @name
+) @ext_crate {
+  node ext_def
+  attr (ext_def) node_definition = @name
+  edge @ext_crate.defs -> ext_def
+  edge ext_def -> ROOT_NODE
+}
+
+;; `extern crate foo as bar;`
+(extern_crate_declaration
+  alias: (identifier) @alias
+) @ext_crate_alias {
+  node ext_alias_def
+  attr (ext_alias_def) node_definition = @alias
+  edge @ext_crate_alias.defs -> ext_alias_def
+  edge ext_alias_def -> ROOT_NODE
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Expression-level references (limited)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Call expressions: `foo()` -- the function name is a reference
+(call_expression
+  function: (identifier) @fn_name
+) {
+  edge @fn_name.ref -> @fn_name.lexical_scope
+}
+
+;; Method calls: `x.method()` -- we can resolve `method` as a field reference
+;; but NOT dispatch it to the correct impl (requires type inference)
+(call_expression
+  function: (field_expression
+    field: (field_identifier) @_method_name)
+) {
+  ;; Method name is a reference but we cannot resolve dispatch
+  ;; Stack graphs will find it as an unresolved reference
+}
+
+;; Plain identifier references in expressions
+;; These connect to the lexical scope for name lookup
+(identifier) @id {
+  edge @id.ref -> @id.lexical_scope
+}
+
+;; Type references: when a type_identifier is used in a type position
+(type_identifier) @tid {
+  edge @tid.ref -> @tid.lexical_scope
+}

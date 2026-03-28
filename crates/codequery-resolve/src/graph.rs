@@ -212,9 +212,9 @@ mod tests {
 
     #[test]
     fn test_build_graph_unsupported_language_returns_error() {
-        let source = "fn main() {}";
-        let files = vec![parse_source(Path::new("main.rs"), source, Language::Rust)];
-        let result = build_graph(&files, Language::Rust);
+        let source = "int main() {}";
+        let files = vec![parse_source(Path::new("main.cpp"), source, Language::Cpp)];
+        let result = build_graph(&files, Language::Cpp);
 
         assert!(result.is_err());
         let err = result.unwrap_err();

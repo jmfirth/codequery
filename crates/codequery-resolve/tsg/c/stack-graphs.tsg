@@ -1,0 +1,556 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Stack graphs definition for C
+;;
+;; C has a simple scoping model:
+;;   - File scope (translation unit) holds all top-level declarations
+;;   - Function definitions create definition nodes at file scope
+;;   - Struct/enum/typedef declarations create definition nodes at file scope
+;;   - #include directives create import-like edges for header resolution
+;;   - Function bodies introduce a new scope for local variables
+;;   - No modules, no namespaces, no classes
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;
+;; Global Variables
+
+global FILE_PATH           ; project-relative path of this file
+global ROOT_NODE
+global JUMP_TO_SCOPE_NODE
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Attribute Shorthands
+
+attribute node_definition = node        => type = "pop_symbol", node_symbol = node, is_definition
+attribute node_reference = node         => type = "push_symbol", node_symbol = node, is_reference
+attribute pop_node = node               => type = "pop_symbol", node_symbol = node
+attribute pop_scoped_node = node        => type = "pop_scoped_symbol", node_symbol = node
+attribute pop_scoped_symbol = symbol    => type = "pop_scoped_symbol", symbol = symbol
+attribute pop_symbol = symbol           => type = "pop_symbol", symbol = symbol
+attribute push_node = node              => type = "push_symbol", node_symbol = node
+attribute push_scoped_node = node       => type = "push_scoped_symbol", node_symbol = node
+attribute push_scoped_symbol = symbol   => type = "push_scoped_symbol", symbol = symbol
+attribute push_symbol = symbol          => type = "push_symbol", symbol = symbol
+attribute scoped_node_definition = node => type = "pop_scoped_symbol", node_symbol = node, is_definition
+attribute scoped_node_reference = node  => type = "push_scoped_symbol", node_symbol = node, is_reference
+attribute symbol_definition = symbol    => type = "pop_symbol", symbol = symbol, is_definition
+attribute symbol_reference = symbol     => type = "push_symbol", symbol = symbol, is_reference
+
+attribute node_symbol = node            => symbol = (source-text node), source_node = node
+
+;; =============================
+;;  Translation Unit (file root)
+;; =============================
+
+;; The translation_unit is the root of every C file. It defines a file-scope
+;; node that aggregates all top-level definitions and connects to ROOT_NODE
+;; for cross-file resolution.
+
+(translation_unit) @tu {
+  node @tu.defs
+  node @tu.lexical_scope
+
+  ; File scope can see the global root (for cross-file / #include resolution)
+  edge @tu.lexical_scope -> ROOT_NODE
+  ; File scope can see its own definitions
+  edge @tu.lexical_scope -> @tu.defs
+
+  ; Expose file-level definitions to the global root
+  edge ROOT_NODE -> @tu.defs
+}
+
+;; Wire each top-level child into the translation unit's scope.
+(translation_unit (_) @child) @tu {
+  edge @tu.defs -> @child.defs
+  edge @child.lexical_scope -> @tu.lexical_scope
+}
+
+;; ==========================
+;;  Top-level declaration stubs
+;; ==========================
+
+;; These nodes need .defs and .lexical_scope so they can participate in
+;; the wiring above even when we do not have more specific rules.
+
+[
+  (preproc_include)
+  (preproc_def)
+  (preproc_function_def)
+  (preproc_ifdef)
+  (preproc_if)
+  (preproc_elif)
+  (preproc_else)
+  (linkage_specification)
+] @decl
+{
+  node @decl.defs
+  node @decl.lexical_scope
+}
+
+;; ============================
+;;  #include as import edges
+;; ============================
+
+;; An #include brings names from another translation unit into scope.
+;; We model the path string as a reference so that the stack graph can
+;; resolve it to the included file's definitions.
+
+(preproc_include
+  path: [
+    (string_literal)
+    (system_lib_string)
+  ] @path) @inc
+{
+  node ref
+  attr (ref) node_reference = @path
+  edge ref -> ROOT_NODE
+  edge @inc.lexical_scope -> ref
+}
+
+;; ========================
+;;  Identifier (references)
+;; ========================
+
+(identifier) @name {
+  node @name.ref
+  node @name.lexical_scope
+  attr (@name.ref) node_reference = @name
+  edge @name.ref -> @name.lexical_scope
+}
+
+;; =============================
+;;  Function definitions
+;; =============================
+
+;; A function_definition creates a definition at file scope and introduces
+;; a body scope for locals and parameters.
+
+(function_definition
+  declarator: (function_declarator
+    declarator: (identifier) @name
+    parameters: (parameter_list) @params)
+  body: (compound_statement) @body) @func
+{
+  ; Define the function name at file scope
+  node def
+  attr (def) node_definition = @name
+  edge @func.defs -> def
+
+  ; Function body scope can see file-level scope
+  edge @body.lexical_scope -> @func.lexical_scope
+
+  ; Parameters are visible inside the body
+  edge @body.lexical_scope -> @params.defs
+  attr (@body.lexical_scope -> @params.defs) precedence = 1
+}
+
+;; Function definition with pointer return type (e.g. `char* func(...)`)
+;; The declarator chain is: pointer_declarator -> function_declarator -> identifier
+
+(function_definition
+  declarator: (pointer_declarator
+    declarator: (function_declarator
+      declarator: (identifier) @name
+      parameters: (parameter_list) @params))
+  body: (compound_statement) @body) @func
+{
+  node def
+  attr (def) node_definition = @name
+  edge @func.defs -> def
+
+  edge @body.lexical_scope -> @func.lexical_scope
+  edge @body.lexical_scope -> @params.defs
+  attr (@body.lexical_scope -> @params.defs) precedence = 1
+}
+
+;; =============================
+;;  Parameter declarations
+;; =============================
+
+(parameter_list) @params {
+  node @params.defs
+  node @params.lexical_scope
+}
+
+(parameter_list (parameter_declaration) @param) @params {
+  edge @params.defs -> @param.defs
+  edge @param.lexical_scope -> @params.lexical_scope
+}
+
+(parameter_declaration
+  declarator: (identifier) @name) @param
+{
+  node @param.defs
+  node @param.lexical_scope
+
+  node def
+  attr (def) node_definition = @name
+  edge @param.defs -> def
+}
+
+;; Parameter with pointer declarator (e.g. `int *p`)
+(parameter_declaration
+  declarator: (pointer_declarator
+    declarator: (identifier) @name)) @param
+{
+  node @param.defs
+  node @param.lexical_scope
+
+  node def
+  attr (def) node_definition = @name
+  edge @param.defs -> def
+}
+
+;; =============================
+;;  Compound statements (blocks)
+;; =============================
+
+(compound_statement) @block {
+  node @block.defs
+  node @block.lexical_scope
+  node @block.before_scope
+  node @block.after_scope
+
+  edge @block.lexical_scope -> @block.before_scope
+}
+
+;; Sequence statements within a block: first child inherits block scope.
+(compound_statement . (_) @first) @block {
+  edge @first.before_scope -> @block.before_scope
+}
+
+;; Chain statements: right sees definitions from left.
+(compound_statement (_) @left . (_) @right) {
+  edge @right.before_scope -> @left.after_scope
+}
+
+;; =============================
+;;  Statements
+;; =============================
+
+;; Statement nodes need before/after scope for sequencing.
+
+[
+  (expression_statement)
+  (return_statement)
+  (if_statement)
+  (while_statement)
+  (do_statement)
+  (for_statement)
+  (switch_statement)
+  (break_statement)
+  (continue_statement)
+  (goto_statement)
+  (labeled_statement)
+] @stmt
+{
+  node @stmt.defs
+  node @stmt.lexical_scope
+  node @stmt.before_scope
+  node @stmt.after_scope
+  edge @stmt.after_scope -> @stmt.before_scope
+}
+
+;; Declaration statements (local variables) bring names into scope.
+
+(declaration) @decl_stmt {
+  node @decl_stmt.defs
+  node @decl_stmt.lexical_scope
+  node @decl_stmt.before_scope
+  node @decl_stmt.after_scope
+}
+
+;; Simple declaration: `int x;` or `int x = expr;`
+(declaration
+  declarator: (init_declarator
+    declarator: (identifier) @name)) @decl_stmt
+{
+  node def
+  attr (def) node_definition = @name
+  edge @decl_stmt.after_scope -> def
+  edge @decl_stmt.after_scope -> @decl_stmt.before_scope
+  edge @decl_stmt.defs -> def
+}
+
+;; Simple declaration without initializer: `int x;`
+(declaration
+  declarator: (identifier) @name) @decl_stmt
+{
+  node def
+  attr (def) node_definition = @name
+  edge @decl_stmt.after_scope -> def
+  edge @decl_stmt.after_scope -> @decl_stmt.before_scope
+  edge @decl_stmt.defs -> def
+}
+
+;; Pointer variable declaration: `int *p = expr;`
+(declaration
+  declarator: (init_declarator
+    declarator: (pointer_declarator
+      declarator: (identifier) @name))) @decl_stmt
+{
+  node def
+  attr (def) node_definition = @name
+  edge @decl_stmt.after_scope -> def
+  edge @decl_stmt.after_scope -> @decl_stmt.before_scope
+  edge @decl_stmt.defs -> def
+}
+
+;; Expression statement: wire the expression to the current scope.
+(expression_statement (_) @expr) @expr_stmt {
+  edge @expr.lexical_scope -> @expr_stmt.before_scope
+}
+
+;; Return statement: wire the return value expression.
+(return_statement (_) @expr) @stmt {
+  edge @expr.lexical_scope -> @stmt.before_scope
+}
+
+;; If statement: condition and branches.
+(if_statement
+  condition: (parenthesized_expression) @cond
+  consequence: (_) @cons) @stmt
+{
+  edge @cond.lexical_scope -> @stmt.before_scope
+  edge @cons.before_scope -> @stmt.before_scope
+}
+
+(if_statement
+  alternative: (_) @alt) @stmt
+{
+  edge @alt.before_scope -> @stmt.before_scope
+}
+
+;; While statement.
+(while_statement
+  condition: (parenthesized_expression) @cond
+  body: (_) @body) @stmt
+{
+  edge @cond.lexical_scope -> @stmt.before_scope
+  edge @body.before_scope -> @stmt.before_scope
+}
+
+;; For statement.
+(for_statement
+  body: (_) @body) @stmt
+{
+  edge @body.before_scope -> @stmt.before_scope
+}
+
+;; ============================
+;;  Struct specifier
+;; ============================
+
+;; A named struct definition creates a type definition at the enclosing scope.
+
+(struct_specifier
+  name: (type_identifier) @name
+  body: (field_declaration_list) @body) @struct_def
+{
+  node @struct_def.defs
+  node @struct_def.lexical_scope
+
+  node def
+  attr (def) node_definition = @name
+  edge @struct_def.defs -> def
+
+  edge @body.lexical_scope -> @struct_def.lexical_scope
+}
+
+;; Struct without a body (forward declaration or reference) — no definition node.
+(struct_specifier
+  name: (type_identifier) @_name
+  !body) @struct_ref
+{
+  node @struct_ref.defs
+  node @struct_ref.lexical_scope
+}
+
+(field_declaration_list) @fields {
+  node @fields.defs
+  node @fields.lexical_scope
+}
+
+;; ============================
+;;  Enum specifier
+;; ============================
+
+(enum_specifier
+  name: (type_identifier) @name
+  body: (enumerator_list) @body) @enum_def
+{
+  node @enum_def.defs
+  node @enum_def.lexical_scope
+
+  node def
+  attr (def) node_definition = @name
+  edge @enum_def.defs -> def
+
+  ; Enumerator constants are visible at file scope in C
+  edge @enum_def.defs -> @body.defs
+}
+
+;; Enum without body (forward declaration).
+(enum_specifier
+  name: (type_identifier) @_name
+  !body) @enum_ref
+{
+  node @enum_ref.defs
+  node @enum_ref.lexical_scope
+}
+
+(enumerator_list) @elist {
+  node @elist.defs
+  node @elist.lexical_scope
+}
+
+(enumerator name: (identifier) @name) @entry {
+  node @entry.defs
+  node @entry.lexical_scope
+
+  node def
+  attr (def) node_definition = @name
+  edge @entry.defs -> def
+}
+
+(enumerator_list (enumerator) @entry) @elist {
+  edge @elist.defs -> @entry.defs
+}
+
+;; ============================
+;;  Typedef
+;; ============================
+
+;; A typedef introduces a type alias at file scope.
+
+(type_definition
+  declarator: (type_identifier) @name) @typedef
+{
+  node @typedef.defs
+  node @typedef.lexical_scope
+
+  node def
+  attr (def) node_definition = @name
+  edge @typedef.defs -> def
+}
+
+;; Function pointer typedef: `typedef int (*handler)(int, int);`
+(type_definition
+  declarator: (function_declarator
+    declarator: (parenthesized_declarator
+      (pointer_declarator
+        declarator: (type_identifier) @name)))) @typedef
+{
+  node @typedef.defs
+  node @typedef.lexical_scope
+
+  node def
+  attr (def) node_definition = @name
+  edge @typedef.defs -> def
+}
+
+;; ============================
+;;  Preprocessor macros
+;; ============================
+
+;; #define NAME value
+(preproc_def
+  name: (identifier) @name) @macro_def
+{
+  node def
+  attr (def) node_definition = @name
+  edge @macro_def.defs -> def
+}
+
+;; #define NAME(args) body
+(preproc_function_def
+  name: (identifier) @name) @macro_def
+{
+  node def
+  attr (def) node_definition = @name
+  edge @macro_def.defs -> def
+}
+
+;; ===============================
+;;  Preprocessor conditional blocks
+;; ===============================
+
+;; Contents inside #ifdef / #if / #elif are wired through to the parent scope.
+
+(preproc_ifdef (_) @child) @pp {
+  edge @pp.defs -> @child.defs
+  edge @child.lexical_scope -> @pp.lexical_scope
+}
+
+(preproc_if (_) @child) @pp {
+  edge @pp.defs -> @child.defs
+  edge @child.lexical_scope -> @pp.lexical_scope
+}
+
+(preproc_elif (_) @child) @pp {
+  edge @pp.defs -> @child.defs
+  edge @child.lexical_scope -> @pp.lexical_scope
+}
+
+(preproc_else (_) @child) @pp {
+  edge @pp.defs -> @child.defs
+  edge @child.lexical_scope -> @pp.lexical_scope
+}
+
+;; =============================
+;;  Call expressions (references)
+;; =============================
+
+(call_expression
+  function: (identifier) @name) @call
+{
+  node @call.lexical_scope
+  edge @name.lexical_scope -> @call.lexical_scope
+}
+
+(call_expression
+  arguments: (argument_list (_) @arg)) @call
+{
+  edge @arg.lexical_scope -> @call.lexical_scope
+}
+
+;; =============================
+;;  Other expressions
+;; =============================
+
+[
+  (assignment_expression)
+  (binary_expression)
+  (unary_expression)
+  (update_expression)
+  (cast_expression)
+  (conditional_expression)
+  (comma_expression)
+  (parenthesized_expression)
+  (subscript_expression)
+  (sizeof_expression)
+] @expr
+{
+  node @expr.defs
+  node @expr.lexical_scope
+}
+
+(assignment_expression left: (_) @left right: (_) @right) @expr {
+  edge @left.lexical_scope -> @expr.lexical_scope
+  edge @right.lexical_scope -> @expr.lexical_scope
+}
+
+(binary_expression left: (_) @left right: (_) @right) @expr {
+  edge @left.lexical_scope -> @expr.lexical_scope
+  edge @right.lexical_scope -> @expr.lexical_scope
+}
+
+;; =============================
+;;  Type identifiers (references)
+;; =============================
+
+(type_identifier) @type_id {
+  node @type_id.ref
+  node @type_id.lexical_scope
+  attr (@type_id.ref) node_reference = @type_id
+  edge @type_id.ref -> @type_id.lexical_scope
+}
