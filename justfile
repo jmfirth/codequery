@@ -32,6 +32,10 @@ ci: check test-all
 doc:
     cargo doc --workspace --no-deps --open
 
+# Run criterion benchmarks
+bench:
+    cargo bench --workspace
+
 # Clean build artifacts
 clean:
     cargo clean
