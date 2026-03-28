@@ -2,8 +2,9 @@
 
 use std::path::Path;
 
-use codequery_core::{detect_project_root_or, Reference, Symbol};
+use codequery_core::{detect_project_root_or, Reference, ReferenceKind, Resolution, Symbol};
 use codequery_index::{extract_references, scan_project, SymbolIndex};
+use codequery_resolve::StackGraphResolver;
 
 use crate::args::{ExitCode, OutputMode};
 use crate::output::format_refs;
@@ -11,8 +12,9 @@ use crate::output::format_refs;
 /// Run the refs command: find all references to a symbol across the project.
 ///
 /// Scans all source files in parallel, builds a symbol index to find the
-/// definition, then extracts references from every file and filters by the
-/// symbol name. This is a wide command with best-effort completeness.
+/// definition, then uses stack graph resolution (with syntactic fallback) to
+/// extract references from every file. This is a wide command with best-effort
+/// completeness.
 ///
 /// # Errors
 ///
@@ -37,8 +39,11 @@ pub fn run(
     let index = SymbolIndex::from_scan(&scan_results);
     let definitions = index.find_by_name(symbol);
 
-    // 4. Extract references from all files, reusing retained parse trees
-    let mut all_refs: Vec<Reference> = Vec::new();
+    // 4. Build a syntactic reference map for kind/context enrichment
+    let mut syntactic_map: std::collections::HashMap<
+        (std::path::PathBuf, usize, usize),
+        Reference,
+    > = std::collections::HashMap::new();
 
     for file_result in &scan_results {
         let Some(language) = codequery_core::language_for_file(&file_result.file) else {
@@ -52,24 +57,66 @@ pub fn run(
             language,
         );
 
-        // Filter: only references whose identifier text matches the symbol name
-        let matching = file_refs
-            .into_iter()
-            .filter(|r| ref_name_matches(r, &file_result.source, symbol));
-
-        all_refs.extend(matching);
+        for r in file_refs {
+            if ref_name_matches(&r, &file_result.source, symbol) {
+                syntactic_map.insert((r.file.clone(), r.line, r.column), r);
+            }
+        }
     }
 
-    // 5. Sort by file path, then line number
-    all_refs.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
+    // 5. Use stack graph resolver for scope-aware reference resolution
+    let mut resolver = StackGraphResolver::new();
+    let resolution_result = resolver.resolve_refs(&scan_results, symbol);
 
-    // 6. Build source map for context lines
+    // Determine the top-level resolution quality
+    let all_resolved = !resolution_result.references.is_empty()
+        && resolution_result
+            .references
+            .iter()
+            .all(|r| r.resolution == codequery_resolve::Resolution::Resolved);
+    let resolution = if all_resolved {
+        Resolution::Resolved
+    } else {
+        Resolution::Syntactic
+    };
+
+    // 6. Convert ResolvedReferences to core References, enriching with syntactic data
     let source_map: std::collections::HashMap<&Path, &str> = scan_results
         .iter()
         .map(|fs| (fs.file.as_path(), fs.source.as_str()))
         .collect();
 
-    // 7. Format and output
+    let mut all_refs: Vec<Reference> = resolution_result
+        .references
+        .iter()
+        .map(|rr| {
+            let key = (rr.ref_file.clone(), rr.ref_line, rr.ref_column);
+            if let Some(syntactic_ref) = syntactic_map.get(&key) {
+                syntactic_ref.clone()
+            } else {
+                // Build a Reference from the resolved data + source context
+                let context = source_map
+                    .get(rr.ref_file.as_path())
+                    .and_then(|src| src.lines().nth(rr.ref_line.saturating_sub(1)))
+                    .unwrap_or("")
+                    .to_string();
+                Reference {
+                    file: rr.ref_file.clone(),
+                    line: rr.ref_line,
+                    column: rr.ref_column,
+                    kind: ReferenceKind::Call,
+                    context,
+                    caller: None,
+                    caller_kind: None,
+                }
+            }
+        })
+        .collect();
+
+    // 7. Sort by file path, then line number
+    all_refs.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
+
+    // 8. Format and output
     let has_results = !definitions.is_empty() || !all_refs.is_empty();
 
     if !has_results && mode != OutputMode::Json {
@@ -85,6 +132,7 @@ pub fn run(
         pretty,
         context_lines,
         &source_map,
+        resolution,
     );
     if !output.is_empty() {
         println!("{output}");

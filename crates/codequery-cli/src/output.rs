@@ -818,12 +818,19 @@ pub fn format_refs(
     pretty: bool,
     context_lines: usize,
     source_map: &HashMap<&Path, &str>,
+    resolution: Resolution,
 ) -> String {
     match mode {
-        OutputMode::Framed => {
-            format_refs_framed(definitions, references, context_lines, source_map)
+        OutputMode::Framed => format_refs_framed(
+            definitions,
+            references,
+            context_lines,
+            source_map,
+            resolution,
+        ),
+        OutputMode::Json => {
+            format_refs_json(definitions, references, symbol_name, pretty, resolution)
         }
-        OutputMode::Json => format_refs_json(definitions, references, symbol_name, pretty),
         OutputMode::Raw => format_refs_raw(definitions, references, context_lines, source_map),
     }
 }
@@ -831,12 +838,13 @@ pub fn format_refs(
 /// Format refs results as framed output.
 ///
 /// Shows definition location(s) first, then each reference with its context line.
-/// Ends with a summary count.
+/// Ends with a summary count indicating whether results are resolved or syntactic.
 fn format_refs_framed(
     definitions: &[Symbol],
     references: &[Reference],
     context_lines: usize,
     source_map: &HashMap<&Path, &str>,
+    resolution: Resolution,
 ) -> String {
     use crate::commands::refs::get_context_lines;
     use std::fmt::Write;
@@ -890,13 +898,17 @@ fn format_refs_framed(
         }
     }
 
-    // Summary line
+    // Summary line — indicate resolution quality
     if !output.is_empty() {
         output.push('\n');
     }
+    let summary = match resolution {
+        Resolution::Resolved => "resolved",
+        _ => "syntactic match \u{2014} may be incomplete",
+    };
     let _ = write!(
         output,
-        "\n{} reference{} (syntactic match \u{2014} may be incomplete)",
+        "\n{} reference{} ({summary})",
         references.len(),
         if references.len() == 1 { "" } else { "s" },
     );
@@ -910,6 +922,7 @@ fn format_refs_json(
     references: &[Reference],
     symbol_name: &str,
     force_pretty: bool,
+    resolution: Resolution,
 ) -> String {
     let data = RefsResult {
         symbol: symbol_name.to_string(),
@@ -917,12 +930,16 @@ fn format_refs_json(
         references: references.to_vec(),
         total: references.len(),
     };
-    let result = QueryResult {
-        resolution: Resolution::Syntactic,
-        completeness: Completeness::BestEffort,
-        note: Some(
+    let note = match resolution {
+        Resolution::Resolved => None,
+        _ => Some(
             "name-based matching; may include false positives or miss renamed symbols".to_string(),
         ),
+    };
+    let result = QueryResult {
+        resolution,
+        completeness: Completeness::BestEffort,
+        note,
         data,
     };
     serialize_json(&result, force_pretty)

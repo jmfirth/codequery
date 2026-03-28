@@ -15,6 +15,7 @@ serde_json = "1"
 codequery-core = { path = "../codequery-core" }
 codequery-index = { path = "../codequery-index" }
 codequery-parse = { path = "../codequery-parse" }
+codequery-resolve = { path = "../codequery-resolve" }
 
 [dev-dependencies]
 tempfile = { workspace = true }
