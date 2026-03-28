@@ -33,6 +33,8 @@ fn parse_lang_filter(lang: Option<&String>) -> anyhow::Result<Option<Language>> 
     }
 }
 
+#[allow(clippy::too_many_lines)]
+// Command dispatch match arm grows with each new subcommand; splitting would obscure routing
 fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
     let mode = args.output_mode();
     let pretty = args.pretty;
@@ -115,6 +117,15 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             mode,
             pretty,
             args.context,
+            use_cache,
+        ),
+        Command::Search { pattern } => commands::search::run(
+            &pattern,
+            args.project.as_deref(),
+            args.scope.as_deref(),
+            mode,
+            pretty,
+            args.limit,
             use_cache,
         ),
         Command::Cache { action } => match action {

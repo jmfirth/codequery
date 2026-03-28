@@ -151,6 +151,11 @@ pub enum Command {
         /// Path to root (defaults to project root)
         path: Option<PathBuf>,
     },
+    /// Structural search using AST patterns
+    Search {
+        /// Pattern to search for (structural pattern or S-expression with --raw)
+        pattern: String,
+    },
     /// Manage the disk cache
     Cache {
         #[command(subcommand)]
@@ -416,6 +421,27 @@ mod tests {
         match args.command {
             Command::Tree { path } => assert!(path.is_none()),
             _ => panic!("expected Tree command"),
+        }
+    }
+
+    #[test]
+    fn test_search_command_captures_pattern() {
+        let args = CqArgs::parse_from(["cq", "search", "fn $NAME() {}"]);
+        match args.command {
+            Command::Search { pattern } => assert_eq!(pattern, "fn $NAME() {}"),
+            _ => panic!("expected Search command"),
+        }
+    }
+
+    #[test]
+    fn test_search_command_with_raw_flag() {
+        let args = CqArgs::parse_from(["cq", "--raw", "search", "(function_item) @func"]);
+        assert!(args.raw);
+        match args.command {
+            Command::Search { pattern } => {
+                assert_eq!(pattern, "(function_item) @func");
+            }
+            _ => panic!("expected Search command"),
         }
     }
 
