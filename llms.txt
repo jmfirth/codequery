@@ -1,0 +1,82 @@
+# cq -- semantic code query tool
+# tree-sitter-powered structural navigation. jq for source code.
+# stateless by default, works on broken code, cross-language from one binary.
+
+## Commands (all accept --json, --raw, --project, --in, --lang, --kind)
+def <symbol>          Find where a symbol is defined
+body <symbol>         Full source body of a symbol
+sig <symbol>          Type signature only
+refs <symbol>         All references (call sites, imports, type uses)
+callers <symbol>      Call sites only (subset of refs)
+deps <symbol>         What a function calls/references in its body
+outline <file>        All symbols in a file
+symbols [--kind K]    All symbols in project
+imports <file>        Imports/dependencies of a file
+context <file>:<line> Enclosing symbol for a line number
+tree [path]           Hierarchical symbol tree
+search <pattern>      Structural pattern matching (ast-grep syntax)
+
+## Output modes
+Default: framed text with @@ file:line:column kind name @@ headers
+--json: structured with resolution/completeness metadata
+--raw: content only, no framing (pipe-friendly)
+
+## Symbol resolution
+Simple names: cq body handle_request
+Qualified:    cq body Router::add_route (method on type)
+              cq body api::routes::handle_request (module path)
+Multiple matches returned as array; use --in <path> to narrow.
+
+## Precision metadata (JSON output)
+resolution: "syntactic" | "semantic"
+completeness: "exhaustive" | "best_effort"
+- def/body/sig/outline/imports/context/tree/symbols/search: exhaustive
+- refs/callers/deps: best_effort (may miss indirect refs or include false positives)
+- best_effort results include a "note" field explaining the limitation
+
+## Pattern syntax (search command)
+$NAME matches any single AST node
+$$$ matches zero or more nodes
+Pattern is parsed as source code with wildcards
+--raw flag: tree-sitter S-expression queries instead
+
+## Global flags
+--project <path>  Explicit project root (default: auto-detect via .git, Cargo.toml, etc.)
+--in <path>       Scope search to directory or file
+--kind <K>        Filter by symbol kind (function, struct, class, trait, enum, etc.)
+--lang <L>        Filter/force language
+--limit <N>       Max results
+--context <N>     Lines of context around matches (for refs, callers)
+--depth <N>       Limit nesting depth (for tree, context)
+--cache           Enable disk caching for repeated queries
+--semantic        Use language server for type-resolved precision
+
+## Daemon (optional, for fast semantic queries)
+cq daemon start   Keep language servers warm
+cq daemon stop    Shut down
+cq daemon status  Show running servers
+Auto-detected when running; no extra flags needed.
+Falls back gracefully: daemon -> oneshot LSP -> stack graph -> syntactic.
+
+## Languages
+Tier 1 (full support): Rust, TypeScript, JavaScript, Python, Go, C, C++, Java
+Tier 2 (extraction only): Ruby, PHP, C#, Swift, Kotlin, Scala, Zig, Lua, Bash
+Tier 3 (loadable): drop .so/.dylib grammars in ~/.local/share/cq/grammars/
+
+## Exit codes
+0 = results found
+1 = no results (valid query, nothing matched)
+2 = usage error (bad args)
+3 = project error (no root found)
+4 = parse error (reported in warnings, does not block other results)
+
+## Efficient agent usage
+- cq body > reading files. One function, zero noise, minimal tokens.
+- cq context file:line for navigating from errors/stack traces to functions.
+- cq def + cq refs for impact analysis before changes.
+- cq outline to orient in unfamiliar files; cq tree for directory-level orientation.
+- cq sig for API contracts without reading implementations.
+- cq deps to understand a function's dependency footprint before refactoring.
+- Check "resolution" and "completeness" in --json output to calibrate trust.
+- Use --in to scope searches and avoid noise in large codebases.
+- Pipe --raw output directly into other tools (wc, diff, etc.).
