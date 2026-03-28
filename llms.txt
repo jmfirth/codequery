@@ -27,8 +27,24 @@ Qualified:    cq body Router::add_route (method on type)
               cq body api::routes::handle_request (module path)
 Multiple matches returned as array; use --in <path> to narrow.
 
+## Response examples
+
+Framed (default):
+@@ src/auth.rs:23:4 function authenticate @@
+pub fn authenticate(req: &Request) -> Result<Auth> {
+    let token = extract_token(req)?;
+    verify(token)
+}
+
+JSON (--json):
+{"resolution":"resolved","completeness":"exhaustive",
+ "definitions":[{"name":"authenticate","kind":"function",
+ "file":"src/auth.rs","line":23,"visibility":"pub",
+ "body":"pub fn authenticate(req: &Request) -> ...","signature":"pub fn authenticate(req: &Request) -> Result<Auth>"}],
+ "total":1}
+
 ## Precision metadata (JSON output)
-resolution: "syntactic" | "semantic"
+resolution: "syntactic" | "resolved" | "semantic"
 completeness: "exhaustive" | "best_effort"
 - def/body/sig/outline/imports/context/tree/symbols/search: exhaustive
 - refs/callers/deps: best_effort (may miss indirect refs or include false positives)
