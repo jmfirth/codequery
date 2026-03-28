@@ -136,10 +136,20 @@ pub fn run(
         })
         .collect();
 
-    // 6b. Syntactic fallback: if resolution cascade returned nothing but we
-    // have syntactic matches, use those as the result set.
-    if all_refs.is_empty() && !syntactic_map.is_empty() {
-        all_refs = syntactic_map.into_values().collect();
+    // 6b. Merge: add syntactic references that the cascade missed.
+    // Cascade results are higher confidence — keep them. Add syntactic
+    // results at locations the cascade didn't cover.
+    {
+        let cascade_locations: std::collections::HashSet<(std::path::PathBuf, usize, usize)> =
+            all_refs
+                .iter()
+                .map(|r| (r.file.clone(), r.line, r.column))
+                .collect();
+        for (loc, syntactic_ref) in syntactic_map {
+            if !cascade_locations.contains(&loc) {
+                all_refs.push(syntactic_ref);
+            }
+        }
     }
 
     // 7. Sort by file path, then line number
