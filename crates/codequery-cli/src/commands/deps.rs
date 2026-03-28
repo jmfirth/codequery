@@ -25,6 +25,8 @@ use crate::output::{format_deps, Dependency};
 ///
 /// Returns an error if the project root cannot be detected, file discovery
 /// fails, or the parser cannot be created.
+#[allow(clippy::too_many_arguments)]
+// All parameters are essential CLI-to-command plumbing; grouping would obscure the call site.
 pub fn run(
     symbol: &str,
     project: Option<&Path>,
@@ -33,7 +35,12 @@ pub fn run(
     pretty: bool,
     lang_filter: Option<Language>,
     use_cache: bool,
+    _use_semantic: bool,
 ) -> anyhow::Result<ExitCode> {
+    // Semantic flag is plumbed through for future cascade integration.
+    // The deps command uses stack graph resolution internally; a deps-specific
+    // cascade (using textDocument/definition per dependency) is a future enhancement.
+
     // 1. Resolve project root
     let cwd = std::env::current_dir()?;
     let project_root = detect_project_root_or(&cwd, project)?;
@@ -292,6 +299,7 @@ mod tests {
             false,
             None,
             false,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -307,6 +315,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
             false,
         );
         assert!(result.is_ok());
@@ -324,6 +333,7 @@ mod tests {
             true,
             None,
             false,
+            false,
         );
         assert!(result.is_ok());
     }
@@ -338,6 +348,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
             false,
         );
         assert!(result.is_ok());
@@ -355,6 +366,7 @@ mod tests {
             true,
             None,
             false,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -370,6 +382,7 @@ mod tests {
             OutputMode::Raw,
             false,
             None,
+            false,
             false,
         );
         assert!(result.is_ok());
@@ -387,6 +400,7 @@ mod tests {
             false,
             None,
             false,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -402,6 +416,7 @@ mod tests {
             OutputMode::Json,
             true,
             None,
+            false,
             false,
         );
         assert!(result.is_ok());

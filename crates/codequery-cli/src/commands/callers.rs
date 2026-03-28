@@ -8,6 +8,7 @@ use std::path::Path;
 
 use codequery_core::{detect_project_root_or, Reference, ReferenceKind, Resolution, Symbol};
 use codequery_index::{extract_references, scan_project_cached, SymbolIndex};
+use codequery_lsp::resolve_with_cascade;
 use codequery_resolve::StackGraphResolver;
 
 use crate::args::{ExitCode, OutputMode};
@@ -16,14 +17,18 @@ use crate::output::format_callers;
 /// Run the callers command: find all call sites for a function/method.
 ///
 /// Scans all source files in parallel, builds a symbol index to find the
-/// definition, then uses stack graph resolution (with syntactic fallback) to
-/// extract call-site references. This is a wide command with best-effort
-/// completeness.
+/// definition, then uses the resolution cascade (daemon, oneshot LSP, stack
+/// graph, syntactic fallback) to extract call-site references. This is a wide
+/// command with best-effort completeness.
 ///
 /// # Errors
 ///
 /// Returns an error if the project root cannot be detected, file discovery
 /// fails, or scanning encounters a fatal error.
+#[allow(clippy::too_many_arguments)]
+// All parameters are essential CLI-to-command plumbing; grouping would obscure the call site.
+#[allow(clippy::too_many_lines)]
+// Steps 1-8 form a linear pipeline; splitting would scatter the flow.
 pub fn run(
     symbol: &str,
     project: Option<&Path>,
@@ -32,6 +37,7 @@ pub fn run(
     pretty: bool,
     context_lines: usize,
     use_cache: bool,
+    use_semantic: bool,
 ) -> anyhow::Result<ExitCode> {
     // 1. Resolve project root
     let cwd = std::env::current_dir()?;
@@ -69,9 +75,32 @@ pub fn run(
         }
     }
 
-    // 5. Use stack graph resolver for scope-aware caller resolution
-    let mut resolver = StackGraphResolver::new();
-    let resolution_result = resolver.resolve_callers(&scan_results, symbol);
+    // 5. Use resolution cascade (daemon -> oneshot LSP -> stack graph)
+    //    The cascade returns all references; we filter to calls via the syntactic map.
+    let resolution_result = if let Some(def) = definitions.first() {
+        let def_lang =
+            codequery_core::language_for_file(&def.file).unwrap_or(codequery_core::Language::Rust);
+        let mut result = resolve_with_cascade(
+            &project_root,
+            def_lang,
+            symbol,
+            &def.file,
+            def.line,
+            def.column,
+            &scan_results,
+            use_semantic,
+        );
+        // Filter to call references only: keep Semantic/Resolved refs that match
+        // a Call in the syntactic map, or keep all Resolved refs (stack graph
+        // can't classify kinds, so downstream intersection handles it).
+        result.references.retain(|r| {
+            r.resolution == Resolution::Resolved || r.resolution == Resolution::Semantic
+        });
+        result
+    } else {
+        let mut resolver = StackGraphResolver::new();
+        resolver.resolve_callers(&scan_results, symbol)
+    };
 
     // Determine the top-level resolution quality
     let all_resolved = !resolution_result.references.is_empty()
@@ -236,6 +265,7 @@ mod tests {
             false,
             0,
             false,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -253,6 +283,7 @@ mod tests {
             OutputMode::Framed,
             false,
             0,
+            false,
             false,
         );
         // User may have Call refs (constructor calls like User::new) or may not;
@@ -272,6 +303,7 @@ mod tests {
             false,
             0,
             false,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -287,6 +319,7 @@ mod tests {
             OutputMode::Framed,
             false,
             0,
+            false,
             false,
         );
         assert!(result.is_ok());
@@ -304,6 +337,7 @@ mod tests {
             true,
             0,
             false,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -319,6 +353,7 @@ mod tests {
             OutputMode::Raw,
             false,
             0,
+            false,
             false,
         );
         assert!(result.is_ok());
@@ -336,6 +371,7 @@ mod tests {
             true,
             0,
             false,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
@@ -351,6 +387,7 @@ mod tests {
             OutputMode::Framed,
             false,
             2,
+            false,
             false,
         );
         assert!(result.is_ok());

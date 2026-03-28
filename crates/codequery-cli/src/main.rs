@@ -38,7 +38,7 @@ fn parse_lang_filter(lang: Option<&String>) -> anyhow::Result<Option<Language>> 
 fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
     let mode = args.output_mode();
     let pretty = args.pretty;
-    let _use_semantic = args.use_semantic();
+    let use_semantic = args.use_semantic();
     let use_cache = args.use_cache();
     let lang_filter = parse_lang_filter(args.lang.as_ref())?;
     match args.command {
@@ -52,6 +52,7 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             mode,
             pretty,
             lang_filter,
+            use_semantic,
         ),
         Command::Body { symbol } => commands::body::run(
             &symbol,
@@ -101,6 +102,7 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             pretty,
             args.context,
             use_cache,
+            use_semantic,
         ),
         Command::Deps { symbol } => commands::deps::run(
             &symbol,
@@ -110,6 +112,7 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             pretty,
             lang_filter,
             use_cache,
+            use_semantic,
         ),
         Command::Callers { symbol } => commands::callers::run(
             &symbol,
@@ -119,6 +122,7 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             pretty,
             args.context,
             use_cache,
+            use_semantic,
         ),
         Command::Search { pattern } => commands::search::run(
             &pattern,

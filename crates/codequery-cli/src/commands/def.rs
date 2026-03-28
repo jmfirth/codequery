@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use codequery_core::Language;
+use codequery_lsp::{oneshot, pid};
 
 use super::common::find_symbols_by_name;
 use crate::args::{ExitCode, OutputMode};
@@ -26,8 +27,17 @@ pub fn run(
     mode: OutputMode,
     pretty: bool,
     lang_filter: Option<Language>,
+    use_semantic: bool,
 ) -> anyhow::Result<ExitCode> {
     let matches = find_symbols_by_name(symbol, project, scope, lang_filter)?;
+
+    // When semantic resolution is available and there are multiple matches,
+    // try LSP definition to disambiguate to the most precise result.
+    let matches = if use_semantic && matches.len() > 1 {
+        disambiguate_with_lsp(&matches, symbol, project).unwrap_or(matches)
+    } else {
+        matches
+    };
 
     if matches.is_empty() && mode != OutputMode::Json {
         Ok(ExitCode::NoResults)
@@ -42,6 +52,52 @@ pub fn run(
             Ok(ExitCode::Success)
         }
     }
+}
+
+/// Try to disambiguate multiple definition matches using LSP `textDocument/definition`.
+///
+/// Uses the first match as the query location. If the LSP returns a single result
+/// that matches one of our candidates, narrows the result set. Falls back to `None`
+/// (keeping all matches) if the daemon is not running, semantic resolution is not
+/// available, or the LSP result doesn't help narrow candidates.
+fn disambiguate_with_lsp(
+    matches: &[codequery_core::Symbol],
+    _symbol: &str,
+    project: Option<&Path>,
+) -> Option<Vec<codequery_core::Symbol>> {
+    // Only attempt if a daemon is running (avoid expensive oneshot for def disambiguation)
+    if !pid::is_daemon_running() {
+        return None;
+    }
+
+    let cwd = std::env::current_dir().ok()?;
+    let project_root = codequery_core::detect_project_root_or(&cwd, project).ok()?;
+    let first = matches.first()?;
+    let language = codequery_core::language_for_file(&first.file)?;
+
+    let lsp_results = oneshot::semantic_definition(
+        &project_root,
+        language,
+        &first.file,
+        first.line,
+        first.column,
+    )
+    .ok()?;
+
+    if lsp_results.len() == 1 {
+        let lsp_ref = &lsp_results[0];
+        // Find the match that corresponds to the LSP result
+        let narrowed: Vec<codequery_core::Symbol> = matches
+            .iter()
+            .filter(|m| m.file == lsp_ref.ref_file && m.line == lsp_ref.ref_line)
+            .cloned()
+            .collect();
+        if !narrowed.is_empty() {
+            return Some(narrowed);
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -66,6 +122,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -81,6 +138,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -96,6 +154,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -111,6 +170,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -126,6 +186,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
@@ -141,6 +202,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -149,7 +211,15 @@ mod tests {
     #[test]
     fn test_def_json_mode_returns_success() {
         let project = fixture_project();
-        let result = run("greet", Some(&project), None, OutputMode::Json, true, None);
+        let result = run(
+            "greet",
+            Some(&project),
+            None,
+            OutputMode::Json,
+            true,
+            None,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -164,6 +234,7 @@ mod tests {
             OutputMode::Json,
             true,
             None,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
@@ -172,7 +243,15 @@ mod tests {
     #[test]
     fn test_def_raw_mode_returns_success() {
         let project = fixture_project();
-        let result = run("greet", Some(&project), None, OutputMode::Raw, false, None);
+        let result = run(
+            "greet",
+            Some(&project),
+            None,
+            OutputMode::Raw,
+            false,
+            None,
+            false,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -187,6 +266,7 @@ mod tests {
             OutputMode::Framed,
             false,
             Some(Language::Rust),
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -202,6 +282,7 @@ mod tests {
             OutputMode::Framed,
             false,
             Some(Language::Python),
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);

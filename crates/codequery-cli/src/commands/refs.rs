@@ -4,6 +4,7 @@ use std::path::Path;
 
 use codequery_core::{detect_project_root_or, Reference, ReferenceKind, Resolution, Symbol};
 use codequery_index::{extract_references, scan_project_cached, SymbolIndex};
+use codequery_lsp::resolve_with_cascade;
 use codequery_resolve::StackGraphResolver;
 
 use crate::args::{ExitCode, OutputMode};
@@ -12,14 +13,18 @@ use crate::output::format_refs;
 /// Run the refs command: find all references to a symbol across the project.
 ///
 /// Scans all source files in parallel, builds a symbol index to find the
-/// definition, then uses stack graph resolution (with syntactic fallback) to
-/// extract references from every file. This is a wide command with best-effort
-/// completeness.
+/// definition, then uses the resolution cascade (daemon, oneshot LSP, stack
+/// graph, syntactic fallback) to extract references from every file. This is
+/// a wide command with best-effort completeness.
 ///
 /// # Errors
 ///
 /// Returns an error if the project root cannot be detected, file discovery
 /// fails, or scanning encounters a fatal error.
+#[allow(clippy::too_many_arguments)]
+// All parameters are essential CLI-to-command plumbing; grouping would obscure the call site.
+#[allow(clippy::too_many_lines)]
+// Steps 1-8 form a linear pipeline; splitting would scatter the flow.
 pub fn run(
     symbol: &str,
     project: Option<&Path>,
@@ -28,6 +33,7 @@ pub fn run(
     pretty: bool,
     context_lines: usize,
     use_cache: bool,
+    use_semantic: bool,
 ) -> anyhow::Result<ExitCode> {
     // 1. Resolve project root
     let cwd = std::env::current_dir()?;
@@ -65,9 +71,25 @@ pub fn run(
         }
     }
 
-    // 5. Use stack graph resolver for scope-aware reference resolution
-    let mut resolver = StackGraphResolver::new();
-    let resolution_result = resolver.resolve_refs(&scan_results, symbol);
+    // 5. Use resolution cascade (daemon -> oneshot LSP -> stack graph)
+    let resolution_result = if let Some(def) = definitions.first() {
+        let def_lang =
+            codequery_core::language_for_file(&def.file).unwrap_or(codequery_core::Language::Rust);
+        resolve_with_cascade(
+            &project_root,
+            def_lang,
+            symbol,
+            &def.file,
+            def.line,
+            def.column,
+            &scan_results,
+            use_semantic,
+        )
+    } else {
+        // No definition found; fall back to stack graph resolver directly
+        let mut resolver = StackGraphResolver::new();
+        resolver.resolve_refs(&scan_results, symbol)
+    };
 
     // Determine the top-level resolution quality
     let all_resolved = !resolution_result.references.is_empty()
@@ -296,6 +318,7 @@ mod tests {
             false,
             0,
             false,
+            false,
         );
         assert!(result.is_ok());
         // greet is defined in lib.rs — there may or may not be call refs,
@@ -315,6 +338,7 @@ mod tests {
             false,
             0,
             false,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -330,6 +354,7 @@ mod tests {
             OutputMode::Framed,
             false,
             0,
+            false,
             false,
         );
         assert!(result.is_ok());
@@ -347,6 +372,7 @@ mod tests {
             false,
             0,
             false,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
@@ -362,6 +388,7 @@ mod tests {
             OutputMode::Json,
             true,
             0,
+            false,
             false,
         );
         assert!(result.is_ok());
@@ -379,6 +406,7 @@ mod tests {
             false,
             0,
             false,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -395,6 +423,7 @@ mod tests {
             false,
             2,
             false,
+            false,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -410,6 +439,7 @@ mod tests {
             OutputMode::Json,
             true,
             0,
+            false,
             false,
         );
         assert!(result.is_ok());
