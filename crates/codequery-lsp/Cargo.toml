@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 codequery-core = { path = "../codequery-core" }
+codequery-resolve = { path = "../codequery-resolve" }
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

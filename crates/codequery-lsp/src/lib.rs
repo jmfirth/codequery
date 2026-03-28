@@ -9,6 +9,7 @@
 
 pub mod config;
 pub mod error;
+pub mod oneshot;
 pub mod protocol;
 pub mod queries;
 pub mod server;
@@ -17,6 +18,9 @@ pub mod types;
 
 pub use config::{LanguageServerRegistry, ServerConfig};
 pub use error::{LspError, Result};
+pub use oneshot::{
+    semantic_definition, semantic_definition_with_wait, semantic_refs, semantic_refs_with_wait,
+};
 pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 pub use queries::{path_to_uri, uri_to_path};
 pub use server::LspServer;
