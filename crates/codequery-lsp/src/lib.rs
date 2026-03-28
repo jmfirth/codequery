@@ -10,6 +10,7 @@
 pub mod config;
 pub mod error;
 pub mod protocol;
+pub mod queries;
 pub mod server;
 pub mod transport;
 pub mod types;
@@ -17,10 +18,11 @@ pub mod types;
 pub use config::{LanguageServerRegistry, ServerConfig};
 pub use error::{LspError, Result};
 pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
+pub use queries::{path_to_uri, uri_to_path};
 pub use server::LspServer;
 pub use transport::StdioTransport;
 pub use types::{
     ClientCapabilities, DefinitionParams, DidOpenTextDocumentParams, HoverParams, InitializeParams,
-    LspLocation, MarkupContent, Position, Range, ReferenceParams, ServerCapabilities,
+    LocationLink, LspLocation, MarkupContent, Position, Range, ReferenceParams, ServerCapabilities,
     TextDocumentIdentifier, TextDocumentItem,
 };
