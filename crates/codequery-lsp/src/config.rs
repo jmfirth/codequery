@@ -44,6 +44,9 @@ impl LanguageServerRegistry {
     /// - Go: `gopls serve`
     /// - C/C++: `clangd`
     #[must_use]
+    // One entry per supported language — splitting into helpers would obscure the registry
+    // structure without reducing complexity.
+    #[allow(clippy::too_many_lines)]
     pub fn new() -> Self {
         let configs = vec![
             (

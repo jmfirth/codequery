@@ -76,6 +76,12 @@ impl LspServer {
     ///
     /// Use `ClientCapabilities::with_progress()` to enable `$/progress`
     /// notifications for readiness detection in oneshot mode.
+    ///
+    /// # Errors
+    ///
+    /// - `LspError::ServerNotFound` if the binary is not found on the system.
+    /// - `LspError::InitializeFailed` if the LSP initialize handshake fails.
+    /// - `LspError::Io` on process spawn or I/O failures.
     pub fn start_with_capabilities(
         config: &ServerConfig,
         project_root: &Path,
@@ -229,6 +235,10 @@ impl LspServer {
     /// Returns `Ok(())` in all normal cases, including timeout (we proceed
     /// with the query anyway). Only returns an error if the transport itself
     /// has a fatal failure.
+    // The progress-tracking loop requires tracking multiple state variables across
+    // a single read loop; factoring into helpers would fragment the state machine
+    // without reducing cognitive load.
+    #[allow(clippy::too_many_lines)]
     #[cfg(unix)]
     pub fn wait_for_ready(&mut self, timeout: Duration) -> Result<()> {
         use std::time::Instant;

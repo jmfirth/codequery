@@ -142,7 +142,7 @@ pub struct CqArgs {
     )]
     pub cache: bool,
 
-    /// Disable disk caching (overrides CQ_CACHE env var)
+    /// Disable disk caching (overrides `CQ_CACHE` env var)
     #[arg(
         long,
         global = true,
@@ -189,6 +189,7 @@ pub struct CqArgs {
 
 impl CqArgs {
     /// Derive the output mode from `--json` and `--raw` flags.
+    #[must_use]
     pub fn output_mode(&self) -> OutputMode {
         if self.json {
             OutputMode::Json
@@ -202,6 +203,7 @@ impl CqArgs {
     /// Determine whether semantic (LSP-backed) resolution is enabled.
     ///
     /// Precedence: `--no-semantic` (force off) > `--semantic` (force on) > `CQ_SEMANTIC=1` env var.
+    #[must_use]
     pub fn use_semantic(&self) -> bool {
         if self.no_semantic {
             return false;
@@ -217,6 +219,7 @@ impl CqArgs {
     /// Determine whether disk caching is enabled.
     ///
     /// Precedence: `--no-cache` (force off) > `--cache` (force on) > `CQ_CACHE=1` env var.
+    #[must_use]
     pub fn use_cache(&self) -> bool {
         if self.no_cache {
             return false;
@@ -251,7 +254,7 @@ pub enum Command {
         after_help = "Examples:\n  cq def handle_request\n  cq def Router::add_route --lang rust"
     )]
     Def {
-        /// Symbol name to find (supports qualified names like Struct::method)
+        /// Symbol name to find (supports qualified names like `Struct::method`)
         symbol: String,
     },
     /// Extract the full source body of a symbol definition
@@ -262,7 +265,7 @@ pub enum Command {
         after_help = "Examples:\n  cq body handle_request\n  cq body Config --json"
     )]
     Body {
-        /// Symbol name to extract (supports qualified names like Struct::method)
+        /// Symbol name to extract (supports qualified names like `Struct::method`)
         symbol: String,
     },
     /// Extract the signature of a symbol (without body)
@@ -339,7 +342,7 @@ pub enum Command {
         after_help = "Examples:\n  cq context src/main.rs:42\n  cq context lib.py:100 --depth 2"
     )]
     Context {
-        /// Location as file:line (e.g., src/main.rs:42)
+        /// Location as `file:line` (e.g., `src/main.rs:42`)
         location: String,
     },
     /// Show project file and directory structure
