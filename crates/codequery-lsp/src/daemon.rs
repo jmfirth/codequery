@@ -609,19 +609,18 @@ mod tests {
 
     #[test]
     fn test_handle_query_rust_no_server_binary_returns_error() {
-        // Rust has a config (rust-analyzer), but it may not be installed.
-        // Either way, handle_query should return an Error response, not panic.
+        // Use a language with no server config (Ruby) to ensure the server
+        // binary is not found, triggering a clean error path.
         let mut daemon = Daemon::new(Duration::from_secs(60));
         let resp = daemon.handle_query(
             Path::new("/nonexistent-project-xyz"),
-            "rust",
+            "ruby",
             "definition",
-            Path::new("/nonexistent-project-xyz/main.rs"),
+            Path::new("/nonexistent-project-xyz/main.rb"),
             1,
             0,
         );
-        // Will either fail to start the server or fail to find the definition.
-        // Either way, should be an Error variant.
+        // Ruby has no LSP server config, so this should fail with an Error.
         assert!(matches!(resp, DaemonResponse::Error(_)));
     }
 

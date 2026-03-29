@@ -102,13 +102,19 @@ pub fn run(
         resolver.resolve_callers(&scan_results, symbol)
     };
 
-    // Determine the top-level resolution quality
-    let all_resolved = !resolution_result.references.is_empty()
-        && resolution_result
-            .references
-            .iter()
-            .all(|r| r.resolution == Resolution::Resolved);
-    let resolution = if all_resolved {
+    // Determine the top-level resolution quality.
+    // Use the highest resolution tier present in the cascade result.
+    let has_semantic = resolution_result
+        .references
+        .iter()
+        .any(|r| r.resolution == Resolution::Semantic);
+    let has_resolved = resolution_result
+        .references
+        .iter()
+        .any(|r| r.resolution == Resolution::Resolved);
+    let resolution = if has_semantic {
+        Resolution::Semantic
+    } else if has_resolved {
         Resolution::Resolved
     } else {
         Resolution::Syntactic

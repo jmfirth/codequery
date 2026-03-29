@@ -64,7 +64,7 @@ pub fn resolve_with_cascade(
 
     // Step 2: Try oneshot LSP if semantic was explicitly requested.
     if semantic_requested {
-        if let Ok(result) = try_oneshot_refs(
+        match try_oneshot_refs(
             project_root,
             language,
             symbol_name,
@@ -72,7 +72,12 @@ pub fn resolve_with_cascade(
             symbol_line,
             symbol_column,
         ) {
-            return result;
+            Ok(result) if !result.references.is_empty() => {
+                return result;
+            }
+            _ => {
+                // Oneshot returned empty results or failed — fall through.
+            }
         }
         // Oneshot failed; fall through to stack graph.
     }

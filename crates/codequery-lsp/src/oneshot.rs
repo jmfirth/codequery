@@ -86,12 +86,23 @@ pub fn semantic_refs_with_wait(
         .config_for(language)
         .ok_or_else(|| LspError::ServerNotFound(format!("no LSP config for {language:?}")))?;
 
-    let mut server = LspServer::start(config, project_root)?;
+    // Use progress-aware capabilities so we can detect server readiness.
+    let mut server = LspServer::start_with_capabilities(
+        config,
+        project_root,
+        crate::types::ClientCapabilities::with_progress(),
+    )?;
 
     // Open the document so the server knows about it.
-    let source = read_file_source(symbol_file)?;
+    // If the symbol file is relative, resolve it against the project root.
+    let full_file = if symbol_file.is_relative() {
+        project_root.join(symbol_file)
+    } else {
+        symbol_file.to_path_buf()
+    };
+    let source = read_file_source(&full_file)?;
     let lang_id = lsp_language_id(language);
-    server.open_document(symbol_file, &source, lang_id)?;
+    server.open_document(&full_file, &source, lang_id)?;
 
     // Wait for the server to finish indexing.
     // Uses $/progress notifications from the server to detect readiness.
@@ -100,8 +111,13 @@ pub fn semantic_refs_with_wait(
         let _ = server.wait_for_ready(index_wait);
     }
 
+    // The symbol position from tree-sitter points at the declaration start
+    // (e.g., the `pub` in `pub fn greet`), but LSP needs the cursor on the
+    // identifier itself. Find the identifier column by searching the line.
+    let query_column = find_identifier_column(&source, symbol_line, symbol_column, symbol_name);
+
     // Query references at the symbol position.
-    let locations = match server.find_references(symbol_file, symbol_line, symbol_column, false) {
+    let locations = match server.find_references(&full_file, symbol_line, query_column, true) {
         Ok(locs) => locs,
         Err(e) => {
             // Best-effort shutdown even if the query failed.
@@ -114,10 +130,16 @@ pub fn semantic_refs_with_wait(
     let _ = server.shutdown();
 
     // Convert LSP locations to ResolvedReferences.
+    // LSP returns absolute file:// URIs — convert to paths relative to the
+    // project root so they match the convention used by tree-sitter refs.
     let refs = locations
         .into_iter()
         .map(|loc| {
-            let ref_file = uri_to_path(&loc.uri);
+            let abs_file = uri_to_path(&loc.uri);
+            let ref_file = abs_file
+                .strip_prefix(project_root)
+                .unwrap_or(&abs_file)
+                .to_path_buf();
             #[allow(clippy::cast_possible_truncation)]
             // LSP line numbers (u32) fit comfortably in usize.
             let ref_line = loc.range.start.line as usize + 1; // LSP 0-based → cq 1-based
@@ -188,12 +210,22 @@ pub fn semantic_definition_with_wait(
         .config_for(language)
         .ok_or_else(|| LspError::ServerNotFound(format!("no LSP config for {language:?}")))?;
 
-    let mut server = LspServer::start(config, project_root)?;
+    let mut server = LspServer::start_with_capabilities(
+        config,
+        project_root,
+        crate::types::ClientCapabilities::with_progress(),
+    )?;
 
     // Open the document so the server knows about it.
-    let source = read_file_source(file)?;
+    // If the file path is relative, resolve it against the project root.
+    let full_file = if file.is_relative() {
+        project_root.join(file)
+    } else {
+        file.to_path_buf()
+    };
+    let source = read_file_source(&full_file)?;
     let lang_id = lsp_language_id(language);
-    server.open_document(file, &source, lang_id)?;
+    server.open_document(&full_file, &source, lang_id)?;
 
     // Wait for the server to finish indexing.
     // Uses $/progress notifications from the server to detect readiness.
@@ -203,7 +235,7 @@ pub fn semantic_definition_with_wait(
     }
 
     // Query definitions at the position.
-    let locations = match server.find_definition(file, line, column) {
+    let locations = match server.find_definition(&full_file, line, column) {
         Ok(locs) => locs,
         Err(e) => {
             let _ = server.shutdown();
@@ -271,6 +303,38 @@ fn lsp_language_id(language: Language) -> &'static str {
 /// Returns `LspError::Io` if the file cannot be read.
 fn read_file_source(path: &Path) -> Result<String> {
     std::fs::read_to_string(path).map_err(LspError::Io)
+}
+
+/// Finds the column of the symbol identifier within a declaration line.
+///
+/// Tree-sitter reports symbol positions at the start of the declaration
+/// (e.g., column 0 for `pub fn greet`), but LSP servers need the cursor
+/// on the identifier itself (column 7 for `greet`). This function searches
+/// the declaration line for the identifier and returns its column.
+///
+/// Falls back to the original column if the identifier isn't found.
+fn find_identifier_column(
+    source: &str,
+    line: usize,
+    original_column: usize,
+    name: &str,
+) -> usize {
+    let Some(line_text) = source.lines().nth(line.saturating_sub(1)) else {
+        return original_column;
+    };
+    // Search from the original column position forward
+    if let Some(offset) = line_text[original_column..].find(name) {
+        // Verify it's a whole word (not a substring of a longer identifier)
+        let pos = original_column + offset;
+        let end = pos + name.len();
+        let before_ok = pos == 0 || !line_text.as_bytes()[pos - 1].is_ascii_alphanumeric();
+        let after_ok =
+            end >= line_text.len() || !line_text.as_bytes()[end].is_ascii_alphanumeric();
+        if before_ok && after_ok {
+            return pos;
+        }
+    }
+    original_column
 }
 
 #[cfg(test)]

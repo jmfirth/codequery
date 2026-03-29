@@ -69,6 +69,18 @@ impl LspServer {
     /// - `LspError::InitializeFailed` if the handshake fails.
     /// - `LspError::Io` on process spawn or I/O failures.
     pub fn start(config: &ServerConfig, project_root: &Path) -> Result<Self> {
+        Self::start_with_capabilities(config, project_root, ClientCapabilities::default())
+    }
+
+    /// Starts a language server with specific client capabilities.
+    ///
+    /// Use `ClientCapabilities::with_progress()` to enable `$/progress`
+    /// notifications for readiness detection in oneshot mode.
+    pub fn start_with_capabilities(
+        config: &ServerConfig,
+        project_root: &Path,
+        capabilities: ClientCapabilities,
+    ) -> Result<Self> {
         // Check that the binary exists before attempting to spawn.
         check_binary_exists(&config.binary)?;
 
@@ -108,7 +120,7 @@ impl LspServer {
         let init_params = InitializeParams {
             process_id: Some(std::process::id()),
             root_uri: Some(root_uri.clone()),
-            capabilities: ClientCapabilities::with_progress(),
+            capabilities,
         };
 
         let params = serde_json::to_value(&init_params)
@@ -260,9 +272,10 @@ impl LspServer {
                                         }
                                         "end" => {
                                             progress_active.remove(&token);
-                                            if progress_active.is_empty() {
-                                                break; // All progress done — server ready
-                                            }
+                                            // Don't break immediately — a new progress
+                                            // phase may start (e.g., Fetching → Indexing).
+                                            // We'll break on the grace check below if no
+                                            // new progress begins within 500ms.
                                         }
                                         _ => {} // "report" — still in progress
                                     }
@@ -293,6 +306,46 @@ impl LspServer {
                     // No data within poll timeout.
                     if !seen_progress && Instant::now() >= grace_deadline {
                         break; // Server doesn't support progress — assume ready
+                    }
+                    // If we saw progress and all tokens ended, wait 500ms for
+                    // a new progress phase to start (e.g., Fetching → Indexing).
+                    if seen_progress && progress_active.is_empty() {
+                        // Use a short drain window — if no new progress starts,
+                        // the server is truly ready.
+                        let drain_deadline = Instant::now() + Duration::from_millis(500);
+                        let mut new_progress = false;
+                        while Instant::now() < drain_deadline && Instant::now() < deadline {
+                            match self.transport.try_read_message(Duration::from_millis(100)) {
+                                Ok(Some(drain_msg)) => {
+                                    if let Ok(drain_json) = serde_json::from_str::<serde_json::Value>(&drain_msg) {
+                                        let m = drain_json.get("method").and_then(|x| x.as_str()).unwrap_or("");
+                                        if m == "$/progress" {
+                                            if let Some(p) = drain_json.get("params") {
+                                                let t = p.get("token").map(std::string::ToString::to_string).unwrap_or_default();
+                                                let k = p.get("value").and_then(|v| v.get("kind")).and_then(|x| x.as_str()).unwrap_or("");
+                                                if k == "begin" {
+                                                    progress_active.insert(t);
+                                                    new_progress = true;
+                                                    break; // New phase started — continue main loop
+                                                }
+                                            }
+                                        } else if m == "window/workDoneProgress/create" {
+                                            if let Some(id) = drain_json.get("id") {
+                                                let resp = serde_json::json!({"jsonrpc":"2.0","id":id,"result":null});
+                                                let _ = self.transport.write_raw(&serde_json::to_string(&resp).unwrap_or_default());
+                                            }
+                                            new_progress = true;
+                                            // Don't break yet — the begin is coming next
+                                        }
+                                    }
+                                }
+                                Ok(None) => {} // keep draining
+                                Err(_) => break,
+                            }
+                        }
+                        if !new_progress {
+                            break; // No new progress phase — server is truly ready
+                        }
                     }
                 }
                 Err(_) => {
