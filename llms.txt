@@ -75,9 +75,15 @@ Auto-detected when running; no extra flags needed.
 Falls back gracefully: daemon -> oneshot LSP -> stack graph -> syntactic.
 
 ## Languages
-Tier 1 (full support): Rust, TypeScript, JavaScript, Python, Go, C, C++, Java
-Tier 2 (extraction only): Ruby, PHP, C#, Swift, Kotlin, Scala, Zig, Lua, Bash
-Tier 3 (loadable): drop .so/.dylib grammars in ~/.local/share/cq/grammars/
+Scope-resolved (stack graphs): Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, Ruby, C#
+Syntactic (extraction only): PHP, Swift, Kotlin, Scala, Zig, Lua, Bash
+Runtime-loadable: drop .so/.dylib grammars in ~/.local/share/cq/grammars/
+LSP semantic precision available for all 16 languages when language server is installed.
+
+## MCP server (cq-mcp)
+Exposes all 12 cq commands as MCP tools over JSON-RPC stdio.
+Auto-starts cq daemon for fast semantic queries. No cache (files change during agent editing).
+Configure as an MCP server in Claude, Cursor, or any MCP-compatible AI tool.
 
 ## Exit codes
 0 = results found

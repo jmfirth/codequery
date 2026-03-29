@@ -4,9 +4,14 @@ The `jq` for source code.
 
 ---
 
-`cq` is a semantic code query tool for the command line. It parses source code with tree-sitter and answers structural questions: where is a symbol defined, what does it look like, who calls it. One binary, 16 languages, zero setup. Built for AI agents and humans who navigate code for a living.
+`cq` is a semantic code query tool for the command line. It parses source code with tree-sitter and answers structural questions: where is a symbol defined, what does it look like, who calls it. One binary, 16 languages, zero setup.
 
 There is a gap between `grep` and language servers. Grep is fast but semantically blind -- it cannot tell a function definition from a comment. Language servers are precise but heavy -- they require toolchains, indexing time, and compilable code. `cq` fills the gap: semantic understanding with sub-100ms response times, on broken code, with no dependencies.
+
+**Built for AI agents.** `cq body handle_request` returns 5 lines instead of reading a 500-line file. Every response includes precision metadata so agents know how much to trust results. Integrate via two paths:
+
+- **CLI + llms.txt** -- any agent with shell access can call `cq` directly. The included [`llms.txt`](llms.txt) teaches agents the full command surface, output formats, and efficient usage patterns.
+- **MCP server** -- `cq-mcp` exposes all 12 commands as native tools for Claude, Cursor, and any MCP-compatible AI tool. Auto-starts a language server daemon for compiler-level precision.
 
 ---
 
