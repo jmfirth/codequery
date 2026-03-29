@@ -55,33 +55,43 @@ for r in sorted(refs): print(r)
     local lsp_set=$(echo "$lsp_refs" | tail -n +2 | sort)
     local lsp_count=$(echo "$lsp_set" | grep -c . || echo 0)
 
-    # Compare: check for false positives (in SG but not in LSP)
-    local false_positives
-    false_positives=$(comm -23 <(echo "$sg_set") <(echo "$lsp_set") | grep -c . || echo 0)
+    # Compare using python for robust set operations
+    python3 -c "
+sg = set('''$sg_set'''.strip().split('\n')) if '''$sg_set'''.strip() else set()
+lsp = set('''$lsp_set'''.strip().split('\n')) if '''$lsp_set'''.strip() else set()
+sg.discard('')
+lsp.discard('')
 
-    # Check for misses (in LSP but not in SG)
-    local misses
-    misses=$(comm -13 <(echo "$sg_set") <(echo "$lsp_set") | grep -c . || echo 0)
+false_pos = sg - lsp
+misses = lsp - sg
+matched = sg & lsp
 
-    # Coverage percentage
-    local coverage="N/A"
-    if [ "$lsp_count" -gt 0 ]; then
-        local matched=$((lsp_count - misses))
-        coverage=$(python3 -c "print(f'{$matched/$lsp_count*100:.0f}%')")
-    fi
+if false_pos:
+    print(f'  FAIL: {len(false_pos)} false positives!')
+    for fp in sorted(false_pos):
+        print(f'    SG-only: {fp}')
+else:
+    cov = f'{len(matched)}/{len(lsp)} ({100*len(matched)//len(lsp)}%)' if lsp else 'N/A'
+    print(f'  PASS: 0 false positives, {cov} coverage')
 
-    if [ "$false_positives" -gt 0 ]; then
-        echo "  FAIL: $false_positives false positives!"
-        echo "    SG has but LSP doesn't:"
-        comm -23 <(echo "$sg_set") <(echo "$lsp_set") | sed 's/^/      /'
+if misses:
+    print(f'    Misses ({len(misses)} LSP-only refs):')
+    for m in sorted(misses):
+        print(f'      {m}')
+" 2>/dev/null
+
+    # Update counters
+    local fp_count
+    fp_count=$(python3 -c "
+sg = set('''$sg_set'''.strip().split('\n')) if '''$sg_set'''.strip() else set()
+lsp = set('''$lsp_set'''.strip().split('\n')) if '''$lsp_set'''.strip() else set()
+sg.discard(''); lsp.discard('')
+print(len(sg - lsp))
+" 2>/dev/null)
+    if [ "$fp_count" != "0" ]; then
         FAIL=$((FAIL + 1))
     else
-        echo "  PASS: 0 false positives, $sg_count/$lsp_count refs ($coverage coverage)"
         PASS=$((PASS + 1))
-    fi
-
-    if [ "$misses" -gt 0 ]; then
-        echo "    Misses (LSP-only, usually definition-as-reference): $misses"
     fi
 }
 
