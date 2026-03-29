@@ -686,12 +686,21 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 
 ;; A typedef introduces a type alias at file scope.
 
+;; Catch-all stub: any type_definition node that doesn't match the more
+;; specific patterns below still needs .defs and .lexical_scope so that
+;; parent wiring rules (translation_unit, compound_statement, preproc_*)
+;; can reference @child.defs without an "Undefined scoped variable" error.
+(type_definition) @typedef_stub {
+  node @typedef_stub.defs
+  node @typedef_stub.lexical_scope
+  node @typedef_stub.before_scope
+  node @typedef_stub.after_scope
+  edge @typedef_stub.after_scope -> @typedef_stub.before_scope
+}
+
 (type_definition
   declarator: (type_identifier) @name) @typedef
 {
-  node @typedef.defs
-  node @typedef.lexical_scope
-
   node def
   attr (def) node_definition = @name
   edge @typedef.defs -> def
@@ -704,9 +713,6 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
       (pointer_declarator
         declarator: (type_identifier) @name)))) @typedef
 {
-  node @typedef.defs
-  node @typedef.lexical_scope
-
   node def
   attr (def) node_definition = @name
   edge @typedef.defs -> def

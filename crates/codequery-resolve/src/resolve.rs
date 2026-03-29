@@ -731,6 +731,279 @@ func nilCheck(p *int) bool {
     }
 
     // -----------------------------------------------------------------------
+    // Go — gin/cobra regression: selector, var/const/type in blocks, variadic
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_go_tsg_no_warnings_on_selector_expression_patterns() {
+        // Exercises selector_expression patterns from gin-gonic/gin:
+        // - simple selectors: obj.Field
+        // - chained selectors: a.b.c
+        // - selector on call result: getEngine().Run()
+        // - selector in various positions (arguments, return, assignment)
+        let source = r#"package gin
+
+import "fmt"
+
+type Engine struct {
+	handler string
+}
+
+func (e *Engine) Handler() string {
+	return e.handler
+}
+
+func (e *Engine) Run(addr string) {
+	fmt.Println(addr)
+}
+
+func New() *Engine {
+	engine := &Engine{}
+	engine.handler = "default"
+	return engine
+}
+
+func main() {
+	e := New()
+	e.Run("localhost")
+	name := e.Handler()
+	fmt.Println(name)
+}
+"#;
+        let (_total, refs, defs, warnings) = count_ref_def_nodes(source, "gin.go", Language::Go);
+        assert!(
+            warnings.is_empty(),
+            "Go TSG should produce no warnings on selector_expression patterns: {warnings:?}"
+        );
+        assert!(refs > 0, "should produce reference nodes");
+        assert!(defs > 0, "should produce definition nodes");
+    }
+
+    #[test]
+    fn test_go_tsg_no_warnings_on_var_const_type_in_blocks() {
+        // Exercises var_declaration, const_declaration, type_declaration
+        // appearing inside function bodies (blocks), which requires
+        // .before_scope/.after_scope for block child sequencing.
+        let source = r#"package main
+
+import "fmt"
+
+func blockDecls() {
+	var x int
+	var y string = "hello"
+	const maxRetries = 3
+	const timeout = 30 * 60
+	type localStruct struct {
+		name string
+	}
+	type localAlias = int
+	fmt.Println(x, y, maxRetries, timeout)
+	s := localStruct{name: "test"}
+	fmt.Println(s)
+}
+
+func multiVarConst() {
+	var (
+		a int
+		b string
+	)
+	const (
+		c = 1
+		d = "two"
+	)
+	fmt.Println(a, b, c, d)
+}
+"#;
+        let (_total, refs, defs, warnings) = count_ref_def_nodes(source, "decls.go", Language::Go);
+        assert!(
+            warnings.is_empty(),
+            "Go TSG should produce no warnings on var/const/type in blocks: {warnings:?}"
+        );
+        assert!(refs > 0, "should produce reference nodes");
+        assert!(defs > 0, "should produce definition nodes");
+    }
+
+    #[test]
+    fn test_go_tsg_no_warnings_on_variadic_argument() {
+        // Exercises variadic_argument: `args...` in function calls.
+        let source = r#"package main
+
+import "fmt"
+
+func spread(args ...string) {
+	fmt.Println(args...)
+}
+
+func wrapper(items ...interface{}) {
+	fmt.Println(items...)
+}
+
+func main() {
+	vals := []string{"a", "b", "c"}
+	spread(vals...)
+}
+"#;
+        let (_total, refs, defs, warnings) =
+            count_ref_def_nodes(source, "variadic.go", Language::Go);
+        assert!(
+            warnings.is_empty(),
+            "Go TSG should produce no warnings on variadic_argument: {warnings:?}"
+        );
+        assert!(refs > 0, "should produce reference nodes");
+        assert!(defs > 0, "should produce definition nodes");
+    }
+
+    #[test]
+    fn test_go_tsg_no_warnings_gin_comprehensive() {
+        // Comprehensive gin-gonic/gin patterns: combines all 6 missing types
+        // in realistic code that mirrors actual gin source files.
+        let source = r#"package gin
+
+import (
+	"fmt"
+	"net/http"
+)
+
+const Version = "1.9.1"
+
+var defaultWriter = "stderr"
+
+type HandlerFunc func(c *Context)
+
+type HandlersChain []HandlerFunc
+
+type Context struct {
+	index    int8
+	handlers HandlersChain
+}
+
+type Engine struct {
+	RouterGroup
+	pool     interface{}
+	maxParams uint16
+}
+
+type RouterGroup struct {
+	basePath string
+	engine   *Engine
+	root     bool
+}
+
+func New() *Engine {
+	engine := &Engine{
+		RouterGroup: RouterGroup{
+			basePath: "/",
+			root:     true,
+		},
+	}
+	engine.RouterGroup.engine = engine
+	return engine
+}
+
+func (engine *Engine) Run(addr string) error {
+	return http.ListenAndServe(addr, nil)
+}
+
+func (c *Context) Next() {
+	c.index = c.index + 1
+	for c.index < int8(len(c.handlers)) {
+		c.handlers[c.index](c)
+		c.index = c.index + 1
+	}
+}
+
+func (c *Context) Abort() {
+	const abortIndex = 63
+	c.index = abortIndex
+}
+
+func combine(handlers ...HandlerFunc) HandlersChain {
+	var merged HandlersChain
+	merged = append(merged, handlers...)
+	return merged
+}
+
+func joinPaths(a, b string) string {
+	return a + b
+}
+
+func main() {
+	var r *Engine
+	r = New()
+	r.Run(":8080")
+	fmt.Println(Version, defaultWriter)
+}
+"#;
+        let (_total, refs, defs, warnings) = count_ref_def_nodes(source, "gin.go", Language::Go);
+        assert!(
+            warnings.is_empty(),
+            "Go TSG should produce no warnings on comprehensive gin patterns: {warnings:?}"
+        );
+        assert!(refs > 0, "should produce reference nodes");
+        assert!(defs > 0, "should produce definition nodes");
+    }
+
+    #[test]
+    fn test_go_tsg_no_warnings_cobra_patterns() {
+        // Patterns from spf13/cobra: command trees, init functions,
+        // persistent flags, nested type references.
+        let source = r#"package cobra
+
+import "fmt"
+
+type Command struct {
+	Use   string
+	Short string
+	Long  string
+	Run   func(cmd *Command, args []string)
+	commands []*Command
+	parent   *Command
+}
+
+var rootCmd = &Command{
+	Use:   "app",
+	Short: "A brief description",
+}
+
+func (c *Command) AddCommand(cmds ...*Command) {
+	for _, cmd := range cmds {
+		cmd.parent = c
+		c.commands = append(c.commands, cmd)
+	}
+}
+
+func (c *Command) Execute() error {
+	if c.Run != nil {
+		c.Run(c, nil)
+	}
+	return nil
+}
+
+func init() {
+	var verbose bool
+	const defaultLevel = "info"
+	type config struct {
+		level string
+	}
+	cfg := config{level: defaultLevel}
+	fmt.Println(verbose, cfg)
+}
+
+func main() {
+	rootCmd.AddCommand(&Command{Use: "sub"})
+	rootCmd.Execute()
+}
+"#;
+        let (_total, refs, defs, warnings) = count_ref_def_nodes(source, "cobra.go", Language::Go);
+        assert!(
+            warnings.is_empty(),
+            "Go TSG should produce no warnings on cobra patterns: {warnings:?}"
+        );
+        assert!(refs > 0, "should produce reference nodes");
+        assert!(defs > 0, "should produce definition nodes");
+    }
+
+    // -----------------------------------------------------------------------
     // C — TSG produces reference nodes
     // -----------------------------------------------------------------------
 

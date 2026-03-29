@@ -264,9 +264,16 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 ;; =========================
 
 ;; type_declaration wraps one or more type_spec children.
+;; It can appear inside blocks (e.g., `type Z struct{}` in a function body),
+;; so it needs .before_scope/.after_scope for block child sequencing.
 (type_declaration) @type_decl {
   node @type_decl.defs
   node @type_decl.lexical_scope
+  node @type_decl.before_scope
+  node @type_decl.after_scope
+  edge @type_decl.lexical_scope -> @type_decl.before_scope
+  edge @type_decl.after_scope -> @type_decl.defs
+  edge @type_decl.after_scope -> @type_decl.before_scope
 }
 
 (type_declaration (type_spec) @spec) @type_decl {
@@ -319,9 +326,16 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 ;; =========================
 
 ;; const_declaration wraps const_spec children.
+;; It can appear inside blocks (e.g., `const x = 1` in a function body),
+;; so it needs .before_scope/.after_scope for block child sequencing.
 (const_declaration) @const_decl {
   node @const_decl.defs
   node @const_decl.lexical_scope
+  node @const_decl.before_scope
+  node @const_decl.after_scope
+  edge @const_decl.lexical_scope -> @const_decl.before_scope
+  edge @const_decl.after_scope -> @const_decl.defs
+  edge @const_decl.after_scope -> @const_decl.before_scope
 }
 
 (const_declaration (const_spec) @spec) @const_decl {
@@ -345,9 +359,16 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 ;; =========================
 
 ;; var_declaration wraps var_spec children.
+;; It can appear inside blocks (e.g., `var x int` in a function body),
+;; so it needs .before_scope/.after_scope for block child sequencing.
 (var_declaration) @var_decl {
   node @var_decl.defs
   node @var_decl.lexical_scope
+  node @var_decl.before_scope
+  node @var_decl.after_scope
+  edge @var_decl.lexical_scope -> @var_decl.before_scope
+  edge @var_decl.after_scope -> @var_decl.defs
+  edge @var_decl.after_scope -> @var_decl.before_scope
 }
 
 (var_declaration (var_spec) @spec) @var_decl {
@@ -584,6 +605,13 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   operand: (_) @operand
   field: (field_identifier) @field) @sel {
   node @sel.lexical_scope
+  node @sel.defs
+  ;; .ref for chained selectors: a.b.c — the outer selector_expression
+  ;; needs .ref so it can be the operand of yet another selector.
+  ;; We alias it to the field's ref so that `a.b` resolves to `b`.
+  node @sel.ref
+  attr (@sel.ref) node_reference = @field
+  edge @sel.ref -> @field.lexical_scope
 
   edge @operand.lexical_scope -> @sel.lexical_scope
   edge @field.lexical_scope -> @operand.ref
@@ -610,10 +638,15 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 ;; =========================
 
 ;; call_expression has function and arguments fields.
+;; Needs .defs so it can appear in contexts that wire defs (e.g., expression_list).
+;; Needs .ref so it can be the operand of a selector_expression (e.g., getEngine().Run()).
 (call_expression
   function: (_) @func
   arguments: (argument_list) @args) @call {
   node @call.lexical_scope
+  node @call.defs
+  node @call.ref
+  attr (@call.ref) push_symbol = "()"
 
   edge @func.lexical_scope -> @call.lexical_scope
   edge @args.lexical_scope -> @call.lexical_scope
@@ -625,6 +658,17 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 
 (argument_list (_) @arg) @args {
   edge @arg.lexical_scope -> @args.lexical_scope
+}
+
+;; variadic_argument: `args...` in function calls. Appears inside argument_list.
+;; Contains a single child expression that needs scope wiring.
+(variadic_argument) @varg {
+  node @varg.lexical_scope
+  node @varg.defs
+}
+
+(variadic_argument (_) @expr) @varg {
+  edge @expr.lexical_scope -> @varg.lexical_scope
 }
 
 ;; =========================
@@ -689,6 +733,7 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   (slice_expression)
   (type_assertion_expression)
   (type_conversion_expression)
+  (type_instantiation_expression)
   (func_literal)
   (nil)
   (true)
@@ -697,6 +742,9 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 ] @expr {
   node @expr.lexical_scope
   node @expr.defs
+  ;; .ref stub: needed when these expressions appear as the operand of a
+  ;; selector_expression (e.g., `arr[0].Field`, `MyStruct{}.Method()`).
+  node @expr.ref
 }
 
 ;; Binary expression: wire left and right operands to the expression scope.
@@ -733,6 +781,7 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 (composite_literal) @comp {
   node @comp.lexical_scope
   node @comp.defs
+  node @comp.ref
 }
 
 (literal_value) @lit {
