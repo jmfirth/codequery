@@ -216,6 +216,7 @@ fn ref_kind_label(kind: ReferenceKind) -> &'static str {
         ReferenceKind::TypeUsage => "type_reference",
         ReferenceKind::Import => "import",
         ReferenceKind::Assignment => "assignment",
+        ReferenceKind::Definition => "definition",
     }
 }
 

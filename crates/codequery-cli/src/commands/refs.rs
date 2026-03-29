@@ -169,6 +169,39 @@ pub fn run(
     }
 
     let def_clones: Vec<Symbol> = definitions.into_iter().cloned().collect();
+
+    // 7b. Include definition locations as references (def-as-ref).
+    // All major LSPs (rust-analyzer, gopls, clangd, tsserver) include the
+    // definition in the references list by default. Adding it here ensures
+    // consistent results across all resolution tiers.
+    {
+        let ref_locations: std::collections::HashSet<(std::path::PathBuf, usize)> = all_refs
+            .iter()
+            .map(|r| (r.file.clone(), r.line))
+            .collect();
+        for def in &def_clones {
+            if !ref_locations.contains(&(def.file.clone(), def.line)) {
+                let context = source_map
+                    .get(def.file.as_path())
+                    .and_then(|src| src.lines().nth(def.line.saturating_sub(1)))
+                    .unwrap_or("")
+                    .to_string();
+                all_refs.push(Reference {
+                    file: def.file.clone(),
+                    line: def.line,
+                    column: def.column,
+                    kind: ReferenceKind::Definition,
+                    context,
+                    caller: None,
+                    caller_kind: None,
+                });
+            }
+        }
+    }
+
+    // Re-sort after adding def-as-ref entries.
+    all_refs.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
+
     let output = format_refs(
         &def_clones,
         &all_refs,

@@ -41,6 +41,8 @@ pub enum ReferenceKind {
     Import,
     /// An assignment to the symbol.
     Assignment,
+    /// The definition location itself (def-as-ref, matches LSP convention).
+    Definition,
 }
 
 impl fmt::Display for ReferenceKind {
@@ -50,6 +52,7 @@ impl fmt::Display for ReferenceKind {
             Self::TypeUsage => "type_usage",
             Self::Import => "import",
             Self::Assignment => "assignment",
+            Self::Definition => "definition",
         };
         write!(f, "{s}")
     }

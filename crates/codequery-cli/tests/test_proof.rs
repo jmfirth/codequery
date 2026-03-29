@@ -153,12 +153,15 @@ fn proof1_typescript_stack_graph_resolution_metadata() {
 // Proof 2: Exact reference counts (completeness)
 // ===========================================================================
 
-/// Python format_name: exactly 4 known references in services.py.
+/// Python format_name: exactly 5 known references — 4 in services.py plus the
+/// definition itself in utils.py (def-as-ref: the definition site is included
+/// in the references list per LSP convention).
 ///
-/// Line 4: `from utils import format_name` (import)
-/// Line 10: `return format_name(name, "verified")` (call)
-/// Line 11: `return format_name(name, "pending")` (call)
-/// Line 15: `return [format_name(u.name, "") for u in users]` (call)
+/// services.py line 4: `from utils import format_name` (import)
+/// services.py line 10: `return format_name(name, "verified")` (call)
+/// services.py line 11: `return format_name(name, "pending")` (call)
+/// services.py line 15: `return [format_name(u.name, "") for u in users]` (call)
+/// utils.py line 3: `def format_name(first: str, last: str) -> str:` (definition)
 #[test]
 fn proof2_python_format_name_exact_reference_count() {
     let project = fixture_base().join("python_project");
@@ -170,20 +173,20 @@ fn proof2_python_format_name_exact_reference_count() {
         .as_array()
         .expect("missing references array");
 
-    // Total must be exactly 4.
+    // Total must be exactly 5 (4 usage refs + 1 definition ref).
     let total = json["total"].as_u64().expect("missing total");
     assert_eq!(
-        total, 4,
-        "expected exactly 4 references for format_name, got {total}"
+        total, 5,
+        "expected exactly 5 references for format_name, got {total}"
     );
     assert_eq!(
         refs.len(),
-        4,
-        "references array length should be 4, got {}",
+        5,
+        "references array length should be 5, got {}",
         refs.len()
     );
 
-    // All 4 references must be in services.py.
+    // Exactly 4 references must be in services.py.
     let services_refs: Vec<&serde_json::Value> = refs
         .iter()
         .filter(|r| r["file"].as_str().unwrap_or("").contains("services.py"))
@@ -191,35 +194,59 @@ fn proof2_python_format_name_exact_reference_count() {
     assert_eq!(
         services_refs.len(),
         4,
-        "all 4 references should be in services.py, got {} in services.py",
+        "4 references should be in services.py, got {} in services.py",
         services_refs.len()
     );
 
-    // Verify specific lines.
-    let ref_lines: Vec<u64> = refs.iter().filter_map(|r| r["line"].as_u64()).collect();
+    // Exactly 1 reference must be in utils.py (the definition site).
+    let utils_refs: Vec<&serde_json::Value> = refs
+        .iter()
+        .filter(|r| r["file"].as_str().unwrap_or("").contains("utils.py"))
+        .collect();
+    assert_eq!(
+        utils_refs.len(),
+        1,
+        "1 definition reference should be in utils.py, got {} in utils.py",
+        utils_refs.len()
+    );
+    assert_eq!(
+        utils_refs[0]["kind"].as_str(),
+        Some("definition"),
+        "utils.py reference should have kind 'definition'"
+    );
+
+    // Verify specific lines in services.py.
+    let services_lines: Vec<u64> = services_refs
+        .iter()
+        .filter_map(|r| r["line"].as_u64())
+        .collect();
     assert!(
-        ref_lines.contains(&4),
-        "expected import ref at line 4, got lines: {ref_lines:?}"
+        services_lines.contains(&4),
+        "expected import ref at line 4, got lines: {services_lines:?}"
     );
     assert!(
-        ref_lines.contains(&10),
-        "expected call ref at line 10, got lines: {ref_lines:?}"
+        services_lines.contains(&10),
+        "expected call ref at line 10, got lines: {services_lines:?}"
     );
     assert!(
-        ref_lines.contains(&11),
-        "expected call ref at line 11, got lines: {ref_lines:?}"
+        services_lines.contains(&11),
+        "expected call ref at line 11, got lines: {services_lines:?}"
     );
     assert!(
-        ref_lines.contains(&15),
-        "expected call ref at line 15, got lines: {ref_lines:?}"
+        services_lines.contains(&15),
+        "expected call ref at line 15, got lines: {services_lines:?}"
     );
 }
 
-/// Rust greet: exactly 3 known references in tests/integration.rs.
+/// Rust greet: exactly 5 known references — 3 in tests/integration.rs, 2 in
+/// lib.rs (definition site + same-file call). The definition site is included
+/// per def-as-ref / LSP convention.
 ///
-/// Line 1: `use fixture_project::greet;` (import)
-/// Line 5: `greet("world")` (call)
-/// Line 10: `greet("")` (call)
+/// integration.rs line 1: `use fixture_project::greet;` (import)
+/// integration.rs line 5: `greet("world")` (call)
+/// integration.rs line 10: `greet("")` (call)
+/// lib.rs line 9: `pub fn greet(name: &str) -> String {` (definition)
+/// lib.rs line 15: `let msg = greet("world");` (same-file call)
 #[test]
 fn proof2_rust_greet_exact_reference_count() {
     let project = fixture_base().join("rust_project");
@@ -233,17 +260,17 @@ fn proof2_rust_greet_exact_reference_count() {
 
     let total = json["total"].as_u64().expect("missing total");
     assert_eq!(
-        total, 4,
-        "expected exactly 4 references for greet, got {total}"
+        total, 5,
+        "expected exactly 5 references for greet, got {total}"
     );
     assert_eq!(
         refs.len(),
-        4,
-        "references array length should be 4, got {}",
+        5,
+        "references array length should be 5, got {}",
         refs.len()
     );
 
-    // 3 references must be in integration.rs, 1 in lib.rs (same-file call).
+    // 3 references must be in integration.rs.
     let integration_refs: Vec<&serde_json::Value> = refs
         .iter()
         .filter(|r| r["file"].as_str().unwrap_or("").contains("integration.rs"))
@@ -254,30 +281,47 @@ fn proof2_rust_greet_exact_reference_count() {
         "3 references should be in integration.rs, got {} there",
         integration_refs.len()
     );
+
+    // 2 references must be in lib.rs: definition (line 9) + same-file call (line 15).
     let lib_refs: Vec<&serde_json::Value> = refs
         .iter()
         .filter(|r| r["file"].as_str().unwrap_or("").contains("lib.rs"))
         .collect();
     assert_eq!(
         lib_refs.len(),
-        1,
-        "1 reference should be in lib.rs (same-file call), got {} there",
+        2,
+        "2 references should be in lib.rs (definition + same-file call), got {} there",
         lib_refs.len()
     );
 
-    // Verify specific lines.
+    // The lib.rs definition ref must have kind "definition".
+    let def_ref = lib_refs
+        .iter()
+        .find(|r| r["kind"].as_str() == Some("definition"));
+    assert!(
+        def_ref.is_some(),
+        "expected a definition-kind reference in lib.rs"
+    );
+    let def_line = def_ref.unwrap()["line"].as_u64().unwrap_or(0);
+    assert_eq!(def_line, 9, "definition ref should be at lib.rs:9, got line {def_line}");
+
+    // Verify specific lines across all refs.
     let ref_lines: Vec<u64> = refs.iter().filter_map(|r| r["line"].as_u64()).collect();
     assert!(
         ref_lines.contains(&1),
-        "expected import ref at line 1, got lines: {ref_lines:?}"
+        "expected import ref at integration.rs:1, got lines: {ref_lines:?}"
     );
     assert!(
         ref_lines.contains(&5),
-        "expected call ref at line 5, got lines: {ref_lines:?}"
+        "expected call ref at integration.rs:5, got lines: {ref_lines:?}"
     );
     assert!(
         ref_lines.contains(&10),
-        "expected call ref at line 10, got lines: {ref_lines:?}"
+        "expected call ref at integration.rs:10, got lines: {ref_lines:?}"
+    );
+    assert!(
+        ref_lines.contains(&15),
+        "expected same-file call ref at lib.rs:15, got lines: {ref_lines:?}"
     );
 }
 
@@ -415,8 +459,9 @@ fn proof4_name_collision_finds_exactly_two_definitions() {
 }
 
 /// When two unrelated functions share a name, refs should not crash and should
-/// produce a valid result. With no cross-references, the refs array should be
-/// empty (neither function is called anywhere).
+/// produce a valid result. With no cross-file calls, the only references are the
+/// two definition sites themselves (def-as-ref: each definition is included in
+/// the references list per LSP convention).
 #[test]
 fn proof4_name_collision_refs_produces_valid_output() {
     let dir = tempfile::tempdir().unwrap();
@@ -460,13 +505,22 @@ fn proof4_name_collision_refs_produces_valid_output() {
         defs.len()
     );
 
-    // References should be empty (no cross-file calls between the two).
+    // References should be exactly 2: one definition-kind ref per file (no calls).
     let refs = json["references"].as_array().unwrap();
     assert_eq!(
         refs.len(),
-        0,
-        "expected 0 references for colliding names with no calls, got {}",
+        2,
+        "expected 2 references (definition sites) for colliding names with no calls, got {}",
         refs.len()
+    );
+
+    // All references must be definition-kind (no calls or imports exist).
+    let all_def_kind = refs
+        .iter()
+        .all(|r| r["kind"].as_str() == Some("definition"));
+    assert!(
+        all_def_kind,
+        "all refs for colliding names with no calls should be kind 'definition', got: {refs:?}"
     );
 }
 
