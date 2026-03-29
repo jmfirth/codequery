@@ -522,4 +522,155 @@ mod tests {
             assert_eq!(r.symbol, "greet");
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Helper: count reference and definition nodes in a stack graph
+    // -----------------------------------------------------------------------
+
+    fn count_ref_def_nodes(
+        source: &str,
+        filename: &str,
+        lang: Language,
+    ) -> (usize, usize, usize, Vec<String>) {
+        let files = vec![parse_source(Path::new(filename), source, lang)];
+        let result = build_graph(&files, lang).unwrap();
+
+        let warnings: Vec<String> = result.warnings.iter().map(|w| w.message.clone()).collect();
+
+        let ref_count = result
+            .graph
+            .iter_nodes()
+            .filter(|&nh| result.graph[nh].is_reference())
+            .count();
+
+        let def_count = result
+            .graph
+            .iter_nodes()
+            .filter(|&nh| result.graph[nh].is_definition())
+            .count();
+
+        let total = result.graph.iter_nodes().count();
+
+        (total, ref_count, def_count, warnings)
+    }
+
+    // -----------------------------------------------------------------------
+    // Rust — TSG produces reference nodes
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_rust_tsg_produces_reference_nodes() {
+        let source = "fn greet() -> String { String::from(\"hello\") }\nfn main() { greet(); }\n";
+        let (_total, refs, defs, warnings) = count_ref_def_nodes(source, "main.rs", Language::Rust);
+        assert!(
+            warnings.is_empty(),
+            "Rust TSG rules should produce no warnings: {warnings:?}"
+        );
+        assert!(
+            refs > 0,
+            "Rust TSG rules should produce reference nodes, got 0"
+        );
+        assert!(
+            defs > 0,
+            "Rust TSG rules should produce definition nodes, got 0"
+        );
+    }
+
+    #[test]
+    fn test_rust_resolve_same_file_function_call() {
+        let source = "fn greet() -> String { String::from(\"hello\") }\nfn main() { greet(); }\n";
+        let files = vec![parse_source(Path::new("main.rs"), source, Language::Rust)];
+        let mut result = build_graph(&files, Language::Rust).unwrap();
+
+        let refs = resolve_references(&result.graph, &mut result.partial_paths, "greet").unwrap();
+
+        // The reference should be found and resolved to the definition.
+        for r in &refs {
+            assert_eq!(r.symbol, "greet");
+            assert_eq!(r.resolution, Resolution::Resolved);
+            if let Some(ref def_file) = r.def_file {
+                assert_eq!(def_file, &PathBuf::from("main.rs"));
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Go — TSG produces reference nodes
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_go_tsg_produces_reference_nodes() {
+        let source =
+            "package main\n\nfunc Greet() string { return \"hello\" }\nfunc main() { Greet() }\n";
+        let (_total, refs, defs, warnings) = count_ref_def_nodes(source, "main.go", Language::Go);
+        assert!(
+            warnings.is_empty(),
+            "Go TSG rules should produce no warnings: {warnings:?}"
+        );
+        assert!(
+            refs > 0,
+            "Go TSG rules should produce reference nodes, got 0"
+        );
+        assert!(
+            defs > 0,
+            "Go TSG rules should produce definition nodes, got 0"
+        );
+    }
+
+    #[test]
+    fn test_go_resolve_same_file_function_call() {
+        let source =
+            "package main\n\nfunc Greet() string { return \"hello\" }\nfunc main() { Greet() }\n";
+        let files = vec![parse_source(Path::new("main.go"), source, Language::Go)];
+        let mut result = build_graph(&files, Language::Go).unwrap();
+
+        let refs = resolve_references(&result.graph, &mut result.partial_paths, "Greet").unwrap();
+
+        for r in &refs {
+            assert_eq!(r.symbol, "Greet");
+            assert_eq!(r.resolution, Resolution::Resolved);
+            if let Some(ref def_file) = r.def_file {
+                assert_eq!(def_file, &PathBuf::from("main.go"));
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // C — TSG produces reference nodes
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_c_tsg_produces_reference_nodes() {
+        let source = "int add(int a, int b) { return a + b; }\nint main() { return add(1, 2); }\n";
+        let (_total, refs, defs, warnings) = count_ref_def_nodes(source, "main.c", Language::C);
+        assert!(
+            warnings.is_empty(),
+            "C TSG rules should produce no warnings: {warnings:?}"
+        );
+        assert!(
+            refs > 0,
+            "C TSG rules should produce reference nodes, got 0"
+        );
+        assert!(
+            defs > 0,
+            "C TSG rules should produce definition nodes, got 0"
+        );
+    }
+
+    #[test]
+    fn test_c_resolve_same_file_function_call() {
+        let source = "int add(int a, int b) { return a + b; }\nint main() { return add(1, 2); }\n";
+        let files = vec![parse_source(Path::new("main.c"), source, Language::C)];
+        let mut result = build_graph(&files, Language::C).unwrap();
+
+        let refs = resolve_references(&result.graph, &mut result.partial_paths, "add").unwrap();
+
+        for r in &refs {
+            assert_eq!(r.symbol, "add");
+            assert_eq!(r.resolution, Resolution::Resolved);
+            if let Some(ref def_file) = r.def_file {
+                assert_eq!(def_file, &PathBuf::from("main.c"));
+            }
+        }
+    }
 }

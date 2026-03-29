@@ -121,6 +121,13 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 ;;  Function definitions
 ;; =============================
 
+;; All function_definition nodes need .defs and .lexical_scope stubs so that
+;; the top-level child wiring rule can reference them.
+(function_definition) @func_stub {
+  node @func_stub.defs
+  node @func_stub.lexical_scope
+}
+
 ;; A function_definition creates a definition at file scope and introduces
 ;; a body scope for locals and parameters.
 
@@ -500,10 +507,15 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 ;;  Call expressions (references)
 ;; =============================
 
+;; All call_expression nodes need .defs and .lexical_scope stubs.
+(call_expression) @call_stub {
+  node @call_stub.defs
+  node @call_stub.lexical_scope
+}
+
 (call_expression
   function: (identifier) @name) @call
 {
-  node @call.lexical_scope
   edge @name.lexical_scope -> @call.lexical_scope
 }
 
@@ -528,6 +540,17 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   (parenthesized_expression)
   (subscript_expression)
   (sizeof_expression)
+  (field_expression)
+  (pointer_expression)
+  (number_literal)
+  (string_literal)
+  (char_literal)
+  (true)
+  (false)
+  (null)
+  (concatenated_string)
+  (compound_literal_expression)
+  (initializer_list)
 ] @expr
 {
   node @expr.defs
