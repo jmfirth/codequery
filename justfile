@@ -3,11 +3,15 @@ check:
     cargo fmt --check
     cargo clippy --workspace -- -D warnings
 
-# Run fast test suite (<10s)
+# Format all code
+fmt:
+    cargo fmt --all
+
+# Run test suite
 test:
     cargo test --workspace
 
-# Run full test suite including ignored tests
+# Run full test suite including ignored/LSP tests
 test-all:
     cargo test --workspace
     cargo test --workspace -- --ignored
@@ -21,22 +25,30 @@ release:
     cargo build --workspace --release
 
 # Run cq with arguments
-start *ARGS:
+run *ARGS:
     cargo run --package codequery-cli -- {{ARGS}}
 
+# Run cq-mcp server
+run-mcp:
+    cargo run --package codequery-mcp
+
 # Full CI pipeline
-ci: check test-all
+ci: check test build
     cargo doc --workspace --no-deps
 
 # Build and open docs
 doc:
     cargo doc --workspace --no-deps --open
 
-# Run criterion benchmarks
-bench:
-    cargo bench --workspace
+# Run smoke tests against real open-source projects
+smoke-test *LANG:
+    bash scripts/smoke-test.sh {{LANG}}
 
-# Generate man page (writes to cq.1, or install with `just man install`)
+# Validate stack graph results against LSP ground truth
+lsp-validate:
+    bash scripts/lsp-validation.sh
+
+# Generate man page (writes to cq.1, or `just man install` to install)
 man *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail

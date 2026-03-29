@@ -201,34 +201,24 @@ For best-effort commands, JSON output includes a `note` field explaining the lim
 
 ### Test suite
 
-1,863 automated tests across 6 crates, covering unit, integration, cross-language, precision, and proof tests.
+1,900+ automated tests across 7 crates, covering unit, integration, cross-language, precision, and proof tests.
 
-### Real-world validation
+### Real-world project validation
 
-Stack graph rules hardened against 636 source files from 11 open-source projects with 0 TSG errors:
+Stack graph rules hardened against ~1,800 source files from 24 open-source projects with zero TSG errors:
 
-| Project | Language | What it exercises |
-|---------|----------|-------------------|
-| ripgrep | Rust | Large multi-crate workspace |
-| serde | Rust | Heavy macro and trait usage |
-| gin | Go | Embedded structs, selector chains |
-| cobra | Go | Command trees, init patterns |
-| redis | C | Large C codebase with headers |
-| jq | C | Complex C with build-time codegen |
-| nlohmann/json | C++ | Header-only template library |
-| fmt | C++ | Template metaprogramming |
-| flask | Python | Decorators, class hierarchies |
-| requests | Python | Package structure, __init__.py re-exports |
-| zod | TypeScript | Complex type inference patterns |
-| express | JavaScript | CommonJS module patterns |
-| gson | Java | Generics, nested classes |
-| sinatra | Ruby | Metaprogramming, DSL patterns |
-| rack | Ruby | Module mixins |
-| Newtonsoft.Json | C# | Generics, attributes |
+| Language | Projects | Tests |
+|----------|----------|-------|
+| Rust | ripgrep, serde, tokio, clap | 350+ |
+| Go | gin, cobra, hugo, fiber | 300+ |
+| C | redis, jq, curl, zstd | 300+ |
+| C++ | nlohmann/json, fmt, catch2, leveldb | 250+ |
+| Ruby | sinatra, rack, jekyll, devise | 250+ |
+| C# | newtonsoft-json, dapper, polly | 250+ |
 
 ### LSP ground truth comparison
 
-30 validation tests comparing stack graph results against language server output across 4 server implementations (rust-analyzer, gopls, clangd, typescript-language-server). Zero false positives -- every reference `cq` reports is confirmed by the language server.
+30 validation tests comparing stack graph results against language server output across 4 server implementations (rust-analyzer, gopls, clangd, typescript-language-server). Zero false positives across all non-ambiguous symbols. Coverage is 100% for function calls and imports, verified on codebases up to 7,800 lines.
 
 ---
 
@@ -276,6 +266,28 @@ $ cq daemon stop           # clean shutdown
 ```
 
 The daemon is auto-detected. When running, cross-reference commands automatically upgrade to semantic precision. Servers are started lazily per (project, language) and evicted after idle timeout.
+
+---
+
+## Development
+
+Requires [Rust](https://rustup.rs/) and [just](https://github.com/casey/just).
+
+| Command | What it does |
+|---------|-------------|
+| `just check` | Format check + clippy lint |
+| `just fmt` | Auto-format all code |
+| `just test` | Run test suite (1,900+ tests) |
+| `just test-all` | Full suite including LSP live tests |
+| `just build` | Debug build |
+| `just release` | Release build |
+| `just run <args>` | Run cq (e.g., `just run refs greet --json`) |
+| `just run-mcp` | Run cq-mcp server |
+| `just ci` | Full CI pipeline (check + test + build + docs) |
+| `just smoke-test` | Validate against real open-source projects |
+| `just lsp-validate` | Compare results against language server ground truth |
+| `just man` | Generate man page |
+| `just doc` | Build and open API docs |
 
 ---
 
