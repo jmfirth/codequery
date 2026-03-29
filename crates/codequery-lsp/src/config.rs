@@ -102,6 +102,78 @@ impl LanguageServerRegistry {
                     env: vec![],
                 },
             ),
+            (
+                Language::Java,
+                ServerConfig {
+                    binary: "jdtls".to_string(),
+                    args: vec![],
+                    env: vec![],
+                },
+            ),
+            (
+                Language::Ruby,
+                ServerConfig {
+                    binary: "solargraph".to_string(),
+                    args: vec!["stdio".to_string()],
+                    env: vec![],
+                },
+            ),
+            (
+                Language::CSharp,
+                ServerConfig {
+                    binary: "OmniSharp".to_string(),
+                    args: vec!["--languageserver".to_string()],
+                    env: vec![],
+                },
+            ),
+            (
+                Language::Swift,
+                ServerConfig {
+                    binary: "sourcekit-lsp".to_string(),
+                    args: vec![],
+                    env: vec![],
+                },
+            ),
+            (
+                Language::Kotlin,
+                ServerConfig {
+                    binary: "kotlin-language-server".to_string(),
+                    args: vec![],
+                    env: vec![],
+                },
+            ),
+            (
+                Language::Php,
+                ServerConfig {
+                    binary: "intelephense".to_string(),
+                    args: vec!["--stdio".to_string()],
+                    env: vec![],
+                },
+            ),
+            (
+                Language::Zig,
+                ServerConfig {
+                    binary: "zls".to_string(),
+                    args: vec![],
+                    env: vec![],
+                },
+            ),
+            (
+                Language::Lua,
+                ServerConfig {
+                    binary: "lua-language-server".to_string(),
+                    args: vec![],
+                    env: vec![],
+                },
+            ),
+            (
+                Language::Bash,
+                ServerConfig {
+                    binary: "bash-language-server".to_string(),
+                    args: vec!["start".to_string()],
+                    env: vec![],
+                },
+            ),
         ];
 
         Self { configs }
@@ -192,6 +264,14 @@ impl LanguageServerRegistry {
             (Language::C, "C"),
             (Language::Cpp, "CPP"),
             (Language::Java, "JAVA"),
+            (Language::Ruby, "RUBY"),
+            (Language::CSharp, "CSHARP"),
+            (Language::Swift, "SWIFT"),
+            (Language::Kotlin, "KOTLIN"),
+            (Language::Php, "PHP"),
+            (Language::Zig, "ZIG"),
+            (Language::Lua, "LUA"),
+            (Language::Bash, "BASH"),
         ]
     }
 }
@@ -246,9 +326,10 @@ mod tests {
     }
 
     #[test]
-    fn test_registry_java_returns_none() {
+    fn test_registry_java_returns_jdtls() {
         let registry = LanguageServerRegistry::new();
-        assert!(registry.config_for(Language::Java).is_none());
+        let config = registry.config_for(Language::Java).unwrap();
+        assert_eq!(config.binary, "jdtls");
     }
 
     #[test]
@@ -323,9 +404,17 @@ mod tests {
     }
 
     #[test]
-    fn test_registry_unsupported_language_returns_none() {
+    fn test_registry_swift_returns_sourcekit() {
         let registry = LanguageServerRegistry::new();
-        assert!(registry.config_for(Language::Ruby).is_none());
+        let config = registry.config_for(Language::Swift).unwrap();
+        assert_eq!(config.binary, "sourcekit-lsp");
+    }
+
+    #[test]
+    fn test_registry_ruby_returns_solargraph() {
+        let registry = LanguageServerRegistry::new();
+        let config = registry.config_for(Language::Ruby).unwrap();
+        assert_eq!(config.binary, "solargraph");
     }
 
     #[test]
@@ -408,18 +497,18 @@ mod tests {
     }
 
     #[test]
-    fn test_with_overrides_adds_new_language_config() {
+    fn test_with_overrides_overrides_existing_language() {
         let mut overrides = HashMap::new();
         overrides.insert(
             "java".to_string(),
             LspServerOverride {
-                binary: Some("jdtls".to_string()),
+                binary: Some("custom-jdtls".to_string()),
                 args: Some(vec!["--data".to_string(), "/tmp/jdt".to_string()]),
             },
         );
         let registry = LanguageServerRegistry::with_overrides(&overrides);
         let config = registry.config_for(Language::Java).unwrap();
-        assert_eq!(config.binary, "jdtls");
+        assert_eq!(config.binary, "custom-jdtls");
         assert_eq!(
             config.args,
             vec!["--data".to_string(), "/tmp/jdt".to_string()]
@@ -427,18 +516,18 @@ mod tests {
     }
 
     #[test]
-    fn test_with_overrides_no_binary_no_existing_config_ignored() {
+    fn test_with_overrides_adds_new_language_config() {
         let mut overrides = HashMap::new();
         overrides.insert(
-            "java".to_string(),
+            "scala".to_string(),
             LspServerOverride {
-                binary: None,
-                args: Some(vec!["--data".to_string()]),
+                binary: Some("metals".to_string()),
+                args: None,
             },
         );
         let registry = LanguageServerRegistry::with_overrides(&overrides);
-        // Java has no default and no binary was specified, so no config should exist
-        assert!(registry.config_for(Language::Java).is_none());
+        let config = registry.config_for(Language::Scala).unwrap();
+        assert_eq!(config.binary, "metals");
     }
 
     #[test]

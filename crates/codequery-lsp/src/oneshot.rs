@@ -406,14 +406,14 @@ mod tests {
     #[test]
     fn test_semantic_refs_unsupported_language_returns_not_found() {
         let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("test.rb");
-        std::fs::write(&file, "def foo; end").unwrap();
+        let file = dir.path().join("test.scala");
+        std::fs::write(&file, "object Main { def foo = 1 }").unwrap();
 
-        let result = semantic_refs(dir.path(), Language::Ruby, "foo", &file, 1, 4);
+        let result = semantic_refs(dir.path(), Language::Scala, "foo", &file, 1, 4);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(matches!(err, LspError::ServerNotFound(_)));
-        assert!(err.to_string().contains("Ruby"));
+        assert!(err.to_string().contains("Scala"));
     }
 
     #[test]
@@ -433,10 +433,10 @@ mod tests {
     #[test]
     fn test_semantic_definition_unsupported_language_returns_not_found() {
         let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("test.rb");
-        std::fs::write(&file, "def foo; end").unwrap();
+        let file = dir.path().join("test.scala");
+        std::fs::write(&file, "object Main { def foo = 1 }").unwrap();
 
-        let result = semantic_definition(dir.path(), Language::Ruby, &file, 1, 4);
+        let result = semantic_definition(dir.path(), Language::Scala, &file, 1, 4);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(matches!(err, LspError::ServerNotFound(_)));
@@ -768,12 +768,12 @@ mod tests {
     #[test]
     fn test_semantic_refs_with_wait_unsupported_language() {
         let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("test.swift");
-        std::fs::write(&file, "func foo() {}").unwrap();
+        let file = dir.path().join("test.scala");
+        std::fs::write(&file, "object Main { def foo = 1 }").unwrap();
 
         let result = semantic_refs_with_wait(
             dir.path(),
-            Language::Swift, // No config → early error
+            Language::Scala, // No config → early error
             "foo",
             &file,
             1,
