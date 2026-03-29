@@ -165,11 +165,11 @@ Every `cq` result includes `resolution` and `completeness` metadata so consumers
 
 ### Three tiers of precision
 
-**Syntactic.** Tree-sitter AST name and structure matching. Knows definitions from references from string literals. Cannot disambiguate when multiple types share a method name. Available for all 16 languages.
+**Syntactic.** Tree-sitter AST name and structure matching. Knows definitions from references from string literals. Cannot disambiguate when multiple types share a method name. Available for all 16 languages. Instant — under 100ms for targeted queries, under 1s for project-wide scans.
 
-**Resolved.** Stack graph scope resolution. Follows import paths, qualified names, scope chains, and re-exports. Disambiguates across modules without a language server. Available for the 10 languages with TSG rules.
+**Resolved.** Stack graph scope resolution. Follows import paths, qualified names, scope chains, and re-exports. Disambiguates across modules without a language server. Available for the 10 languages with TSG rules. Adds 1-2s for scope resolution on large projects.
 
-**Semantic.** Full type resolution via language server. Resolves trait dispatch, generics, macros, and the full type system. Available when a language server is present (via `cq daemon start` or the `--semantic` flag).
+**Semantic.** Full type resolution via language server. Resolves trait dispatch, generics, macros, and the full type system. Available for all 16 languages when a language server is installed. Cold start: 3-30s (starts a server, queries, stops). With `cq daemon`: sub-second (server stays warm).
 
 ### Automatic cascade
 
