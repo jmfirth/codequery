@@ -1,0 +1,1098 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Stack graphs definition for Ruby
+;;
+;; Ruby scoping model:
+;;   - program (top level) holds all top-level definitions
+;;   - Methods: `def greet(name) ... end`
+;;   - Classes: `class User ... end` with methods and constants
+;;   - Modules: `module MyLib ... end` — namespaces and mixins
+;;   - Singleton methods: `def self.method_name ... end`
+;;   - Blocks: `do |x| ... end` and `{ |x| ... }`
+;;   - Local variables: defined by first assignment
+;;   - Instance variables: `@name`
+;;   - Constants: `MAX_RETRIES = 3`
+;;   - require_relative creates import edges
+;;
+;; Wildcard avoidance: we list handled node types explicitly in child-wiring
+;; stanzas so that extras (comment) and unhandled children do not cause
+;; "Undefined scoped variable" errors.
+;;
+;; Node type notes (tree-sitter-ruby 0.23):
+;;   - Ruby symbol literals (:foo) parse as `simple_symbol`, not `symbol`
+;;   - `bare_string` / `bare_symbol` only appear inside `string_array` / `symbol_array`
+;;   - `range` is the node for `x..y` / `x...y`
+;;   - `heredoc_beginning` appears at top level for heredocs
+;;   - `string_array` for `%w[...]`
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;
+;; Global Variables
+
+global FILE_PATH           ; project-relative path of this file
+global ROOT_NODE
+global JUMP_TO_SCOPE_NODE
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Attribute Shorthands
+
+attribute node_definition = node        => type = "pop_symbol", node_symbol = node, is_definition
+attribute node_reference = node         => type = "push_symbol", node_symbol = node, is_reference
+attribute pop_node = node               => type = "pop_symbol", node_symbol = node
+attribute pop_scoped_node = node        => type = "pop_scoped_symbol", node_symbol = node
+attribute pop_scoped_symbol = symbol    => type = "pop_scoped_symbol", symbol = symbol
+attribute pop_symbol = symbol           => type = "pop_symbol", symbol = symbol
+attribute push_node = node              => type = "push_symbol", node_symbol = node
+attribute push_scoped_node = node       => type = "push_scoped_symbol", node_symbol = node
+attribute push_scoped_symbol = symbol   => type = "push_scoped_symbol", symbol = symbol
+attribute push_symbol = symbol          => type = "push_symbol", symbol = symbol
+attribute scoped_node_definition = node => type = "pop_scoped_symbol", node_symbol = node, is_definition
+attribute scoped_node_reference = node  => type = "push_scoped_symbol", node_symbol = node, is_reference
+attribute symbol_definition = symbol    => type = "pop_symbol", symbol = symbol, is_definition
+attribute symbol_reference = symbol     => type = "push_symbol", symbol = symbol, is_reference
+
+attribute node_symbol = node            => symbol = (source-text node), source_node = node
+
+;; =============================
+;;  Comment stub (extra node)
+;; =============================
+;;
+;; Comments are tree-sitter "extras" that can appear as children of any node.
+;; They need all scoped variables that any parent-child wiring rule might
+;; reference.
+
+(comment) @c {
+  node @c.defs
+  node @c.lexical_scope
+  node @c.before_scope
+  node @c.after_scope
+  edge @c.after_scope -> @c.before_scope
+}
+
+;; =============================
+;;  Program (file root)
+;; =============================
+;;
+;; The program node is the root of every Ruby file. It defines a file-scope
+;; node that aggregates all top-level definitions and connects to ROOT_NODE
+;; for cross-file resolution.
+
+(program) @prog {
+  node @prog.defs
+  node @prog.lexical_scope
+
+  ; File scope can see the global root (for cross-file resolution)
+  edge @prog.lexical_scope -> ROOT_NODE
+  ; File scope can see its own definitions
+  edge @prog.lexical_scope -> @prog.defs
+
+  ; Expose file-level definitions to the global root
+  edge ROOT_NODE -> @prog.defs
+}
+
+;; Wire each top-level child into the program's scope.
+;; Explicit node types to avoid matching comment extras.
+(program
+  [
+    (method)
+    (singleton_method)
+    (class)
+    (module)
+    (call)
+    (assignment)
+    (if)
+    (unless)
+    (while)
+    (until)
+    (for)
+    (case)
+    (begin)
+    (return)
+    (yield)
+    (break)
+    (next)
+    (string)
+    (integer)
+    (float)
+    (simple_symbol)
+    (array)
+    (hash)
+    (identifier)
+    (constant)
+    (instance_variable)
+    (class_variable)
+    (global_variable)
+    (unary)
+    (binary)
+    (conditional)
+    (parenthesized_statements)
+    (block)
+    (do_block)
+    (lambda)
+    (splat_argument)
+    (hash_splat_argument)
+    (element_reference)
+    (scope_resolution)
+    (pair)
+    (regex)
+    (range)
+    (heredoc_body)
+    (heredoc_beginning)
+    (string_array)
+    (nil)
+    (true)
+    (false)
+    (self)
+    (operator_assignment)
+  ] @child
+) @prog {
+  edge @prog.defs -> @child.defs
+  edge @child.lexical_scope -> @prog.lexical_scope
+}
+
+;; Sequential scope chaining: first child inherits program scope
+(program .
+  [
+    (method)
+    (singleton_method)
+    (class)
+    (module)
+    (call)
+    (assignment)
+    (if)
+    (unless)
+    (while)
+    (until)
+    (for)
+    (case)
+    (begin)
+    (return)
+    (yield)
+    (break)
+    (next)
+    (string)
+    (integer)
+    (float)
+    (simple_symbol)
+    (array)
+    (hash)
+    (identifier)
+    (constant)
+    (instance_variable)
+    (class_variable)
+    (global_variable)
+    (unary)
+    (binary)
+    (conditional)
+    (parenthesized_statements)
+    (block)
+    (do_block)
+    (lambda)
+    (splat_argument)
+    (hash_splat_argument)
+    (element_reference)
+    (scope_resolution)
+    (pair)
+    (regex)
+    (range)
+    (heredoc_body)
+    (heredoc_beginning)
+    (string_array)
+    (nil)
+    (true)
+    (false)
+    (self)
+    (operator_assignment)
+    (comment)
+  ] @first
+) @prog {
+  edge @first.before_scope -> @prog.lexical_scope
+}
+
+;; Chain adjacent children: right sees definitions from left
+(program
+  [
+    (method)
+    (singleton_method)
+    (class)
+    (module)
+    (call)
+    (assignment)
+    (if)
+    (unless)
+    (while)
+    (until)
+    (for)
+    (case)
+    (begin)
+    (return)
+    (yield)
+    (break)
+    (next)
+    (string)
+    (integer)
+    (float)
+    (simple_symbol)
+    (array)
+    (hash)
+    (identifier)
+    (constant)
+    (instance_variable)
+    (class_variable)
+    (global_variable)
+    (unary)
+    (binary)
+    (conditional)
+    (parenthesized_statements)
+    (block)
+    (do_block)
+    (lambda)
+    (splat_argument)
+    (hash_splat_argument)
+    (element_reference)
+    (scope_resolution)
+    (pair)
+    (regex)
+    (range)
+    (heredoc_body)
+    (heredoc_beginning)
+    (string_array)
+    (nil)
+    (true)
+    (false)
+    (self)
+    (operator_assignment)
+    (comment)
+  ] @left
+  .
+  [
+    (method)
+    (singleton_method)
+    (class)
+    (module)
+    (call)
+    (assignment)
+    (if)
+    (unless)
+    (while)
+    (until)
+    (for)
+    (case)
+    (begin)
+    (return)
+    (yield)
+    (break)
+    (next)
+    (string)
+    (integer)
+    (float)
+    (simple_symbol)
+    (array)
+    (hash)
+    (identifier)
+    (constant)
+    (instance_variable)
+    (class_variable)
+    (global_variable)
+    (unary)
+    (binary)
+    (conditional)
+    (parenthesized_statements)
+    (block)
+    (do_block)
+    (lambda)
+    (splat_argument)
+    (hash_splat_argument)
+    (element_reference)
+    (scope_resolution)
+    (pair)
+    (regex)
+    (range)
+    (heredoc_body)
+    (heredoc_beginning)
+    (string_array)
+    (nil)
+    (true)
+    (false)
+    (self)
+    (operator_assignment)
+    (comment)
+  ] @right
+) {
+  edge @right.before_scope -> @left.after_scope
+}
+
+;; =============================
+;;  Identifier (references)
+;; =============================
+
+(identifier) @name {
+  node @name.ref
+  node @name.defs
+  node @name.lexical_scope
+  node @name.before_scope
+  node @name.after_scope
+  attr (@name.ref) node_reference = @name
+  edge @name.ref -> @name.lexical_scope
+  edge @name.after_scope -> @name.before_scope
+}
+
+;; =============================
+;;  Constant (references)
+;; =============================
+
+(constant) @const {
+  node @const.ref
+  node @const.defs
+  node @const.lexical_scope
+  node @const.before_scope
+  node @const.after_scope
+  attr (@const.ref) node_reference = @const
+  edge @const.ref -> @const.lexical_scope
+  edge @const.after_scope -> @const.before_scope
+}
+
+;; =============================
+;;  Method definitions
+;; =============================
+
+;; All method nodes need stubs for scope wiring.
+(method) @method_stub {
+  node @method_stub.defs
+  node @method_stub.lexical_scope
+  node @method_stub.before_scope
+  node @method_stub.after_scope
+  edge @method_stub.after_scope -> @method_stub.before_scope
+}
+
+;; Method with parameters: `def greet(name) ... end`
+(method
+  name: (identifier) @name
+  parameters: (method_parameters) @params
+  body: (body_statement) @body) @func
+{
+  ; Define the method name at enclosing scope
+  node def
+  attr (def) node_definition = @name
+  edge @func.defs -> def
+
+  ; Method body scope can see enclosing scope
+  edge @body.lexical_scope -> @func.lexical_scope
+
+  ; Parameters are visible inside the body
+  edge @body.lexical_scope -> @params.defs
+  attr (@body.lexical_scope -> @params.defs) precedence = 1
+}
+
+;; Method without parameters: `def greet ... end`
+(method
+  name: (identifier) @name
+  !parameters
+  body: (body_statement) @body) @func
+{
+  node def
+  attr (def) node_definition = @name
+  edge @func.defs -> def
+
+  edge @body.lexical_scope -> @func.lexical_scope
+}
+
+;; =============================
+;;  Singleton method definitions
+;; =============================
+
+;; `def self.method_name(params) ... end`
+(singleton_method) @sm_stub {
+  node @sm_stub.defs
+  node @sm_stub.lexical_scope
+  node @sm_stub.before_scope
+  node @sm_stub.after_scope
+  edge @sm_stub.after_scope -> @sm_stub.before_scope
+}
+
+(singleton_method
+  name: (identifier) @name
+  parameters: (method_parameters) @params
+  body: (body_statement) @body) @sm
+{
+  node def
+  attr (def) node_definition = @name
+  edge @sm.defs -> def
+
+  edge @body.lexical_scope -> @sm.lexical_scope
+  edge @body.lexical_scope -> @params.defs
+  attr (@body.lexical_scope -> @params.defs) precedence = 1
+}
+
+(singleton_method
+  name: (identifier) @name
+  !parameters
+  body: (body_statement) @body) @sm
+{
+  node def
+  attr (def) node_definition = @name
+  edge @sm.defs -> def
+
+  edge @body.lexical_scope -> @sm.lexical_scope
+}
+
+;; =============================
+;;  Method parameters
+;; =============================
+
+(method_parameters) @params {
+  node @params.defs
+  node @params.lexical_scope
+  node @params.before_scope
+  node @params.after_scope
+  edge @params.after_scope -> @params.before_scope
+}
+
+;; Each identifier parameter creates a definition.
+(method_parameters (identifier) @name) @params {
+  node def
+  attr (def) node_definition = @name
+  edge @params.defs -> def
+}
+
+;; Block parameters
+(block_parameters) @bparams {
+  node @bparams.defs
+  node @bparams.lexical_scope
+  node @bparams.before_scope
+  node @bparams.after_scope
+  edge @bparams.after_scope -> @bparams.before_scope
+}
+
+(block_parameters (identifier) @name) @bparams {
+  node def
+  attr (def) node_definition = @name
+  edge @bparams.defs -> def
+}
+
+;; =============================
+;;  Class definitions
+;; =============================
+
+(class) @class_stub {
+  node @class_stub.defs
+  node @class_stub.lexical_scope
+  node @class_stub.before_scope
+  node @class_stub.after_scope
+  edge @class_stub.after_scope -> @class_stub.before_scope
+}
+
+;; Class without superclass: `class User ... end`
+(class
+  name: (constant) @name
+  !superclass
+  body: (body_statement) @body) @cls
+{
+  node def
+  attr (def) node_definition = @name
+  edge @cls.defs -> def
+
+  ; Class body can see the enclosing scope
+  edge @body.lexical_scope -> @cls.lexical_scope
+
+  ; Class methods are visible at class scope
+  edge @cls.defs -> @body.defs
+}
+
+;; Class with superclass: `class Admin < User ... end`
+(class
+  name: (constant) @name
+  superclass: (superclass) @super
+  body: (body_statement) @body) @cls
+{
+  node def
+  attr (def) node_definition = @name
+  edge @cls.defs -> def
+
+  edge @body.lexical_scope -> @cls.lexical_scope
+  edge @cls.defs -> @body.defs
+
+  ; Superclass reference can see enclosing scope
+  edge @super.lexical_scope -> @cls.lexical_scope
+}
+
+;; Superclass stub
+(superclass) @super {
+  node @super.defs
+  node @super.lexical_scope
+  node @super.before_scope
+  node @super.after_scope
+  edge @super.after_scope -> @super.before_scope
+}
+
+;; Wire the constant inside superclass to its scope
+(superclass (constant) @const_ref) @super {
+  edge @const_ref.lexical_scope -> @super.lexical_scope
+}
+
+;; =============================
+;;  Module definitions
+;; =============================
+
+(module) @mod_stub {
+  node @mod_stub.defs
+  node @mod_stub.lexical_scope
+  node @mod_stub.before_scope
+  node @mod_stub.after_scope
+  edge @mod_stub.after_scope -> @mod_stub.before_scope
+}
+
+(module
+  name: (constant) @name
+  body: (body_statement) @body) @mod
+{
+  node def
+  attr (def) node_definition = @name
+  edge @mod.defs -> def
+
+  ; Module body can see enclosing scope
+  edge @body.lexical_scope -> @mod.lexical_scope
+
+  ; Module contents are visible at module scope
+  edge @mod.defs -> @body.defs
+}
+
+;; =============================
+;;  body_statement (block body)
+;; =============================
+;;
+;; body_statement is the container for method, class, and module bodies.
+
+(body_statement) @bs {
+  node @bs.defs
+  node @bs.lexical_scope
+  node @bs.before_scope
+  node @bs.after_scope
+  edge @bs.lexical_scope -> @bs.before_scope
+}
+
+;; Wire children of body_statement to its scope.
+(body_statement
+  [
+    (method)
+    (singleton_method)
+    (class)
+    (module)
+    (call)
+    (assignment)
+    (if)
+    (unless)
+    (while)
+    (until)
+    (for)
+    (case)
+    (begin)
+    (return)
+    (yield)
+    (break)
+    (next)
+    (string)
+    (integer)
+    (float)
+    (simple_symbol)
+    (array)
+    (hash)
+    (identifier)
+    (constant)
+    (instance_variable)
+    (class_variable)
+    (global_variable)
+    (unary)
+    (binary)
+    (conditional)
+    (parenthesized_statements)
+    (block)
+    (do_block)
+    (lambda)
+    (splat_argument)
+    (hash_splat_argument)
+    (element_reference)
+    (scope_resolution)
+    (pair)
+    (regex)
+    (range)
+    (heredoc_body)
+    (heredoc_beginning)
+    (string_array)
+    (nil)
+    (true)
+    (false)
+    (self)
+    (super)
+    (operator_assignment)
+  ] @child
+) @bs {
+  edge @bs.defs -> @child.defs
+  edge @child.lexical_scope -> @bs.lexical_scope
+}
+
+;; First child in body_statement inherits the body scope.
+(body_statement .
+  [
+    (method)
+    (singleton_method)
+    (class)
+    (module)
+    (call)
+    (assignment)
+    (if)
+    (unless)
+    (while)
+    (until)
+    (for)
+    (case)
+    (begin)
+    (return)
+    (yield)
+    (break)
+    (next)
+    (string)
+    (integer)
+    (float)
+    (simple_symbol)
+    (array)
+    (hash)
+    (identifier)
+    (constant)
+    (instance_variable)
+    (class_variable)
+    (global_variable)
+    (unary)
+    (binary)
+    (conditional)
+    (parenthesized_statements)
+    (block)
+    (do_block)
+    (lambda)
+    (splat_argument)
+    (hash_splat_argument)
+    (element_reference)
+    (scope_resolution)
+    (pair)
+    (regex)
+    (range)
+    (heredoc_body)
+    (heredoc_beginning)
+    (string_array)
+    (nil)
+    (true)
+    (false)
+    (self)
+    (super)
+    (operator_assignment)
+    (comment)
+  ] @first
+) @bs {
+  edge @first.before_scope -> @bs.lexical_scope
+}
+
+;; Chain adjacent children within body_statement.
+(body_statement
+  [
+    (method)
+    (singleton_method)
+    (class)
+    (module)
+    (call)
+    (assignment)
+    (if)
+    (unless)
+    (while)
+    (until)
+    (for)
+    (case)
+    (begin)
+    (return)
+    (yield)
+    (break)
+    (next)
+    (string)
+    (integer)
+    (float)
+    (simple_symbol)
+    (array)
+    (hash)
+    (identifier)
+    (constant)
+    (instance_variable)
+    (class_variable)
+    (global_variable)
+    (unary)
+    (binary)
+    (conditional)
+    (parenthesized_statements)
+    (block)
+    (do_block)
+    (lambda)
+    (splat_argument)
+    (hash_splat_argument)
+    (element_reference)
+    (scope_resolution)
+    (pair)
+    (regex)
+    (range)
+    (heredoc_body)
+    (heredoc_beginning)
+    (string_array)
+    (nil)
+    (true)
+    (false)
+    (self)
+    (super)
+    (operator_assignment)
+    (comment)
+  ] @left
+  .
+  [
+    (method)
+    (singleton_method)
+    (class)
+    (module)
+    (call)
+    (assignment)
+    (if)
+    (unless)
+    (while)
+    (until)
+    (for)
+    (case)
+    (begin)
+    (return)
+    (yield)
+    (break)
+    (next)
+    (string)
+    (integer)
+    (float)
+    (simple_symbol)
+    (array)
+    (hash)
+    (identifier)
+    (constant)
+    (instance_variable)
+    (class_variable)
+    (global_variable)
+    (unary)
+    (binary)
+    (conditional)
+    (parenthesized_statements)
+    (block)
+    (do_block)
+    (lambda)
+    (splat_argument)
+    (hash_splat_argument)
+    (element_reference)
+    (scope_resolution)
+    (pair)
+    (regex)
+    (range)
+    (heredoc_body)
+    (heredoc_beginning)
+    (string_array)
+    (nil)
+    (true)
+    (false)
+    (self)
+    (super)
+    (operator_assignment)
+    (comment)
+  ] @right
+) {
+  edge @right.before_scope -> @left.after_scope
+}
+
+;; =============================
+;;  Assignment (local variables)
+;; =============================
+
+(assignment) @asgn {
+  node @asgn.defs
+  node @asgn.lexical_scope
+  node @asgn.before_scope
+  node @asgn.after_scope
+  edge @asgn.lexical_scope -> @asgn.before_scope
+}
+
+;; Simple assignment: `result = expr`
+(assignment
+  left: (identifier) @name) @asgn
+{
+  node def
+  attr (def) node_definition = @name
+  edge @asgn.after_scope -> def
+  edge @asgn.after_scope -> @asgn.before_scope
+  edge @asgn.defs -> def
+}
+
+;; Constant assignment: `MAX_AGE = 150`
+(assignment
+  left: (constant) @name) @asgn
+{
+  node def
+  attr (def) node_definition = @name
+  edge @asgn.after_scope -> def
+  edge @asgn.after_scope -> @asgn.before_scope
+  edge @asgn.defs -> def
+}
+
+;; Wire right-hand side expressions in assignments.
+(assignment
+  right: (call) @rhs) @asgn
+{
+  edge @rhs.lexical_scope -> @asgn.lexical_scope
+}
+
+(assignment
+  right: (identifier) @rhs) @asgn
+{
+  edge @rhs.lexical_scope -> @asgn.lexical_scope
+}
+
+(assignment
+  right: (constant) @rhs) @asgn
+{
+  edge @rhs.lexical_scope -> @asgn.lexical_scope
+}
+
+;; Instance variable assignment: `@name = value`
+(assignment
+  left: (instance_variable) @_ivar) @asgn
+{
+  edge @asgn.after_scope -> @asgn.before_scope
+}
+
+;; =============================
+;;  Operator assignment
+;; =============================
+
+(operator_assignment) @oasgn {
+  node @oasgn.defs
+  node @oasgn.lexical_scope
+  node @oasgn.before_scope
+  node @oasgn.after_scope
+  edge @oasgn.after_scope -> @oasgn.before_scope
+}
+
+;; =============================
+;;  Call expressions (references)
+;; =============================
+
+(call) @call_stub {
+  node @call_stub.defs
+  node @call_stub.lexical_scope
+  node @call_stub.before_scope
+  node @call_stub.after_scope
+  edge @call_stub.after_scope -> @call_stub.before_scope
+}
+
+;; Simple method call without receiver: `greet("World")`
+(call
+  !receiver
+  method: (identifier) @name) @call
+{
+  edge @name.lexical_scope -> @call.lexical_scope
+}
+
+;; Method call with receiver: `User.new('test')`, `self.greet()`
+(call
+  receiver: (_) @recv
+  method: (identifier) @name) @call
+{
+  edge @recv.lexical_scope -> @call.lexical_scope
+  edge @name.lexical_scope -> @call.lexical_scope
+}
+
+;; Wire arguments to the call's scope.
+(call
+  arguments: (argument_list
+    [
+      (identifier)
+      (constant)
+      (call)
+      (string)
+      (integer)
+      (float)
+      (simple_symbol)
+      (array)
+      (hash)
+      (binary)
+      (unary)
+      (conditional)
+      (parenthesized_statements)
+      (instance_variable)
+      (class_variable)
+      (global_variable)
+      (nil)
+      (true)
+      (false)
+      (self)
+      (splat_argument)
+      (hash_splat_argument)
+      (pair)
+      (element_reference)
+      (scope_resolution)
+      (lambda)
+      (regex)
+      (range)
+      (string_array)
+    ] @arg
+  )
+) @call {
+  edge @arg.lexical_scope -> @call.lexical_scope
+}
+
+;; =============================
+;;  Blocks: do_block and block
+;; =============================
+
+(do_block) @dblk {
+  node @dblk.defs
+  node @dblk.lexical_scope
+  node @dblk.before_scope
+  node @dblk.after_scope
+  edge @dblk.after_scope -> @dblk.before_scope
+}
+
+(do_block
+  parameters: (block_parameters) @params
+  body: (body_statement) @body) @dblk
+{
+  edge @body.lexical_scope -> @dblk.lexical_scope
+  edge @body.lexical_scope -> @params.defs
+  attr (@body.lexical_scope -> @params.defs) precedence = 1
+}
+
+(do_block
+  !parameters
+  body: (body_statement) @body) @dblk
+{
+  edge @body.lexical_scope -> @dblk.lexical_scope
+}
+
+(block) @blk {
+  node @blk.defs
+  node @blk.lexical_scope
+  node @blk.before_scope
+  node @blk.after_scope
+  edge @blk.after_scope -> @blk.before_scope
+}
+
+(block
+  parameters: (block_parameters) @params
+  body: (block_body) @body) @blk
+{
+  edge @body.lexical_scope -> @blk.lexical_scope
+  edge @body.lexical_scope -> @params.defs
+  attr (@body.lexical_scope -> @params.defs) precedence = 1
+}
+
+(block
+  !parameters
+  body: (block_body) @body) @blk
+{
+  edge @body.lexical_scope -> @blk.lexical_scope
+}
+
+;; block_body stub
+(block_body) @bb {
+  node @bb.defs
+  node @bb.lexical_scope
+  node @bb.before_scope
+  node @bb.after_scope
+  edge @bb.lexical_scope -> @bb.before_scope
+}
+
+;; =============================
+;;  require_relative as import
+;; =============================
+
+;; `require_relative 'models'` creates an import edge from ROOT_NODE
+;; so that definitions from the required file are visible.
+(call
+  method: (identifier) @_req_method
+  arguments: (argument_list (string) @path)) @req_call
+{
+  ;; We only act on require_relative; other calls fall through harmlessly.
+  ;; The string node's text includes quotes, which is fine for the reference.
+  node ref
+  attr (ref) node_reference = @path
+  edge ref -> ROOT_NODE
+  edge @req_call.lexical_scope -> ref
+}
+
+;; =============================
+;;  Expression / literal stubs
+;; =============================
+;;
+;; These nodes need .defs, .lexical_scope, .before_scope, .after_scope so they
+;; can participate in parent-child wiring without causing "Undefined scoped
+;; variable" errors.
+
+[
+  (string)
+  (integer)
+  (float)
+  (simple_symbol)
+  (array)
+  (hash)
+  (nil)
+  (true)
+  (false)
+  (self)
+  (super)
+  (binary)
+  (unary)
+  (conditional)
+  (parenthesized_statements)
+  (instance_variable)
+  (class_variable)
+  (global_variable)
+  (splat_argument)
+  (hash_splat_argument)
+  (element_reference)
+  (scope_resolution)
+  (pair)
+  (regex)
+  (range)
+  (heredoc_body)
+  (heredoc_beginning)
+  (string_array)
+  (bare_string)
+  (bare_symbol)
+  (lambda)
+  (argument_list)
+] @expr {
+  node @expr.defs
+  node @expr.lexical_scope
+  node @expr.before_scope
+  node @expr.after_scope
+  edge @expr.after_scope -> @expr.before_scope
+}
+
+;; =============================
+;;  Statement stubs
+;; =============================
+
+[
+  (if)
+  (unless)
+  (while)
+  (until)
+  (for)
+  (case)
+  (begin)
+  (return)
+  (yield)
+  (break)
+  (next)
+] @stmt {
+  node @stmt.defs
+  node @stmt.lexical_scope
+  node @stmt.before_scope
+  node @stmt.after_scope
+  edge @stmt.after_scope -> @stmt.before_scope
+}

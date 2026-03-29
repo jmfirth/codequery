@@ -212,9 +212,9 @@ mod tests {
 
     #[test]
     fn test_build_graph_unsupported_language_returns_error() {
-        let source = "puts 'hello'";
-        let files = vec![parse_source(Path::new("main.rb"), source, Language::Ruby)];
-        let result = build_graph(&files, Language::Ruby);
+        let source = "<?php echo 'hello'; ?>";
+        let files = vec![parse_source(Path::new("main.php"), source, Language::Php)];
+        let result = build_graph(&files, Language::Php);
 
         assert!(result.is_err());
         let err = result.unwrap_err();

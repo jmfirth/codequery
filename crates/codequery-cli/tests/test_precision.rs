@@ -495,20 +495,14 @@ fn cpp_fallback_syntactic() {
 }
 
 #[test]
-fn ruby_fallback_syntactic() {
+fn ruby_resolved() {
     let project = fixture_base().join("ruby_project");
     let output = run_cq_project(&project, &["--json", "refs", "User"]);
     assert_exit_code(&output, 0);
     let json = parse_json(&output);
 
-    // Ruby has no TSG rules — must be syntactic
-    assert_resolution(&json, &["syntactic"]);
-
-    // Should have a note
-    assert!(
-        json["note"].as_str().is_some(),
-        "expected 'note' field for syntactic fallback"
-    );
+    // Ruby has TSG rules — should produce resolved references
+    assert_resolution(&json, &["resolved"]);
 
     // Non-empty definitions
     let defs = json["definitions"].as_array().expect("missing definitions");

@@ -7,10 +7,12 @@
 
 pub mod c;
 pub mod cpp;
+pub mod csharp;
 pub mod go;
 pub mod java;
 pub mod javascript;
 pub mod python;
+pub mod ruby;
 pub mod rust;
 pub mod typescript;
 
@@ -21,8 +23,8 @@ use crate::error;
 
 /// Check if a language has stack graph rules available.
 ///
-/// Returns `true` for Python, TypeScript, JavaScript, Java, Go, C, C++, and Rust.
-/// Returns `false` for all Tier 2 languages (not yet supported).
+/// Returns `true` for Python, TypeScript, JavaScript, Java, Go, C, C++, Rust, Ruby, and C#.
+/// Returns `false` for remaining Tier 2 languages (not yet supported).
 #[must_use]
 pub fn has_rules(lang: Language) -> bool {
     matches!(
@@ -35,12 +37,14 @@ pub fn has_rules(lang: Language) -> bool {
             | Language::C
             | Language::Cpp
             | Language::Rust
+            | Language::Ruby
+            | Language::CSharp
     )
 }
 
 /// Create a `StackGraphLanguage` for the given language.
 ///
-/// Returns `None` for languages without stack graph rules (all Tier 2 languages).
+/// Returns `None` for languages without stack graph rules (remaining Tier 2 languages).
 /// Returns `Some(Ok(_))` on successful rule loading, or `Some(Err(_))` if the
 /// TSG rules fail to parse.
 #[must_use]
@@ -54,9 +58,9 @@ pub fn language_config(lang: Language) -> Option<error::Result<StackGraphLanguag
         Language::C => Some(c::create_language()),
         Language::Cpp => Some(cpp::create_language()),
         Language::Rust => Some(rust::create_language()),
-        Language::Ruby
-        | Language::Php
-        | Language::CSharp
+        Language::Ruby => Some(ruby::create_language()),
+        Language::CSharp => Some(csharp::create_language()),
+        Language::Php
         | Language::Swift
         | Language::Kotlin
         | Language::Scala
@@ -172,10 +176,19 @@ mod tests {
     fn test_language_config_cpp_loads_successfully() {
         let result = language_config(Language::Cpp);
         assert!(result.is_some());
-        assert!(
-            result.unwrap().is_ok(),
-            "C++ language config should load"
-        );
+        assert!(result.unwrap().is_ok(), "C++ language config should load");
+    }
+
+    #[test]
+    fn test_has_rules_ruby_returns_true() {
+        assert!(has_rules(Language::Ruby));
+    }
+
+    #[test]
+    fn test_language_config_ruby_loads_successfully() {
+        let result = language_config(Language::Ruby);
+        assert!(result.is_some());
+        assert!(result.unwrap().is_ok(), "Ruby language config should load");
     }
 
     // -----------------------------------------------------------------------
@@ -183,11 +196,21 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
+    fn test_has_rules_csharp_returns_true() {
+        assert!(has_rules(Language::CSharp));
+    }
+
+    #[test]
+    fn test_language_config_csharp_loads_successfully() {
+        let result = language_config(Language::CSharp);
+        assert!(result.is_some());
+        assert!(result.unwrap().is_ok(), "C# language config should load");
+    }
+
+    #[test]
     fn test_has_rules_tier2_returns_false() {
         let tier2 = [
-            Language::Ruby,
             Language::Php,
-            Language::CSharp,
             Language::Swift,
             Language::Kotlin,
             Language::Scala,
@@ -203,9 +226,7 @@ mod tests {
     #[test]
     fn test_language_config_tier2_returns_none() {
         let tier2 = [
-            Language::Ruby,
             Language::Php,
-            Language::CSharp,
             Language::Swift,
             Language::Kotlin,
             Language::Scala,

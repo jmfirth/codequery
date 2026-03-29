@@ -1,0 +1,1289 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Stack graphs definition for C#
+;;
+;; C# scoping model:
+;;   - compilation_unit holds top-level using directives, namespace and type
+;;     declarations, and optional global statements
+;;   - namespace_declaration creates a named scope; file_scoped_namespace_declaration
+;;     does the same but applies to the entire file
+;;   - class_declaration, struct_declaration, interface_declaration create type
+;;     scopes with member definitions
+;;   - method_declaration, constructor_declaration create function scopes with
+;;     parameters visible inside the body
+;;   - local_declaration_statement introduces local variables
+;;   - invocation_expression creates references to callees
+;;   - using_directive imports names from other namespaces
+;;
+;; Wildcard avoidance: explicit type lists are used everywhere so that extras
+;; (comments, preprocessor directives) do not cause "Undefined scoped variable"
+;; errors.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;
+;; Global Variables
+
+global FILE_PATH
+global ROOT_NODE
+global JUMP_TO_SCOPE_NODE
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Attribute Shorthands
+
+attribute node_definition = node        => type = "pop_symbol", node_symbol = node, is_definition
+attribute node_reference = node         => type = "push_symbol", node_symbol = node, is_reference
+attribute pop_node = node               => type = "pop_symbol", node_symbol = node
+attribute pop_scoped_node = node        => type = "pop_scoped_symbol", node_symbol = node
+attribute pop_scoped_symbol = symbol    => type = "pop_scoped_symbol", symbol = symbol
+attribute pop_symbol = symbol           => type = "pop_symbol", symbol = symbol
+attribute push_node = node              => type = "push_symbol", node_symbol = node
+attribute push_scoped_node = node       => type = "push_scoped_symbol", node_symbol = node
+attribute push_scoped_symbol = symbol   => type = "push_scoped_symbol", symbol = symbol
+attribute push_symbol = symbol          => type = "push_symbol", symbol = symbol
+attribute scoped_node_definition = node => type = "pop_scoped_symbol", node_symbol = node, is_definition
+attribute scoped_node_reference = node  => type = "push_scoped_symbol", node_symbol = node, is_reference
+attribute symbol_definition = symbol    => type = "pop_symbol", symbol = symbol, is_definition
+attribute symbol_reference = symbol     => type = "push_symbol", symbol = symbol, is_reference
+
+attribute node_symbol = node            => symbol = (source-text node), source_node = node
+
+;; =============================
+;;  Comment stub (extra node)
+;; =============================
+
+(comment) @c {
+  node @c.defs
+  node @c.lexical_scope
+  node @c.before_scope
+  node @c.after_scope
+  edge @c.after_scope -> @c.before_scope
+}
+
+;; ====================================
+;;  Compilation Unit (file root)
+;; ====================================
+
+(compilation_unit) @cu {
+  node @cu.defs
+  node @cu.lexical_scope
+
+  ; File scope can see the global root (for cross-file resolution)
+  edge @cu.lexical_scope -> ROOT_NODE
+  ; File scope can see its own definitions
+  edge @cu.lexical_scope -> @cu.defs
+  ; Expose file-level definitions to the global root
+  edge ROOT_NODE -> @cu.defs
+}
+
+;; Wire each top-level child into the compilation unit's scope.
+;; compilation_unit children: using_directive, namespace_declaration,
+;; file_scoped_namespace_declaration, type_declaration (class, struct, etc.),
+;; global_statement, global_attribute, preproc_if, extern_alias_directive
+(compilation_unit
+  [
+    (using_directive)
+    (namespace_declaration)
+    (file_scoped_namespace_declaration)
+    (class_declaration)
+    (struct_declaration)
+    (interface_declaration)
+    (enum_declaration)
+    (record_declaration)
+    (delegate_declaration)
+    (global_statement)
+    (global_attribute)
+    (extern_alias_directive)
+    (preproc_if)
+  ] @child
+) @cu {
+  edge @cu.defs -> @child.defs
+  edge @child.lexical_scope -> @cu.lexical_scope
+}
+
+;; =============================
+;;  Identifier (references)
+;; =============================
+
+(identifier) @name {
+  node @name.ref
+  node @name.defs
+  node @name.lexical_scope
+  attr (@name.ref) node_reference = @name
+  edge @name.ref -> @name.lexical_scope
+}
+
+;; =============================
+;;  Qualified Name
+;; =============================
+
+;; qualified_name has fields: qualifier, name
+;; We provide scope stubs so it can participate in wiring.
+(qualified_name) @qn {
+  node @qn.ref
+  node @qn.defs
+  node @qn.lexical_scope
+}
+
+;; Wire qualifier and name of qualified_name.
+(qualified_name
+  qualifier: [
+    (identifier)
+    (qualified_name)
+    (alias_qualified_name)
+    (generic_name)
+  ] @qual
+  name: [
+    (identifier)
+    (generic_name)
+  ] @nm
+) @qn {
+  edge @qual.lexical_scope -> @qn.lexical_scope
+  edge @nm.lexical_scope -> @qual.ref
+  edge @qn.ref -> @nm.ref
+}
+
+;; =============================
+;;  Predefined type stub
+;; =============================
+
+(predefined_type) @prim {
+  node @prim.defs
+  node @prim.lexical_scope
+}
+
+;; =============================
+;;  Generic name stub
+;; =============================
+
+(generic_name) @gn {
+  node @gn.ref
+  node @gn.defs
+  node @gn.lexical_scope
+}
+
+;; =============================
+;;  Alias qualified name stub
+;; =============================
+
+(alias_qualified_name) @aqn {
+  node @aqn.ref
+  node @aqn.defs
+  node @aqn.lexical_scope
+}
+
+;; =============================
+;;  Implicit type stub (var)
+;; =============================
+
+(implicit_type) @it {
+  node @it.defs
+  node @it.lexical_scope
+}
+
+;; =============================
+;;  Namespace Declarations
+;; =============================
+
+;; Stub for all namespace_declaration nodes.
+(namespace_declaration) @ns_stub {
+  node @ns_stub.defs
+  node @ns_stub.lexical_scope
+}
+
+;; namespace_declaration with identifier name and body.
+(namespace_declaration
+  name: (identifier) @name
+  body: (declaration_list) @body) @ns
+{
+  node def
+  attr (def) node_definition = @name
+  edge @ns.defs -> def
+  edge def -> @body.defs
+
+  ; Body scope sees enclosing scope
+  edge @body.lexical_scope -> @ns.lexical_scope
+  ; Body scope sees its own members
+  edge @body.lexical_scope -> @body.defs
+}
+
+;; namespace_declaration with qualified_name (e.g. namespace MyApp.Models { })
+(namespace_declaration
+  name: (qualified_name) @name
+  body: (declaration_list) @body) @ns
+{
+  node def
+  attr (def) node_definition = @name
+  edge @ns.defs -> def
+  edge def -> @body.defs
+
+  edge @body.lexical_scope -> @ns.lexical_scope
+  edge @body.lexical_scope -> @body.defs
+}
+
+;; File-scoped namespace declaration (C# 10+): `namespace MyLib;`
+(file_scoped_namespace_declaration) @fsns {
+  node @fsns.defs
+  node @fsns.lexical_scope
+}
+
+;; =============================
+;;  Declaration List
+;; =============================
+
+;; declaration_list is the body of namespace/class/struct/interface/enum.
+;; Its children are `declaration` nodes (abstract supertype).
+(declaration_list) @dl {
+  node @dl.defs
+  node @dl.lexical_scope
+}
+
+;; Wire each child declaration into the declaration list's scope.
+;; declaration subtypes: class_declaration, constructor_declaration, etc.
+(declaration_list
+  [
+    (class_declaration)
+    (struct_declaration)
+    (interface_declaration)
+    (enum_declaration)
+    (record_declaration)
+    (delegate_declaration)
+    (method_declaration)
+    (constructor_declaration)
+    (destructor_declaration)
+    (field_declaration)
+    (property_declaration)
+    (event_declaration)
+    (event_field_declaration)
+    (indexer_declaration)
+    (operator_declaration)
+    (conversion_operator_declaration)
+    (namespace_declaration)
+    (using_directive)
+    (preproc_if)
+  ] @child
+) @dl {
+  edge @dl.defs -> @child.defs
+  edge @child.lexical_scope -> @dl.lexical_scope
+}
+
+;; =============================
+;;  Using Directive
+;; =============================
+
+;; using_directive brings a namespace's names into scope.
+;; For `using System;` the tree is: using_directive > qualified_name or identifier
+;; (through the _name hidden rule — appears as child without field name).
+
+(using_directive) @ud {
+  node @ud.defs
+  node @ud.lexical_scope
+}
+
+;; Wire the child name/qualified_name to look things up from ROOT_NODE.
+(using_directive
+  [
+    (identifier)
+    (qualified_name)
+    (alias_qualified_name)
+    (generic_name)
+  ] @ref_name
+) @ud {
+  edge @ref_name.lexical_scope -> ROOT_NODE
+  edge @ud.defs -> @ref_name.ref
+}
+
+;; =============================
+;;  Class Declaration
+;; =============================
+
+(class_declaration) @class_stub {
+  node @class_stub.defs
+  node @class_stub.lexical_scope
+}
+
+(class_declaration
+  name: (identifier) @name
+  body: (declaration_list) @body) @class
+{
+  node def
+  attr (def) node_definition = @name
+  edge @class.defs -> def
+  edge def -> @body.defs
+
+  ; Class body scope sees enclosing scope
+  edge @body.lexical_scope -> @class.lexical_scope
+  ; Class body scope sees its own members
+  edge @body.lexical_scope -> @body.defs
+  attr (@body.lexical_scope -> @body.defs) precedence = 1
+}
+
+;; =============================
+;;  Struct Declaration
+;; =============================
+
+(struct_declaration) @struct_stub {
+  node @struct_stub.defs
+  node @struct_stub.lexical_scope
+}
+
+(struct_declaration
+  name: (identifier) @name
+  body: (declaration_list) @body) @struct_decl
+{
+  node def
+  attr (def) node_definition = @name
+  edge @struct_decl.defs -> def
+  edge def -> @body.defs
+
+  edge @body.lexical_scope -> @struct_decl.lexical_scope
+  edge @body.lexical_scope -> @body.defs
+  attr (@body.lexical_scope -> @body.defs) precedence = 1
+}
+
+;; =============================
+;;  Interface Declaration
+;; =============================
+
+(interface_declaration) @iface_stub {
+  node @iface_stub.defs
+  node @iface_stub.lexical_scope
+}
+
+(interface_declaration
+  name: (identifier) @name
+  body: (declaration_list) @body) @iface
+{
+  node def
+  attr (def) node_definition = @name
+  edge @iface.defs -> def
+  edge def -> @body.defs
+
+  edge @body.lexical_scope -> @iface.lexical_scope
+  edge @body.lexical_scope -> @body.defs
+}
+
+;; =============================
+;;  Enum Declaration
+;; =============================
+
+(enum_declaration) @enum_stub {
+  node @enum_stub.defs
+  node @enum_stub.lexical_scope
+}
+
+(enum_declaration
+  name: (identifier) @name
+  body: (enum_member_declaration_list) @body) @enum_decl
+{
+  node def
+  attr (def) node_definition = @name
+  edge @enum_decl.defs -> def
+  edge def -> @body.defs
+}
+
+(enum_member_declaration_list) @eml {
+  node @eml.defs
+  node @eml.lexical_scope
+}
+
+(enum_member_declaration_list
+  [
+    (enum_member_declaration)
+    (preproc_if)
+  ] @child
+) @eml {
+  edge @eml.defs -> @child.defs
+}
+
+(enum_member_declaration) @emd_stub {
+  node @emd_stub.defs
+  node @emd_stub.lexical_scope
+}
+
+(enum_member_declaration
+  name: (identifier) @name) @emd
+{
+  node def
+  attr (def) node_definition = @name
+  edge @emd.defs -> def
+}
+
+;; =============================
+;;  Record Declaration
+;; =============================
+
+(record_declaration) @rec_stub {
+  node @rec_stub.defs
+  node @rec_stub.lexical_scope
+}
+
+;; =============================
+;;  Delegate Declaration
+;; =============================
+
+(delegate_declaration) @del_stub {
+  node @del_stub.defs
+  node @del_stub.lexical_scope
+}
+
+;; =============================
+;;  Method Declaration
+;; =============================
+
+(method_declaration) @method_stub {
+  node @method_stub.defs
+  node @method_stub.lexical_scope
+}
+
+(method_declaration
+  name: (identifier) @name
+  parameters: (parameter_list) @params
+  body: (block) @body) @method
+{
+  ; Define the method name in the enclosing scope
+  node def
+  attr (def) node_definition = @name
+  edge @method.defs -> def
+
+  ; Body scope can see the enclosing scope (class members, file scope, etc.)
+  edge @body.lexical_scope -> @method.lexical_scope
+
+  ; Parameters are visible inside the body with higher precedence
+  edge @body.lexical_scope -> @params.defs
+  attr (@body.lexical_scope -> @params.defs) precedence = 1
+}
+
+;; Method with arrow expression body (expression-bodied method)
+(method_declaration
+  name: (identifier) @name
+  parameters: (parameter_list) @params
+  body: (arrow_expression_clause) @arrow) @method
+{
+  node def
+  attr (def) node_definition = @name
+  edge @method.defs -> def
+
+  edge @arrow.lexical_scope -> @method.lexical_scope
+  edge @arrow.lexical_scope -> @params.defs
+}
+
+;; =============================
+;;  Constructor Declaration
+;; =============================
+
+(constructor_declaration) @ctor_stub {
+  node @ctor_stub.defs
+  node @ctor_stub.lexical_scope
+}
+
+(constructor_declaration
+  name: (identifier) @name
+  parameters: (parameter_list) @params
+  body: (block) @body) @ctor
+{
+  node def
+  attr (def) node_definition = @name
+  edge @ctor.defs -> def
+
+  edge @body.lexical_scope -> @ctor.lexical_scope
+  edge @body.lexical_scope -> @params.defs
+  attr (@body.lexical_scope -> @params.defs) precedence = 1
+}
+
+;; =============================
+;;  Destructor Declaration
+;; =============================
+
+(destructor_declaration) @dtor_stub {
+  node @dtor_stub.defs
+  node @dtor_stub.lexical_scope
+}
+
+;; =============================
+;;  Parameter List
+;; =============================
+
+(parameter_list) @params {
+  node @params.defs
+  node @params.lexical_scope
+}
+
+(parameter_list (parameter) @param) @params {
+  edge @params.defs -> @param.defs
+  edge @param.lexical_scope -> @params.lexical_scope
+}
+
+;; =============================
+;;  Parameter
+;; =============================
+
+(parameter) @param_stub {
+  node @param_stub.defs
+  node @param_stub.lexical_scope
+}
+
+(parameter
+  name: (identifier) @name) @param
+{
+  node def
+  attr (def) node_definition = @name
+  edge @param.defs -> def
+}
+
+;; =============================
+;;  Field Declaration
+;; =============================
+
+(field_declaration) @field_stub {
+  node @field_stub.defs
+  node @field_stub.lexical_scope
+}
+
+;; field_declaration contains a variable_declaration child.
+(field_declaration
+  (variable_declaration) @vd) @field
+{
+  edge @field.defs -> @vd.defs
+  edge @vd.lexical_scope -> @field.lexical_scope
+}
+
+;; =============================
+;;  Property Declaration
+;; =============================
+
+(property_declaration) @prop_stub {
+  node @prop_stub.defs
+  node @prop_stub.lexical_scope
+}
+
+(property_declaration
+  name: (identifier) @name) @prop
+{
+  node def
+  attr (def) node_definition = @name
+  edge @prop.defs -> def
+}
+
+;; =============================
+;;  Event Declaration
+;; =============================
+
+(event_declaration) @event_stub {
+  node @event_stub.defs
+  node @event_stub.lexical_scope
+}
+
+(event_field_declaration) @efield_stub {
+  node @efield_stub.defs
+  node @efield_stub.lexical_scope
+}
+
+;; =============================
+;;  Indexer, Operator, Conversion Operator
+;; =============================
+
+(indexer_declaration) @idx_stub {
+  node @idx_stub.defs
+  node @idx_stub.lexical_scope
+}
+
+(operator_declaration) @op_stub {
+  node @op_stub.defs
+  node @op_stub.lexical_scope
+}
+
+(conversion_operator_declaration) @conv_stub {
+  node @conv_stub.defs
+  node @conv_stub.lexical_scope
+}
+
+;; =============================
+;;  Variable Declaration
+;; =============================
+
+;; variable_declaration has field type and children variable_declarator.
+(variable_declaration) @vd {
+  node @vd.defs
+  node @vd.lexical_scope
+}
+
+(variable_declaration (variable_declarator) @vdecl) @vd {
+  edge @vd.defs -> @vdecl.defs
+  edge @vdecl.lexical_scope -> @vd.lexical_scope
+}
+
+;; =============================
+;;  Variable Declarator
+;; =============================
+
+(variable_declarator) @vdecl_stub {
+  node @vdecl_stub.defs
+  node @vdecl_stub.lexical_scope
+}
+
+(variable_declarator
+  name: (identifier) @name) @vdecl
+{
+  node def
+  attr (def) node_definition = @name
+  edge @vdecl.defs -> def
+}
+
+;; Wire initializer expressions in variable_declarator to the scope.
+;; The initializer is a child expression (not a named field).
+;; Wire initializer expressions in variable_declarator to the scope.
+;; The initializer is a child expression (not a named field).
+;; Use concrete types, not supertypes, to avoid undefined scoped variable errors.
+(variable_declarator
+  [
+    (identifier)
+    (invocation_expression)
+    (member_access_expression)
+    (binary_expression)
+    (object_creation_expression)
+    (parenthesized_expression)
+    (interpolated_string_expression)
+    (cast_expression)
+    (conditional_expression)
+    (prefix_unary_expression)
+    (postfix_unary_expression)
+    (element_access_expression)
+    (integer_literal)
+    (real_literal)
+    (string_literal)
+    (character_literal)
+    (boolean_literal)
+    (null_literal)
+    (verbatim_string_literal)
+    (raw_string_literal)
+    (default_expression)
+    (typeof_expression)
+    (sizeof_expression)
+    (array_creation_expression)
+    (await_expression)
+    (lambda_expression)
+    (anonymous_method_expression)
+    (anonymous_object_creation_expression)
+    (assignment_expression)
+    (conditional_access_expression)
+    (switch_expression)
+  ] @init_expr
+) @vdecl
+{
+  edge @init_expr.lexical_scope -> @vdecl.lexical_scope
+}
+
+;; =============================
+;;  Block (statement sequences)
+;; =============================
+
+(block) @block {
+  node @block.defs
+  node @block.lexical_scope
+  node @block.before_scope
+  node @block.after_scope
+
+  edge @block.lexical_scope -> @block.before_scope
+}
+
+;; First statement in a block inherits the block's scope.
+(block .
+  [
+    (local_declaration_statement)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (foreach_statement)
+    (switch_statement)
+    (try_statement)
+    (throw_statement)
+    (break_statement)
+    (continue_statement)
+    (block)
+    (empty_statement)
+    (labeled_statement)
+    (lock_statement)
+    (using_statement)
+    (checked_statement)
+    (unsafe_statement)
+    (fixed_statement)
+    (goto_statement)
+    (yield_statement)
+    (local_function_statement)
+    (preproc_if)
+    (comment)
+  ] @first
+) @block {
+  edge @first.before_scope -> @block.lexical_scope
+}
+
+;; Chain consecutive statements: right sees definitions from left.
+(block
+  [
+    (local_declaration_statement)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (foreach_statement)
+    (switch_statement)
+    (try_statement)
+    (throw_statement)
+    (break_statement)
+    (continue_statement)
+    (block)
+    (empty_statement)
+    (labeled_statement)
+    (lock_statement)
+    (using_statement)
+    (checked_statement)
+    (unsafe_statement)
+    (fixed_statement)
+    (goto_statement)
+    (yield_statement)
+    (local_function_statement)
+    (preproc_if)
+    (comment)
+  ] @left
+  .
+  [
+    (local_declaration_statement)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (foreach_statement)
+    (switch_statement)
+    (try_statement)
+    (throw_statement)
+    (break_statement)
+    (continue_statement)
+    (block)
+    (empty_statement)
+    (labeled_statement)
+    (lock_statement)
+    (using_statement)
+    (checked_statement)
+    (unsafe_statement)
+    (fixed_statement)
+    (goto_statement)
+    (yield_statement)
+    (local_function_statement)
+    (preproc_if)
+    (comment)
+  ] @right
+) {
+  edge @right.before_scope -> @left.after_scope
+}
+
+;; =============================
+;;  Statements
+;; =============================
+
+;; All statement types need before/after scope for sequencing.
+
+[
+  (expression_statement)
+  (return_statement)
+  (if_statement)
+  (while_statement)
+  (do_statement)
+  (for_statement)
+  (foreach_statement)
+  (switch_statement)
+  (try_statement)
+  (throw_statement)
+  (break_statement)
+  (continue_statement)
+  (empty_statement)
+  (labeled_statement)
+  (lock_statement)
+  (using_statement)
+  (checked_statement)
+  (unsafe_statement)
+  (fixed_statement)
+  (goto_statement)
+  (yield_statement)
+  (local_function_statement)
+] @stmt
+{
+  node @stmt.defs
+  node @stmt.lexical_scope
+  node @stmt.before_scope
+  node @stmt.after_scope
+  edge @stmt.after_scope -> @stmt.before_scope
+}
+
+;; =============================
+;;  Local Declaration Statement
+;; =============================
+
+;; local_declaration_statement contains a variable_declaration child.
+(local_declaration_statement) @lds {
+  node @lds.defs
+  node @lds.lexical_scope
+  node @lds.before_scope
+  node @lds.after_scope
+
+  edge @lds.lexical_scope -> @lds.before_scope
+}
+
+;; Wire the variable_declaration into the local declaration's scope.
+(local_declaration_statement
+  (variable_declaration) @vd) @lds
+{
+  edge @vd.lexical_scope -> @lds.lexical_scope
+  edge @lds.after_scope -> @lds.before_scope
+}
+
+;; Wire the defined names so subsequent statements see them.
+(local_declaration_statement
+  (variable_declaration
+    (variable_declarator
+      name: (identifier) @name))) @lds
+{
+  node def
+  attr (def) node_definition = @name
+  edge @lds.after_scope -> def
+  edge @lds.defs -> def
+}
+
+;; =============================
+;;  Expression Statement
+;; =============================
+
+;; Wire the expression inside to the statement's scope.
+(expression_statement
+  [
+    (invocation_expression)
+    (assignment_expression)
+    (object_creation_expression)
+    (await_expression)
+    (postfix_unary_expression)
+    (prefix_unary_expression)
+    (parenthesized_expression)
+  ] @expr
+) @expr_stmt {
+  edge @expr.lexical_scope -> @expr_stmt.before_scope
+}
+
+;; =============================
+;;  Return Statement
+;; =============================
+
+(return_statement
+  [
+    (identifier)
+    (invocation_expression)
+    (member_access_expression)
+    (binary_expression)
+    (object_creation_expression)
+    (parenthesized_expression)
+    (interpolated_string_expression)
+    (cast_expression)
+    (conditional_expression)
+    (prefix_unary_expression)
+    (postfix_unary_expression)
+    (await_expression)
+    (element_access_expression)
+    (integer_literal)
+    (real_literal)
+    (string_literal)
+    (character_literal)
+    (boolean_literal)
+    (null_literal)
+    (verbatim_string_literal)
+    (raw_string_literal)
+    (default_expression)
+    (typeof_expression)
+    (sizeof_expression)
+  ] @expr
+) @stmt {
+  edge @expr.lexical_scope -> @stmt.before_scope
+}
+
+;; =============================
+;;  If / While / Do / For
+;; =============================
+
+(if_statement
+  condition: (parenthesized_expression) @cond) @stmt
+{
+  edge @cond.lexical_scope -> @stmt.before_scope
+}
+
+(if_statement (block) @body) @stmt {
+  edge @body.before_scope -> @stmt.before_scope
+}
+
+(while_statement (block) @body) @stmt {
+  edge @body.before_scope -> @stmt.before_scope
+}
+
+(do_statement (block) @body) @stmt {
+  edge @body.before_scope -> @stmt.before_scope
+}
+
+(for_statement (block) @body) @stmt {
+  edge @body.before_scope -> @stmt.before_scope
+}
+
+(foreach_statement (block) @body) @stmt {
+  edge @body.before_scope -> @stmt.before_scope
+}
+
+;; =============================
+;;  Try Statement
+;; =============================
+
+(try_statement (block) @body) @stmt {
+  edge @body.before_scope -> @stmt.before_scope
+}
+
+;; =============================
+;;  Arrow Expression Clause
+;; =============================
+
+(arrow_expression_clause) @arrow {
+  node @arrow.defs
+  node @arrow.lexical_scope
+}
+
+;; =============================
+;;  Invocation Expression
+;; =============================
+
+;; All invocation_expression nodes need scope stubs.
+(invocation_expression) @inv_stub {
+  node @inv_stub.defs
+  node @inv_stub.lexical_scope
+}
+
+;; Simple call: `Greet()` — function is an identifier
+(invocation_expression
+  function: (identifier) @name) @inv
+{
+  edge @name.lexical_scope -> @inv.lexical_scope
+}
+
+;; Member call: `obj.Method()` — function is a member_access_expression
+(invocation_expression
+  function: (member_access_expression) @mae) @inv
+{
+  edge @mae.lexical_scope -> @inv.lexical_scope
+}
+
+;; Wire arguments to invocation scope
+(invocation_expression
+  arguments: (argument_list
+    (argument) @arg
+  )
+) @inv
+{
+  edge @arg.lexical_scope -> @inv.lexical_scope
+}
+
+;; =============================
+;;  Member Access Expression
+;; =============================
+
+(member_access_expression) @mae_stub {
+  node @mae_stub.defs
+  node @mae_stub.lexical_scope
+  node @mae_stub.ref
+}
+
+(member_access_expression
+  expression: [
+    (identifier)
+    (member_access_expression)
+    (invocation_expression)
+    (parenthesized_expression)
+    (element_access_expression)
+    (generic_name)
+    (predefined_type)
+    (qualified_name)
+  ] @expr
+  name: [
+    (identifier)
+    (generic_name)
+  ] @name) @mae
+{
+  edge @expr.lexical_scope -> @mae.lexical_scope
+  ; For name lookup, name resolves through the expression — simplified:
+  ; we also let name see the enclosing scope for flat resolution.
+  edge @name.lexical_scope -> @mae.lexical_scope
+}
+
+;; =============================
+;;  Argument
+;; =============================
+
+(argument) @arg_stub {
+  node @arg_stub.defs
+  node @arg_stub.lexical_scope
+}
+
+;; Wire the argument's expression to the argument's scope.
+(argument
+  [
+    (identifier)
+    (invocation_expression)
+    (member_access_expression)
+    (binary_expression)
+    (object_creation_expression)
+    (parenthesized_expression)
+    (interpolated_string_expression)
+    (cast_expression)
+    (conditional_expression)
+    (prefix_unary_expression)
+    (postfix_unary_expression)
+    (element_access_expression)
+    (integer_literal)
+    (real_literal)
+    (string_literal)
+    (character_literal)
+    (boolean_literal)
+    (null_literal)
+    (verbatim_string_literal)
+    (raw_string_literal)
+    (default_expression)
+    (typeof_expression)
+    (lambda_expression)
+    (anonymous_method_expression)
+    (anonymous_object_creation_expression)
+    (array_creation_expression)
+    (await_expression)
+  ] @expr
+) @arg {
+  edge @expr.lexical_scope -> @arg.lexical_scope
+}
+
+;; =============================
+;;  Other Expressions (stubs)
+;; =============================
+
+;; These expression types need .defs and .lexical_scope so they can be
+;; wired as children in expression contexts.
+
+[
+  (assignment_expression)
+  (binary_expression)
+  (cast_expression)
+  (conditional_expression)
+  (conditional_access_expression)
+  (prefix_unary_expression)
+  (postfix_unary_expression)
+  (parenthesized_expression)
+  (object_creation_expression)
+  (element_access_expression)
+  (element_binding_expression)
+  (interpolated_string_expression)
+  (is_expression)
+  (is_pattern_expression)
+  (as_expression)
+  (typeof_expression)
+  (sizeof_expression)
+  (default_expression)
+  (checked_expression)
+  (throw_expression)
+  (switch_expression)
+  (range_expression)
+  (with_expression)
+  (ref_expression)
+  (reftype_expression)
+  (refvalue_expression)
+  (makeref_expression)
+  (stackalloc_expression)
+  (lambda_expression)
+  (anonymous_method_expression)
+  (anonymous_object_creation_expression)
+  (array_creation_expression)
+  (await_expression)
+  (query_expression)
+  (tuple_expression)
+] @expr
+{
+  node @expr.defs
+  node @expr.lexical_scope
+}
+
+;; Wire sub-expressions within binary/assignment/etc.
+(assignment_expression left: (_) @left right: (_) @right) @expr {
+  edge @left.lexical_scope -> @expr.lexical_scope
+  edge @right.lexical_scope -> @expr.lexical_scope
+}
+
+(binary_expression left: (_) @left right: (_) @right) @expr {
+  edge @left.lexical_scope -> @expr.lexical_scope
+  edge @right.lexical_scope -> @expr.lexical_scope
+}
+
+(parenthesized_expression (_) @child) @expr {
+  edge @child.lexical_scope -> @expr.lexical_scope
+}
+
+;; =============================
+;;  Literal stubs
+;; =============================
+
+[
+  (integer_literal)
+  (real_literal)
+  (string_literal)
+  (character_literal)
+  (boolean_literal)
+  (null_literal)
+  (verbatim_string_literal)
+  (raw_string_literal)
+] @lit
+{
+  node @lit.defs
+  node @lit.lexical_scope
+}
+
+;; =============================
+;;  This / Base
+;; =============================
+
+;; `this` and `base` are anonymous (keyword) nodes in tree-sitter-c-sharp,
+;; so they cannot be matched directly in TSG patterns. They are handled
+;; implicitly through the member_access_expression and expression context.
+
+;; =============================
+;;  Modifier stub
+;; =============================
+
+(modifier) @mod {
+  node @mod.defs
+  node @mod.lexical_scope
+}
+
+;; =============================
+;;  Attribute list stub
+;; =============================
+
+(attribute_list) @al {
+  node @al.defs
+  node @al.lexical_scope
+}
+
+;; =============================
+;;  Base list stub
+;; =============================
+
+(base_list) @bl {
+  node @bl.defs
+  node @bl.lexical_scope
+}
+
+;; =============================
+;;  Preprocessor stubs
+;; =============================
+
+(preproc_if) @pp {
+  node @pp.defs
+  node @pp.lexical_scope
+  node @pp.before_scope
+  node @pp.after_scope
+  edge @pp.after_scope -> @pp.before_scope
+}
+
+;; Wire preproc_if children through to parent scope.
+(preproc_if
+  [
+    (class_declaration)
+    (struct_declaration)
+    (interface_declaration)
+    (enum_declaration)
+    (method_declaration)
+    (field_declaration)
+    (property_declaration)
+    (constructor_declaration)
+    (namespace_declaration)
+    (using_directive)
+    (delegate_declaration)
+    (record_declaration)
+    (event_declaration)
+    (event_field_declaration)
+    (local_declaration_statement)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (for_statement)
+    (foreach_statement)
+    (switch_statement)
+    (try_statement)
+    (block)
+    (break_statement)
+    (continue_statement)
+    (throw_statement)
+    (empty_statement)
+    (comment)
+  ] @child
+) @pp {
+  edge @pp.defs -> @child.defs
+  edge @child.lexical_scope -> @pp.lexical_scope
+}
+
+;; =============================
+;;  Global Statement stub
+;; =============================
+
+(global_statement) @gs {
+  node @gs.defs
+  node @gs.lexical_scope
+}
+
+;; =============================
+;;  Global Attribute stub
+;; =============================
+
+(global_attribute) @ga {
+  node @ga.defs
+  node @ga.lexical_scope
+}
+
+;; =============================
+;;  Extern Alias Directive stub
+;; =============================
+
+(extern_alias_directive) @ead {
+  node @ead.defs
+  node @ead.lexical_scope
+}
+
+;; =============================
+;;  Accessor list / declaration stubs
+;; =============================
+
+(accessor_list) @acl {
+  node @acl.defs
+  node @acl.lexical_scope
+}
+
+(accessor_declaration) @acd {
+  node @acd.defs
+  node @acd.lexical_scope
+}
+
+;; =============================
+;;  Type parameter stubs
+;; =============================
+
+(type_parameter_list) @tpl {
+  node @tpl.defs
+  node @tpl.lexical_scope
+}
+
+(type_parameter) @tp {
+  node @tp.defs
+  node @tp.lexical_scope
+}

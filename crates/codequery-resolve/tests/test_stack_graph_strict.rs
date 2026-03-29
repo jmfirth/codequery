@@ -1207,3 +1207,341 @@ fn cpp_fixture_project_no_tsg_errors() {
         );
     }
 }
+
+// ===========================================================================
+// Ruby: MUST produce Resolution::Resolved
+// ===========================================================================
+
+#[test]
+fn ruby_same_file_resolved() {
+    let source = "def greet(name)\n  \"Hello, #{name}!\"\nend\n\ngreet('world')\n";
+    let fs = make_file_symbols("app.rb", source, Language::Ruby);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "greet");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "Ruby same-file: expected >= 1 reference for 'greet', got 0. Warnings: {:?}",
+        result.warnings
+    );
+    for r in refs {
+        assert_eq!(r.symbol, "greet");
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "Ruby same-file: all references MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+}
+
+#[test]
+fn ruby_same_file_class_method_resolved() {
+    // Class with a method defined and called within the same file.
+    let source = concat!(
+        "class User\n",
+        "  def greet\n",
+        "    \"Hello\"\n",
+        "  end\n",
+        "end\n",
+        "\n",
+        "u = User.new\n",
+    );
+    let fs = make_file_symbols("models.rb", source, Language::Ruby);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "User");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "Ruby class same-file: expected >= 1 reference for 'User', got 0. Warnings: {:?}",
+        result.warnings
+    );
+    for r in refs {
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "Ruby class same-file: reference MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+}
+
+#[test]
+fn ruby_file_with_comments_resolved() {
+    // Real-world Ruby files have comments. Ensure no TSG errors.
+    let source = concat!(
+        "# Main entry point for the Ruby project.\n",
+        "# This is a multi-line comment block.\n",
+        "\n",
+        "def greet(name)\n",
+        "  # Greet the user\n",
+        "  \"Hello, #{name}!\"\n",
+        "end\n",
+        "\n",
+        "# Call the function\n",
+        "result = greet('world')\n",
+    );
+    let fs = make_file_symbols("app.rb", source, Language::Ruby);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "greet");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "Ruby with comments: expected >= 1 reference for 'greet', got 0. Warnings: {:?}",
+        result.warnings
+    );
+    for r in refs {
+        assert_eq!(r.symbol, "greet");
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "Ruby with comments: references MUST be Resolved, got {:?}. \
+             This likely means the wildcard fix regressed.",
+            r.resolution
+        );
+    }
+}
+
+#[test]
+fn ruby_module_method_no_tsg_errors() {
+    // Module with singleton methods should not cause TSG errors.
+    let source = concat!(
+        "module Utils\n",
+        "  def self.format_name(first, last)\n",
+        "    \"#{first} #{last}\"\n",
+        "  end\n",
+        "\n",
+        "  def self.validate(value)\n",
+        "    !value.nil?\n",
+        "  end\n",
+        "end\n",
+    );
+    let fs = make_file_symbols("utils.rb", source, Language::Ruby);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "format_name");
+
+    // The key assertion is that warnings don't contain "Undefined scoped variable".
+    for w in &result.warnings {
+        assert!(
+            !w.contains("Undefined scoped variable"),
+            "Ruby module: should not produce 'Undefined scoped variable' errors, \
+             got warning: {w}"
+        );
+    }
+}
+
+#[test]
+fn ruby_fixture_project_no_tsg_errors() {
+    // Test against the actual Ruby fixture project files.
+    let fixture_root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/ruby_project");
+    let fixture_files = [
+        ("lib/main.rb", Language::Ruby),
+        ("lib/models.rb", Language::Ruby),
+        ("lib/utils.rb", Language::Ruby),
+    ];
+
+    let scan_results: Vec<codequery_index::FileSymbols> = fixture_files
+        .iter()
+        .filter_map(|(rel, lang)| {
+            let abs = fixture_root.join(rel);
+            let source = std::fs::read_to_string(&abs).ok()?;
+            Some(make_file_symbols(rel, &source, *lang))
+        })
+        .collect();
+
+    assert_eq!(
+        scan_results.len(),
+        3,
+        "all 3 Ruby fixture files should be readable"
+    );
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&scan_results, "greet");
+
+    // No "Undefined scoped variable" errors.
+    for w in &result.warnings {
+        assert!(
+            !w.contains("Undefined scoped variable"),
+            "Ruby fixture: should not produce 'Undefined scoped variable' errors, \
+             got warning: {w}"
+        );
+    }
+
+    // Should find at least one reference.
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "Ruby fixture: expected >= 1 reference for 'greet', got 0. Warnings: {:?}",
+        result.warnings
+    );
+}
+
+// ===========================================================================
+// C#: MUST produce Resolution::Resolved
+// ===========================================================================
+
+#[test]
+fn csharp_same_file_resolved() {
+    let source =
+        "class Program {\n  static void Greet() { }\n  static void Main() { Greet(); }\n}\n";
+    let fs = make_file_symbols("Program.cs", source, Language::CSharp);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "Greet");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "C# same-file: expected >= 1 reference for 'Greet', got 0. Warnings: {:?}",
+        result.warnings
+    );
+    for r in refs {
+        assert_eq!(r.symbol, "Greet");
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "C# same-file: all references MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+}
+
+#[test]
+fn csharp_class_with_members_resolved() {
+    let source = concat!(
+        "class User {\n",
+        "  private int _age;\n",
+        "  public void Greet() { }\n",
+        "  public void Run() { Greet(); }\n",
+        "}\n",
+    );
+    let fs = make_file_symbols("User.cs", source, Language::CSharp);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "Greet");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "C# class members: expected >= 1 reference for 'Greet', got 0. Warnings: {:?}",
+        result.warnings
+    );
+    for r in refs {
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "C# class members: reference MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+}
+
+#[test]
+fn csharp_namespace_class_resolved() {
+    let source = concat!(
+        "namespace MyApp {\n",
+        "  class Helper {\n",
+        "    static void DoWork() { }\n",
+        "    static void Main() { DoWork(); }\n",
+        "  }\n",
+        "}\n",
+    );
+    let fs = make_file_symbols("Helper.cs", source, Language::CSharp);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "DoWork");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "C# namespace: expected >= 1 reference for 'DoWork', got 0. Warnings: {:?}",
+        result.warnings
+    );
+    for r in refs {
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "C# namespace: reference MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+}
+
+#[test]
+fn csharp_local_variable_resolved() {
+    let source = concat!(
+        "class Program {\n",
+        "  static void Main() {\n",
+        "    int x = 42;\n",
+        "    int y = x;\n",
+        "  }\n",
+        "}\n",
+    );
+    let fs = make_file_symbols("Locals.cs", source, Language::CSharp);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "x");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "C# locals: expected >= 1 reference for 'x', got 0. Warnings: {:?}",
+        result.warnings
+    );
+    for r in refs {
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "C# locals: reference MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+}
+
+#[test]
+fn csharp_fixture_project_no_tsg_errors() {
+    let fixture_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/csharp_project");
+    let fixture_files = vec![("src/Models.cs", Language::CSharp)];
+
+    let scan_results: Vec<codequery_index::FileSymbols> = fixture_files
+        .iter()
+        .filter_map(|(rel, lang)| {
+            let abs = fixture_root.join(rel);
+            let source = std::fs::read_to_string(&abs).ok()?;
+            Some(make_file_symbols(rel, &source, *lang))
+        })
+        .collect();
+
+    assert_eq!(scan_results.len(), 1, "C# fixture file should be readable");
+
+    let mut resolver = StackGraphResolver::new();
+
+    // Resolve ValidateAge — it is defined and called within the same file.
+    let result = resolver.resolve_refs(&scan_results, "ValidateAge");
+
+    // No "Undefined scoped variable" errors.
+    for w in &result.warnings {
+        assert!(
+            !w.contains("Undefined scoped variable"),
+            "C# fixture: should not produce 'Undefined scoped variable' errors, \
+             got warning: {w}"
+        );
+    }
+
+    // Should find at least one reference (ValidateAge() is called on line 18).
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "C# fixture: expected >= 1 reference for 'ValidateAge', got 0. Warnings: {:?}",
+        result.warnings
+    );
+}
