@@ -673,4 +673,71 @@ mod tests {
             }
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Diagnostic: reference node counts per language (temporary)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    #[ignore] // Diagnostic — not a real test
+    fn diagnostic_reference_nodes_per_language() {
+        use std::collections::HashSet;
+
+        fn count_refs(
+            lang: Language,
+            path: &str,
+            source: &str,
+            symbol: &str,
+        ) -> (usize, usize, Vec<String>) {
+            let files = vec![parse_source(Path::new(path), source, lang)];
+            let result = build_graph(&files, lang).unwrap();
+            let mut total = 0;
+            let mut matching = 0;
+            let mut syms = HashSet::new();
+            for nh in result.graph.iter_nodes() {
+                let node = &result.graph[nh];
+                if node.is_reference() {
+                    total += 1;
+                    if let Some(sh) = node.symbol() {
+                        let s = &result.graph[sh];
+                        syms.insert(s.to_string());
+                        if s == symbol {
+                            matching += 1;
+                        }
+                    }
+                }
+            }
+            let mut v: Vec<_> = syms.into_iter().collect();
+            v.sort();
+            (total, matching, v)
+        }
+
+        let cases = vec![
+            (Language::Python, "app.py", "def greet(name):\n    return f'Hello, {name}!'\n\ngreet('world')\n", "greet"),
+            (Language::TypeScript, "app.ts", "function greet(name: string): string { return `Hello ${name}`; }\nconst r = greet('world');\n", "greet"),
+            (Language::JavaScript, "app.js", "function greet(name) { return 'Hello ' + name; }\nconst r = greet('world');\n", "greet"),
+            (Language::Rust, "main.rs", "fn greet() -> String { String::from(\"hello\") }\nfn main() { greet(); }\n", "greet"),
+            (Language::Go, "main.go", "package main\nfunc Greet() string { return \"hello\" }\nfunc main() { Greet() }\n", "Greet"),
+            (Language::C, "main.c", "int add(int a, int b) { return a + b; }\nint main() { return add(1, 2); }\n", "add"),
+            (Language::Java, "Main.java", "public class Main {\n  static void greet() {}\n  public static void main(String[] a) { greet(); }\n}\n", "greet"),
+        ];
+
+        for (lang, path, source, symbol) in &cases {
+            let (total, matching, syms) = count_refs(*lang, path, source, symbol);
+            eprintln!(
+                "{lang:?}: {total} ref nodes, {matching} matching '{symbol}', symbols: {syms:?}"
+            );
+        }
+
+        // Also check full resolution for languages with ref nodes
+        for (lang, path, source, symbol) in &cases {
+            let files = vec![parse_source(Path::new(path), source, *lang)];
+            let mut result = build_graph(&files, *lang).unwrap();
+            let refs = resolve_references(&result.graph, &mut result.partial_paths, symbol).unwrap();
+            eprintln!(
+                "{lang:?}: resolve_references returned {} resolved refs for '{symbol}'",
+                refs.len()
+            );
+        }
+    }
 }
