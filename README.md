@@ -4,9 +4,15 @@ The `jq` for source code.
 
 ---
 
-`cq` is a semantic code query tool for the command line. It parses source code with tree-sitter and answers structural questions: where is a symbol defined, what does it look like, who calls it. One binary, 16 languages, zero setup.
+`cq` is a semantic code query tool for the command line. One binary, 16 languages, zero setup. It answers structural questions about code: where is this symbol defined, what does it look like, who calls it, what does it depend on.
 
-There is a gap between `grep` and language servers. Grep is fast but semantically blind -- it cannot tell a function definition from a comment. Language servers are precise but heavy -- they require toolchains, indexing time, and compilable code. `cq` fills the gap: semantic understanding with sub-100ms response times, on broken code, with no dependencies.
+There is a gap between `grep` and language servers. Grep is fast but semantically blind. Language servers are precise but heavy — they need toolchains, indexing time, and compilable code. `cq` bridges the gap with three tiers of precision that activate automatically:
+
+- **Tree-sitter** -- instant, works on broken code, knows definitions from references from strings. Always available.
+- **Stack graphs** -- scope-resolved name binding. Follows imports, qualified names, and cross-file references. Available for 10 languages, no setup required.
+- **Language servers** -- compiler-level precision via LSP. Resolves generics, trait dispatch, type inference. Available for all 16 languages when a language server is installed. Optional `cq daemon` keeps servers warm for sub-second queries.
+
+The same command produces the same output format at every tier. Only the `resolution` metadata field changes — from `syntactic` to `resolved` to `semantic`. The cascade runs automatically: you get the best precision available without configuring anything.
 
 **Built for AI agents.** `cq body handle_request` returns 5 lines instead of reading a 500-line file. Every response includes precision metadata so agents know how much to trust results. Integrate via two paths:
 
