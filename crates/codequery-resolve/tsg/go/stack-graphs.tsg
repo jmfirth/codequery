@@ -642,11 +642,17 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   edge @field.lexical_scope -> @fields.lexical_scope
 }
 
-(field_declaration
-  name: (field_identifier) @name) @field {
+;; Stub for field_declaration: declare .defs and .lexical_scope once per node.
+;; This covers both named fields (e.g., `Name string`) and embedded/anonymous
+;; fields (e.g., `RouterGroup` or `*sync.Mutex`), which have no `name:` child.
+(field_declaration) @field {
   node @field.defs
   node @field.lexical_scope
+}
 
+;; Named fields create definitions for the field name.
+(field_declaration
+  name: (field_identifier) @name) @field {
   node def
   attr (def) node_definition = @name
   edge @field.defs -> def

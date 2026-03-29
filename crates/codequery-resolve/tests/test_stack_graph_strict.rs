@@ -1545,3 +1545,240 @@ fn csharp_fixture_project_no_tsg_errors() {
         result.warnings
     );
 }
+
+// ===========================================================================
+// Go: Struct with embedded types (field_declaration without name)
+// ===========================================================================
+
+#[test]
+fn go_struct_with_embedded_type_no_tsg_errors() {
+    // Reproduces the gin-gonic/gin failure: field_declaration_list contains
+    // embedded (anonymous) fields like `RouterGroup` which produce a
+    // field_declaration node without a `name:` child.
+    let source = concat!(
+        "package main\n",
+        "\n",
+        "type RouterGroup struct {\n",
+        "\tBasePath string\n",
+        "}\n",
+        "\n",
+        "type Engine struct {\n",
+        "\tRouterGroup\n",
+        "\tRedirectTrailingSlash bool\n",
+        "\tmaxParams            uint16\n",
+        "}\n",
+        "\n",
+        "func New() *Engine {\n",
+        "\tengine := &Engine{}\n",
+        "\treturn engine\n",
+        "}\n",
+        "\n",
+        "func main() {\n",
+        "\te := New()\n",
+        "\t_ = e\n",
+        "}\n",
+    );
+    let fs = make_file_symbols("gin.go", source, Language::Go);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "New");
+
+    // No "Undefined scoped variable" errors.
+    for w in &result.warnings {
+        assert!(
+            !w.contains("Undefined scoped variable"),
+            "Go embedded struct: should not produce 'Undefined scoped variable' errors, \
+             got warning: {w}"
+        );
+    }
+
+    // Should find at least one resolved reference for New().
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "Go embedded struct: expected >= 1 reference for 'New', got 0. Warnings: {:?}",
+        result.warnings
+    );
+    for r in refs {
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "Go embedded struct: references MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+}
+
+#[test]
+fn go_struct_with_pointer_embedded_type_no_tsg_errors() {
+    // Embedded pointer types: `*sync.Mutex` inside a struct.
+    let source = concat!(
+        "package main\n",
+        "\n",
+        "type SafeMap struct {\n",
+        "\t// A comment inside the struct\n",
+        "\tdata map[string]string\n",
+        "}\n",
+        "\n",
+        "func NewSafeMap() *SafeMap {\n",
+        "\treturn &SafeMap{data: make(map[string]string)}\n",
+        "}\n",
+        "\n",
+        "func main() {\n",
+        "\tm := NewSafeMap()\n",
+        "\t_ = m\n",
+        "}\n",
+    );
+    let fs = make_file_symbols("safemap.go", source, Language::Go);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "NewSafeMap");
+
+    for w in &result.warnings {
+        assert!(
+            !w.contains("Undefined scoped variable"),
+            "Go pointer embedded: should not produce 'Undefined scoped variable' errors, \
+             got warning: {w}"
+        );
+    }
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "Go pointer embedded: expected >= 1 reference for 'NewSafeMap', got 0. Warnings: {:?}",
+        result.warnings
+    );
+}
+
+// ===========================================================================
+// Ruby: Method calls with various receiver types
+// ===========================================================================
+
+#[test]
+fn ruby_symbol_array_receiver_no_tsg_errors() {
+    // Reproduces the sinatra failure: `%i[strong weak].freeze` produces a call
+    // node where the receiver is a symbol_array, which lacked a .lexical_scope stub.
+    let source = concat!(
+        "KINDS = %i[strong weak].freeze\n",
+        "\n",
+        "def process(kind)\n",
+        "  KINDS.include?(kind)\n",
+        "end\n",
+        "\n",
+        "process(:strong)\n",
+    );
+    let fs = make_file_symbols("etag.rb", source, Language::Ruby);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "process");
+
+    for w in &result.warnings {
+        assert!(
+            !w.contains("Undefined scoped variable"),
+            "Ruby symbol_array receiver: should not produce 'Undefined scoped variable' \
+             errors, got warning: {w}"
+        );
+    }
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "Ruby symbol_array receiver: expected >= 1 reference for 'process', got 0. \
+         Warnings: {:?}",
+        result.warnings
+    );
+    for r in refs {
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "Ruby symbol_array receiver: references MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+}
+
+#[test]
+fn ruby_various_receiver_types_no_tsg_errors() {
+    // Exercise many receiver types that could appear in real-world Ruby code.
+    let source = concat!(
+        "CHARS = %w[a b c].freeze\n",
+        "SYMS = %i[x y z].freeze\n",
+        "VALUES = [1, 2, 3].map { |x| x * 2 }\n",
+        "\n",
+        "def process(items)\n",
+        "  items.each do |item|\n",
+        "    item.to_s\n",
+        "  end\n",
+        "end\n",
+        "\n",
+        "process(CHARS)\n",
+    );
+    let fs = make_file_symbols("receivers.rb", source, Language::Ruby);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "process");
+
+    for w in &result.warnings {
+        assert!(
+            !w.contains("Undefined scoped variable"),
+            "Ruby various receivers: should not produce 'Undefined scoped variable' \
+             errors, got warning: {w}"
+        );
+    }
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "Ruby various receivers: expected >= 1 reference for 'process', got 0. \
+         Warnings: {:?}",
+        result.warnings
+    );
+}
+
+#[test]
+fn ruby_body_with_modifiers_and_singleton_class_no_tsg_errors() {
+    // Exercise if_modifier, unless_modifier, alias, and singleton_class
+    // inside class body_statement — patterns common in sinatra and rails.
+    let source = concat!(
+        "class Server\n",
+        "  alias old_run run if method_defined?(:run)\n",
+        "\n",
+        "  class << self\n",
+        "    def configure\n",
+        "      \"configured\"\n",
+        "    end\n",
+        "  end\n",
+        "\n",
+        "  def run\n",
+        "    return unless ready?\n",
+        "    start\n",
+        "  end\n",
+        "\n",
+        "  def start\n",
+        "    \"running\"\n",
+        "  end\n",
+        "end\n",
+        "\n",
+        "Server.configure\n",
+    );
+    let fs = make_file_symbols("server.rb", source, Language::Ruby);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "Server");
+
+    for w in &result.warnings {
+        assert!(
+            !w.contains("Undefined scoped variable"),
+            "Ruby modifiers/singleton_class: should not produce 'Undefined scoped variable' \
+             errors, got warning: {w}"
+        );
+    }
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "Ruby modifiers/singleton_class: expected >= 1 reference for 'Server', got 0. \
+         Warnings: {:?}",
+        result.warnings
+    );
+}
