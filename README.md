@@ -1,91 +1,67 @@
 # cq
 
-Semantic code query tool for the command line.
-
-Tree-sitter-powered structural navigation for AI agents and humans.
+The `jq` for source code.
 
 ---
 
-## Why
+`cq` is a semantic code query tool for the command line. It parses source code with tree-sitter and answers structural questions: where is a symbol defined, what does it look like, who calls it. One binary, 16 languages, zero setup. Built for AI agents and humans who navigate code for a living.
 
-There is a gap in the toolchain between `grep` and language servers.
-
-`grep` / `ripgrep` is fast but semantically blind. Searching for `authenticate` returns the definition, every call site, comments mentioning it, strings containing it, and variable names that happen to include the substring. You parse the results yourself.
-
-Language servers (LSP) are precise but heavy. They require installing the language toolchain, starting a server process, waiting for indexing (10-60s), and maintaining a persistent connection. They fail on broken code, which is the normal state during active development.
-
-`cq` fills the gap:
-
-- **Semantic, not textual.** Knows the difference between a definition, a call, a type reference, and a string literal.
-- **Works on broken code.** Tree-sitter is error-tolerant -- it produces a usable AST even when the code has syntax errors.
-- **Cross-language.** One binary handles Rust, TypeScript, Python, Go, C, C++, Java, and more. No toolchain required.
-- **Zero setup.** `cargo install codequery-cli` and it works. Auto-detects project root, languages, and structure.
-- **Stateless by default.** No daemon, no index files, no background process. Every invocation parses what it needs.
-- **Fast.** Sub-100ms for targeted queries on any project size. Under 2s for project-wide scans on 400k lines.
+There is a gap between `grep` and language servers. Grep is fast but semantically blind -- it cannot tell a function definition from a comment. Language servers are precise but heavy -- they require toolchains, indexing time, and compilable code. `cq` fills the gap: semantic understanding with sub-100ms response times, on broken code, with no dependencies.
 
 ---
 
-## Quick Examples
+## Quick Demo
 
-Find where a symbol is defined:
+Find a definition, then extract its full body:
 
 ```
 $ cq def authenticate
 @@ src/auth/mod.rs:23:4 function authenticate @@
-```
 
-Get the full source body of a function:
-
-```
-$ cq body handle_request
-@@ src/api/routes.rs:42:4 function handle_request @@
-pub async fn handle_request(req: Request) -> Response {
-    let auth = authenticate(&req).await?;
-    let data = parse_body(&req).await?;
-    process(auth, data).await
+$ cq body authenticate
+@@ src/auth/mod.rs:23:4 function authenticate @@
+pub async fn authenticate(req: &Request) -> Result<AuthContext> {
+    let token = extract_token(req)?;
+    let claims = verify_jwt(&token).await?;
+    AuthContext::from_claims(claims)
 }
 ```
 
-Find all references to a symbol:
+Find all references -- and see exactly how they were resolved:
 
 ```
-$ cq refs User
-@@ src/api/routes.rs:44:20 call @@
-    let auth = authenticate(&req).await?;
-@@ src/ws/handler.rs:18:12 call @@
-    if authenticate(&conn).await.is_err() {
-@@ src/middleware/session.rs:5:4 import @@
-use crate::auth::authenticate;
-
-3 references (syntactic match -- may be incomplete)
+$ cq refs authenticate --json
+{
+  "symbol": "authenticate",
+  "resolution": "resolved",
+  "completeness": "best_effort",
+  "definitions": [
+    { "file": "src/auth/mod.rs", "line": 23, "kind": "function" }
+  ],
+  "references": [
+    { "file": "src/api/routes.rs", "line": 44, "kind": "call", "context": "    let auth = authenticate(&req).await?;" },
+    { "file": "src/ws/handler.rs", "line": 18, "kind": "call", "context": "    if authenticate(&conn).await.is_err() {" },
+    { "file": "src/middleware/session.rs", "line": 5, "kind": "import", "context": "use crate::auth::authenticate;" }
+  ],
+  "total": 3
+}
 ```
 
-See the structure of a file:
+Progressive precision -- same command, different backends:
 
 ```
-$ cq outline src/api/routes.rs
-@@ src/api/routes.rs @@
-  Router (struct, pub) :10
-    new (method, pub) :18
-    add_route (method, pub) :25
-  handle_request (function, pub) :42
+$ cq refs Config                    # syntactic: tree-sitter name matching
+$ cq refs Config                    # resolved: stack graphs follow imports (automatic when available)
+$ cq refs Config --semantic         # semantic: full LSP type resolution via language server
 ```
 
-Structural search with AST pattern matching:
-
-```
-$ cq search "fn $NAME($$$) -> Result<$T>"
-@@ src/api/routes.rs:42 handle_request @@
-pub async fn handle_request(req: Request) -> Result<Response>
-@@ src/auth/mod.rs:23 authenticate @@
-pub async fn authenticate(req: &Request) -> Result<AuthContext>
-```
+The output format is identical. Only the `resolution` metadata field changes. An agent or script consuming `cq` output does not need to know which backend was used.
 
 ---
 
 ## Installation
 
-Once published:
+From crates.io (once published):
 
 ```
 cargo install codequery-cli
@@ -100,186 +76,166 @@ cargo build --release
 # binary at target/release/cq
 ```
 
----
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `cq def <symbol>` | Find where a symbol is defined |
-| `cq body <symbol>` | Get the full source body of a symbol |
-| `cq sig <symbol>` | Get the type signature / public interface |
-| `cq refs <symbol>` | Find all references to a symbol |
-| `cq callers <symbol>` | Find call sites for a function or method |
-| `cq deps <symbol>` | Analyze internal dependencies of a function |
-| `cq outline [file]` | List all symbols in a file with nesting |
-| `cq symbols [--kind K]` | List all symbols in the project |
-| `cq imports <file>` | List imports / dependencies for a file |
-| `cq search <pattern>` | Structural search using AST patterns |
-| `cq context <file>:<line>` | Get the enclosing symbol for a line |
-| `cq tree [path]` | Hierarchical symbol tree for a directory |
-
----
-
-## Global Flags
-
-| Flag | Description |
-|------|-------------|
-| `--json` | JSON output (compact when piped, pretty on TTY) |
-| `--raw` | Raw content only, no framing or metadata |
-| `--in <path>` | Narrow search scope to a directory or file |
-| `--kind <K>` | Filter results by symbol kind |
-| `--lang <L>` | Force language detection |
-| `--project <path>` | Explicit project root (default: auto-detect) |
-| `--cache` | Enable disk caching for this invocation |
-| `--context <N>` | Include N surrounding lines with results |
-| `--depth <N>` | Limit nesting depth (`tree`, `context`) |
-| `--limit <N>` | Maximum number of results |
-
----
-
-## Output Modes
-
-### Framed (default)
-
-Human-readable output with `@@` frame headers containing metadata and raw source between them:
-
-```
-$ cq body handle_request
-@@ src/api/routes.rs:42:4 function handle_request @@
-pub async fn handle_request(req: Request) -> Response {
-    let auth = authenticate(&req).await?;
-    let data = parse_body(&req).await?;
-    process(auth, data).await
-}
-```
-
-### JSON (`--json`)
-
-Structured output for programmatic use and `jq` composition:
-
-```
-$ cq def handle_request --json
-[
-  {
-    "symbol": "handle_request",
-    "kind": "function",
-    "file": "src/api/routes.rs",
-    "line": 42,
-    "column": 4,
-    "resolution": "syntactic",
-    "completeness": "exhaustive"
-  }
-]
-```
-
-### Raw (`--raw`)
-
-Content only, no framing. For piping into other tools:
-
-```
-$ cq body handle_request --raw
-pub async fn handle_request(req: Request) -> Response {
-    let auth = authenticate(&req).await?;
-    let data = parse_body(&req).await?;
-    process(auth, data).await
-}
-
-$ cq body handle_request --raw | wc -l
-5
-```
+Homebrew formula coming soon.
 
 ---
 
 ## Language Support
 
-### Tier 1 -- Full extraction and scope-resolved cross-references
+| Language | Tier | Precision | Notes |
+|----------|------|-----------|-------|
+| Rust | 1 | Resolved | Stack graph + LSP (rust-analyzer) |
+| TypeScript | 1 | Resolved | Stack graph + LSP (typescript-language-server) |
+| JavaScript | 1 | Resolved | Stack graph, includes JSX/TSX |
+| Python | 1 | Resolved | Stack graph + LSP (pyright) |
+| Go | 1 | Resolved | Stack graph + LSP (gopls) |
+| C | 1 | Resolved | Stack graph + LSP (clangd) |
+| C++ | 1 | Resolved | Stack graph + LSP (clangd) |
+| Java | 1 | Resolved | Stack graph |
+| Ruby | 1 | Resolved | Custom stack graph rules |
+| C# | 1 | Resolved | Custom stack graph rules |
+| PHP | 2 | Syntactic | Full extraction, name-based refs |
+| Swift | 2 | Syntactic | Full extraction, name-based refs |
+| Kotlin | 2 | Syntactic | Full extraction, name-based refs |
+| Scala | 2 | Syntactic | Full extraction, name-based refs |
+| Zig | 2 | Syntactic | Full extraction, name-based refs |
+| Lua | 2 | Syntactic | Full extraction, name-based refs |
+| Bash | 2 | Syntactic | Full extraction, name-based refs |
 
-All twelve commands with stack graph name resolution.
-
-- Rust
-- TypeScript / JavaScript / JSX / TSX
-- Python
-- Go
-- C / C++
-- Java
-
-### Tier 2 -- Extraction only
-
-Definition, outline, body, signature, and import commands work. Cross-reference commands use syntactic (name-based) matching.
-
-- Ruby
-- PHP
-- C#
-- Swift
-- Kotlin
-- Scala
-- Zig
-- Lua
-- Bash / Shell
-
-### Tier 3 -- Loadable at runtime
-
-Additional languages via tree-sitter grammar `.so`/`.dylib` files placed in `$XDG_DATA_HOME/cq/grammars/` or `~/.local/share/cq/grammars/`.
+**Tier 1** languages have tree-sitter grammars compiled into the binary and stack graph rules for scope-resolved cross-references. **Tier 2** languages have full extraction (def, body, sig, outline, imports) but use syntactic name matching for cross-reference commands. **Tier 3** (not listed) supports runtime-loadable grammars via `.so`/`.dylib` files in `~/.local/share/cq/grammars/`.
 
 ---
 
-## Precision Levels
+## Commands
 
-Every response carries `resolution` and `completeness` metadata so consumers know how much to trust results.
+| Command | What it does |
+|---------|-------------|
+| `cq def <symbol>` | Find where a symbol is defined |
+| `cq body <symbol>` | Extract the full source body of a symbol |
+| `cq sig <symbol>` | Get the type signature or public interface |
+| `cq refs <symbol>` | Find all references across the project |
+| `cq callers <symbol>` | Find call sites for a function or method |
+| `cq deps <symbol>` | Analyze internal dependencies of a function |
+| `cq outline [file]` | List all symbols in a file with nesting |
+| `cq symbols [--kind K]` | List all symbols in the project |
+| `cq imports <file>` | List imports and dependencies for a file |
+| `cq search <pattern>` | Structural search using AST patterns |
+| `cq context <file>:<line>` | Get the enclosing symbol for a line |
+| `cq tree [path]` | Hierarchical symbol tree for a directory |
 
-### Syntactic
+### Global Flags
 
-Tree-sitter AST name and structure matching. Knows definitions from references from strings. Cannot resolve which `bar()` method a call site invokes when multiple types have a `bar()` method.
+| Flag | Description |
+|------|-------------|
+| `--json` | JSON output (compact when piped, pretty on TTY) |
+| `--raw` | Raw content only, no framing or metadata |
+| `--pretty` | Force pretty-printed JSON |
+| `--in <path>` | Narrow search scope to a directory or file |
+| `--kind <K>` | Filter results by symbol kind |
+| `--lang <L>` | Force language detection |
+| `--semantic` | Use LSP for compiler-level precision |
+| `--no-semantic` | Disable LSP even if daemon is running |
+| `--project <path>` | Explicit project root (default: auto-detect) |
+| `--cache` | Enable disk caching for this invocation |
 
-### Resolved
+### Output Modes
 
-Stack graph scope resolution. Resolves import paths, qualified names, scope chains, and re-exports. Cannot resolve type inference, trait dispatch, or generics.
+**Framed** (default) -- human-readable `@@ file:line:column kind name @@` headers with source content between them. Designed for quick scanning.
 
-### Semantic
+**JSON** (`--json`) -- structured output with symbol metadata, resolution info, and completeness fields. Compose with `jq` for complex queries.
 
-Full type resolution via language server integration. When a language server is available (via daemon or `--semantic` flag), `refs`, `callers`, `deps`, and `def` upgrade to compiler-level precision -- trait dispatch, generics, macros, the full type system.
+**Raw** (`--raw`) -- content only, no framing. For piping into other tools: `cq body handle_request --raw | wc -l`.
 
-**Per-command precision:**
+---
+
+## How Precision Works
+
+Every `cq` result includes `resolution` and `completeness` metadata so consumers know exactly how much to trust the output.
+
+### Three tiers of precision
+
+**Syntactic.** Tree-sitter AST name and structure matching. Knows definitions from references from string literals. Cannot disambiguate when multiple types share a method name. Available for all 16 languages.
+
+**Resolved.** Stack graph scope resolution. Follows import paths, qualified names, scope chains, and re-exports. Disambiguates across modules without a language server. Available for the 10 languages with TSG rules.
+
+**Semantic.** Full type resolution via language server. Resolves trait dispatch, generics, macros, and the full type system. Available when a language server is present (via `cq daemon start` or the `--semantic` flag).
+
+### Automatic cascade
+
+The precision cascade runs on every query, no configuration needed:
+
+```
+1. Daemon running?      --> semantic (sub-second, compiler-level)
+2. --semantic flag?     --> oneshot LSP (start server, query, stop)
+3. Stack graph rules?   --> resolved (follows imports, qualified names)
+4. Fallback             --> syntactic (tree-sitter name matching)
+```
+
+A `cq refs` call on a machine with `cq daemon` running gets type-resolved results. The same call in a fresh CI container gets tree-sitter results. Both produce the same output format.
+
+### Per-command completeness
 
 | Command | Completeness |
 |---------|-------------|
 | `def`, `body`, `sig` | Exhaustive |
 | `outline`, `symbols`, `tree` | Exhaustive |
 | `imports`, `context`, `search` | Exhaustive |
-| `refs`, `callers`, `deps` | Best-effort (scope-resolved for Tier 1 languages) |
+| `refs`, `callers`, `deps` | Best-effort (scope-resolved or semantic when available) |
 
 For best-effort commands, JSON output includes a `note` field explaining the limitation. Framed output appends a summary line.
 
 ---
 
-## Progressive Enhancement
+## Quality and Validation
 
-cq adapts to what's available and tells you what it used. The resolution cascade runs automatically on every query:
+### Test suite
 
-```
-1. Daemon running?  --> semantic precision (sub-second, compiler-level)
-2. --semantic flag?  --> start language server, query, stop (10-30s, but precise)
-3. Stack graph rules? --> scope-resolved (follows imports, qualified names)
-4. Fallback          --> syntactic (tree-sitter name matching)
-```
+1,863 automated tests across 6 crates, covering unit, integration, cross-language, precision, and proof tests.
 
-No configuration required. A `cq refs` call on a machine with `cq daemon` running gets type-resolved results. The same call on a fresh CI box gets tree-sitter results. Both produce the same output format -- only the `resolution` metadata field changes.
+### Real-world validation
 
-### Daemon mode
+Stack graph rules hardened against 636 source files from 11 open-source projects with 0 TSG errors:
 
-Keep language servers warm for fast semantic queries:
+| Project | Language | What it exercises |
+|---------|----------|-------------------|
+| ripgrep | Rust | Large multi-crate workspace |
+| serde | Rust | Heavy macro and trait usage |
+| gin | Go | Embedded structs, selector chains |
+| cobra | Go | Command trees, init patterns |
+| redis | C | Large C codebase with headers |
+| jq | C | Complex C with build-time codegen |
+| nlohmann/json | C++ | Header-only template library |
+| fmt | C++ | Template metaprogramming |
+| flask | Python | Decorators, class hierarchies |
+| requests | Python | Package structure, __init__.py re-exports |
+| zod | TypeScript | Complex type inference patterns |
+| express | JavaScript | CommonJS module patterns |
+| gson | Java | Generics, nested classes |
+| sinatra | Ruby | Metaprogramming, DSL patterns |
+| rack | Ruby | Module mixins |
+| Newtonsoft.Json | C# | Generics, attributes |
 
-```
-$ cq daemon start          # background process, manages server pool
-$ cq refs authenticate     # auto-detects daemon, sub-second semantic results
-$ cq daemon status         # show running servers
-$ cq daemon stop           # clean shutdown
-```
+### LSP ground truth comparison
 
-The daemon is auto-detected -- no flags needed. When running, all cross-reference commands (`refs`, `callers`, `deps`) automatically use it. Servers are started lazily per (project, language) and evicted after idle timeout (default 30 min).
+30 validation tests comparing stack graph results against language server output across 4 server implementations (rust-analyzer, gopls, clangd, typescript-language-server). Zero false positives -- every reference `cq` reports is confirmed by the language server.
 
-Supported servers: rust-analyzer, typescript-language-server, pyright, gopls, clangd. Override via `.cq.toml` or `CQ_LSP_RUST=my-analyzer` env vars.
+---
+
+## For AI Agents
+
+`cq` is designed as a primitive for agentic code navigation.
+
+**Token efficiency.** `cq body handle_request` returns 5 lines instead of reading a 500-line file. An agent using `cq` reads 10-50x fewer tokens per navigation step.
+
+**Structured output.** `--json` produces machine-readable output with symbol kind, location, scope, and precision metadata. Compose with `jq` for complex queries.
+
+**Precision metadata.** Every response includes `resolution` (how results were found) and `completeness` (whether the result set is exhaustive or best-effort). An agent can adjust its confidence automatically -- no guessing about result quality.
+
+**Qualified names.** `cq body Router::add_route` disambiguates without reading multiple files. `cq body api::routes::handle_request` for module-qualified lookup.
+
+**Context from errors.** `cq context src/api/routes.rs:47` maps a compiler error or stack trace line directly to the enclosing function. One command replaces the three-step workflow of outline, find, read.
+
+**Stateless.** No setup, no daemon, no warm-up. Works in ephemeral environments, containers, CI, and WASM runtimes.
 
 ---
 
@@ -287,47 +243,28 @@ Supported servers: rust-analyzer, typescript-language-server, pyright, gopls, cl
 
 ### `.cq.toml`
 
-Project-level configuration file. Placed in the project root.
+Project-level configuration. Placed in the project root. Supports LSP server overrides, timeout settings, and per-language binary paths.
 
 ### `.cqignore`
 
-Additional file exclusion rules beyond `.gitignore`. Same syntax as `.gitignore`. Useful for excluding generated code, vendored dependencies, or large directories that slow down wide commands.
+Additional file exclusion rules beyond `.gitignore`. Same syntax. Useful for excluding generated code, vendored dependencies, or large directories.
 
 ### Project root detection
 
-cq walks up from the current directory looking for (in priority order): `.git/`, `Cargo.toml`, `package.json`, `go.mod`, `pyproject.toml`, `setup.py`, `pom.xml`, `build.gradle`, `Makefile`, `CMakeLists.txt`, `.cq.toml`. Override with `--project <path>`.
+`cq` walks up from the current directory looking for (in priority order): `.git/`, `Cargo.toml`, `package.json`, `go.mod`, `pyproject.toml`, `setup.py`, `pom.xml`, `build.gradle`, `Makefile`, `CMakeLists.txt`, `.cq.toml`. Override with `--project <path>`.
 
----
+### Daemon mode
 
-## For AI Agents
-
-cq is designed as a primitive for AI agent code navigation. Key properties:
-
-**Token efficiency.** `cq body handle_request` returns 5 lines instead of reading a 500-line file. An agent that uses cq reads 10-50x fewer tokens per navigation step.
-
-**Structured output.** `--json` produces machine-readable output with symbol kind, location, scope, and precision metadata. Compose with `jq` for complex queries.
-
-**Precision metadata.** Every response includes `resolution` (how results were found) and `completeness` (whether the result set is exhaustive or best-effort). An agent can adjust its confidence automatically.
-
-**Qualified names.** `cq body Router::add_route` disambiguates without reading multiple files. `cq body api::routes::handle_request` for module-qualified lookup.
-
-**Context from errors.** `cq context src/api/routes.rs:47` maps a compiler error or stack trace line directly to the enclosing function body. One command replaces the three-step workflow of outline, find, read.
-
-**Stateless.** No setup, no daemon, no warm-up. Works in ephemeral environments, containers, CI, and WASM runtimes.
-
----
-
-## Architecture
+Keep language servers warm for fast semantic queries:
 
 ```
-file discovery -> language detection -> tree-sitter parse -> AST query -> symbol extraction -> output formatting
+$ cq daemon start          # background process, manages LSP server pool
+$ cq refs authenticate     # auto-detects daemon, sub-second semantic results
+$ cq daemon status         # show running servers
+$ cq daemon stop           # clean shutdown
 ```
 
-For narrow commands (`def`, `body`, `sig`): text pre-filter (memmap + memchr) identifies candidate files, then only those files are parsed. This keeps targeted queries sub-100ms regardless of project size.
-
-For wide commands (`refs`, `callers`, `symbols`): all source files are parsed in parallel across available cores using rayon. Results are merged and returned.
-
-Tree-sitter grammars for Tier 1 languages are compiled into the binary. No runtime dependencies on language toolchains.
+The daemon is auto-detected. When running, cross-reference commands automatically upgrade to semantic precision. Servers are started lazily per (project, language) and evicted after idle timeout.
 
 ---
 

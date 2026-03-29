@@ -21,8 +21,8 @@ fn test_help_flag_prints_usage() {
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
-        out.contains("Semantic code query"),
-        "expected 'Semantic code query' in help output, got: {out}"
+        out.contains("Tree-sitter powered structural code navigation"),
+        "expected tool description in help output, got: {out}"
     );
 }
 

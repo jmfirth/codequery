@@ -14,64 +14,173 @@ pub enum OutputMode {
 
 /// Semantic code query tool for the command line.
 #[derive(Debug, Parser)]
-#[command(name = "cq", version, about)]
+#[command(
+    name = "cq",
+    version,
+    about,
+    long_about = "Tree-sitter powered structural code navigation for AI agents and humans.\n\
+                   Searches, extracts, and navigates code by structure rather than text.\n\
+                   Supports 16 languages from a single binary with no runtime dependencies.",
+    after_help = "\x1b[1mExamples:\x1b[0m\n  \
+                   cq def handle_request          Find where handle_request is defined\n  \
+                   cq body Router::add_route       Extract the full source of a method\n  \
+                   cq refs Config --semantic       Find all references using LSP precision\n  \
+                   cq outline src/main.rs          List all symbols in a file\n  \
+                   cq search 'fn $NAME() -> Result' Find functions returning Result"
+)]
 #[allow(clippy::struct_excessive_bools)]
 // CLI flag structs naturally use booleans for each flag; refactoring would hurt clarity
 pub struct CqArgs {
     /// Explicit project root (overrides auto-detection)
-    #[arg(long, global = true)]
+    #[arg(
+        long,
+        global = true,
+        long_help = "Set the project root directory explicitly, overriding auto-detection.\n\
+                     By default, cq walks up from the current directory looking for VCS roots\n\
+                     (.git, .hg) or language markers (Cargo.toml, package.json, go.mod, etc.)."
+    )]
     pub project: Option<PathBuf>,
 
-    /// Narrow search scope to a directory or file
-    #[arg(long = "in", global = true)]
+    /// Narrow file discovery to a directory or file
+    #[arg(
+        long = "in",
+        global = true,
+        long_help = "Restrict file discovery to a subdirectory or single file.\n\
+                     Accepts relative or absolute paths. Useful for focusing a wide command\n\
+                     like `refs` or `symbols` on a specific part of the codebase."
+    )]
     pub scope: Option<PathBuf>,
 
     /// JSON output for programmatic use
-    #[arg(long, global = true, conflicts_with = "raw")]
+    #[arg(
+        long,
+        global = true,
+        conflicts_with = "raw",
+        long_help = "Emit structured JSON output instead of the default framed text format.\n\
+                     Useful for piping into jq or consuming from scripts and AI agents.\n\
+                     Use --pretty for human-readable indented JSON."
+    )]
     pub json: bool,
 
-    /// Raw output, no framing
-    #[arg(long, global = true, conflicts_with = "json")]
+    /// Raw output, no @@ framing delimiters
+    #[arg(
+        long,
+        global = true,
+        conflicts_with = "json",
+        long_help = "Emit raw output without @@ framing delimiters.\n\
+                     Produces plain source text suitable for piping into other tools.\n\
+                     For the `search` command, --raw switches the pattern language from\n\
+                     template syntax to tree-sitter S-expressions."
+    )]
     pub raw: bool,
 
     /// Force pretty-printed JSON (default when TTY)
-    #[arg(long, global = true)]
+    #[arg(
+        long,
+        global = true,
+        long_help = "Pretty-print JSON output with indentation and newlines.\n\
+                     This is the default when outputting to a terminal; use this flag\n\
+                     to force pretty-printing when piping to a file or another command."
+    )]
     pub pretty: bool,
 
-    /// Filter results by symbol kind
-    #[arg(long, global = true)]
+    /// Filter results by symbol kind (e.g., function, struct, class)
+    #[arg(
+        long,
+        global = true,
+        long_help = "Filter results to only include symbols of the specified kind.\n\
+                     Common kinds: function, struct, class, trait, interface, method,\n\
+                     enum, constant, variable, type_alias, module. The exact set of\n\
+                     available kinds depends on the language."
+    )]
     pub kind: Option<String>,
 
-    /// Force language detection
-    #[arg(long, global = true)]
+    /// Force language detection (e.g., rust, typescript, python, go)
+    #[arg(
+        long,
+        global = true,
+        long_help = "Override automatic language detection for the target files.\n\
+                     Useful when file extensions are non-standard or ambiguous.\n\
+                     Supported: rust, typescript, javascript, python, go, c, cpp,\n\
+                     java, ruby, php, c_sharp, kotlin, scala, swift, hcl, zig."
+    )]
     pub lang: Option<String>,
 
-    /// Use language server for semantic precision (slow without daemon)
-    #[arg(long, global = true, conflicts_with = "no_semantic")]
+    /// Use language server for compiler-level semantic precision
+    #[arg(
+        long,
+        global = true,
+        conflicts_with = "no_semantic",
+        long_help = "Enable LSP-backed resolution for compiler-level precision.\n\
+                     Slower than the default syntactic analysis, but resolves through\n\
+                     type aliases, trait impls, and cross-module re-exports.\n\
+                     Much faster when the daemon is running (`cq daemon start`).\n\
+                     Can also be enabled via CQ_SEMANTIC=1 env var."
+    )]
     pub semantic: bool,
 
     /// Disable semantic resolution even if daemon is running
-    #[arg(long, global = true, conflicts_with = "semantic")]
+    #[arg(
+        long,
+        global = true,
+        conflicts_with = "semantic",
+        long_help = "Force semantic resolution off, even if the daemon is running\n\
+                     or CQ_SEMANTIC=1 is set. Useful when you want fast syntactic\n\
+                     results and don't need compiler-level precision."
+    )]
     pub no_semantic: bool,
 
-    /// Enable disk caching for faster repeated queries
-    #[arg(long, global = true, conflicts_with = "no_cache")]
+    /// Cache symbol indexes to disk for faster repeated queries
+    #[arg(
+        long,
+        global = true,
+        conflicts_with = "no_cache",
+        long_help = "Enable disk caching of symbol indexes and scan results.\n\
+                     Cached data is stored in a project-local .cq-cache directory\n\
+                     and is invalidated automatically when files change.\n\
+                     Can also be enabled via CQ_CACHE=1 env var."
+    )]
     pub cache: bool,
 
-    /// Disable disk caching (overrides `CQ_CACHE` env var)
-    #[arg(long, global = true, conflicts_with = "cache")]
+    /// Disable disk caching (overrides CQ_CACHE env var)
+    #[arg(
+        long,
+        global = true,
+        conflicts_with = "cache",
+        long_help = "Force disk caching off, overriding the CQ_CACHE=1 env var.\n\
+                     Ensures every query re-scans from scratch with no stale data."
+    )]
     pub no_cache: bool,
 
-    /// Lines of context around matches
-    #[arg(long, global = true, default_value = "0")]
+    /// Lines of surrounding context, like grep -C
+    #[arg(
+        long,
+        global = true,
+        default_value = "0",
+        long_help = "Show N lines of surrounding source context around each match,\n\
+                     similar to grep -C. Applies to refs, callers, and other commands\n\
+                     that return source locations."
+    )]
     pub context: usize,
 
     /// Limit nesting depth (for tree, context)
-    #[arg(long, global = true)]
+    #[arg(
+        long,
+        global = true,
+        long_help = "Limit nesting depth in commands that produce hierarchical output.\n\
+                     For `tree`: controls directory depth. For `context`: controls how\n\
+                     many enclosing scopes to show. For `outline`: limits symbol nesting."
+    )]
     pub depth: Option<usize>,
 
-    /// Maximum number of results
-    #[arg(long, global = true)]
+    /// Maximum number of results to return
+    #[arg(
+        long,
+        global = true,
+        long_help = "Cap the number of results returned. Applies to commands that can\n\
+                     produce many matches (refs, callers, symbols, search). Useful for\n\
+                     getting a quick sample without scanning the entire project."
+    )]
     pub limit: Option<usize>,
 
     #[command(subcommand)]
@@ -122,69 +231,159 @@ impl CqArgs {
 /// Available cq subcommands.
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// List all symbols in a file
+    /// List all symbols in a file with their kinds and nesting
+    #[command(
+        long_about = "Parse a file and list every symbol (functions, types, constants, etc.)\n\
+                      with kind, line number, and nesting structure. Uses tree-sitter for\n\
+                      language-aware parsing -- works even on files with syntax errors.",
+        after_help = "Examples:\n  cq outline src/main.rs\n  cq outline lib.py --json"
+    )]
     Outline {
-        /// Path to the file to outline
+        /// File to outline (relative or absolute path)
         file: PathBuf,
     },
-    /// Find where a symbol is defined
+    /// Find where a symbol is defined across the project
+    #[command(
+        long_about = "Search the entire project for a symbol's definition site.\n\
+                      Uses a fast text pre-filter (memchr) to skip files that don't contain\n\
+                      the symbol name, then parses only candidate files with tree-sitter.\n\
+                      Supports qualified names like `Router::add_route`.",
+        after_help = "Examples:\n  cq def handle_request\n  cq def Router::add_route --lang rust"
+    )]
     Def {
-        /// Symbol name to search for
+        /// Symbol name to find (supports qualified names like Struct::method)
         symbol: String,
     },
-    /// Extract the full body of a symbol
+    /// Extract the full source body of a symbol definition
+    #[command(
+        long_about = "Find a symbol's definition and return its complete source code,\n\
+                      including the body of functions, struct/class definitions, etc.\n\
+                      Uses the same fast pre-filter as `def` to locate the symbol.",
+        after_help = "Examples:\n  cq body handle_request\n  cq body Config --json"
+    )]
     Body {
-        /// Symbol name to extract body for
+        /// Symbol name to extract (supports qualified names like Struct::method)
         symbol: String,
     },
-    /// Extract the signature of a symbol
+    /// Extract the signature of a symbol (without body)
+    #[command(
+        long_about = "Find a symbol's definition and return only its signature -- the\n\
+                      function prototype, struct declaration, or class header without\n\
+                      the implementation body. Useful for quick API inspection.",
+        after_help = "Examples:\n  cq sig handle_request\n  cq sig MyClass::__init__"
+    )]
     Sig {
-        /// Symbol name to extract signature for
+        /// Symbol name to extract signature for (supports qualified names)
         symbol: String,
     },
-    /// Find all references to a symbol
+    /// Find all references to a symbol across the project
+    #[command(
+        long_about = "Find every occurrence of a symbol throughout the codebase.\n\
+                      Uses a three-tier resolution cascade:\n\
+                      1. Syntactic: fast text + AST matching (default)\n\
+                      2. Resolved: stack graph analysis for same-file precision\n\
+                      3. Semantic: LSP-backed, compiler-level accuracy (--semantic flag)\n\
+                      Each tier is progressively slower but more precise.",
+        after_help = "Examples:\n  cq refs Config\n  cq refs handle_request --semantic --context 3"
+    )]
     Refs {
-        /// Symbol name to find references for
+        /// Symbol name to find references for (supports qualified names)
         symbol: String,
     },
-    /// Find all callers of a function
+    /// Find all callers of a function across the project
+    #[command(
+        long_about = "Find every call site for a function or method across the codebase.\n\
+                      Like `refs` but filtered to only call expressions. Supports the same\n\
+                      three-tier resolution cascade (syntactic, resolved, semantic).",
+        after_help = "Examples:\n  cq callers handle_request\n  cq callers send --semantic"
+    )]
     Callers {
-        /// Function name to find callers for
+        /// Function name to find callers for (supports qualified names)
         symbol: String,
     },
-    /// Show dependency relationships
+    /// Show dependency relationships for a symbol
+    #[command(
+        long_about = "Analyze and display the dependency graph for a symbol -- what it\n\
+                      depends on and what depends on it. Combines import analysis with\n\
+                      reference tracking to map symbol relationships.",
+        after_help = "Examples:\n  cq deps Config\n  cq deps Router --json"
+    )]
     Deps {
-        /// Symbol name to show dependencies for
+        /// Symbol name to show dependencies for (supports qualified names)
         symbol: String,
     },
-    /// List all symbols in scope
+    /// List all symbols in the project
+    #[command(
+        long_about = "Scan the entire project and list every symbol found across all files.\n\
+                      Parses all source files in parallel using tree-sitter. Use --kind to\n\
+                      filter by symbol type, --in to narrow scope, or --limit to cap output.",
+        after_help = "Examples:\n  cq symbols\n  cq symbols --kind function --json\n  cq symbols --in src/api/ --limit 50"
+    )]
     Symbols,
-    /// List imports in a file
+    /// List imports and use statements in a file
+    #[command(
+        long_about = "Parse a file and extract all import/use/require statements.\n\
+                      Identifies both the imported names and their source modules.\n\
+                      Works across all 16 supported languages.",
+        after_help = "Examples:\n  cq imports src/main.rs\n  cq imports lib.py --json"
+    )]
     Imports {
-        /// Path to the file to list imports for
+        /// File to list imports for (relative or absolute path)
         file: PathBuf,
     },
-    /// Show code context around a location
+    /// Show enclosing code context around a file location
+    #[command(
+        long_about = "Given a file:line location, show the enclosing symbol context --\n\
+                      the function, class, or block that contains that line.\n\
+                      Use --depth to control how many nesting levels to show.",
+        after_help = "Examples:\n  cq context src/main.rs:42\n  cq context lib.py:100 --depth 2"
+    )]
     Context {
-        /// Location in `file:line` format
+        /// Location as file:line (e.g., src/main.rs:42)
         location: String,
     },
-    /// Show project structure tree
+    /// Show project file and directory structure
+    #[command(
+        long_about = "Display the project's file and directory tree, respecting .gitignore\n\
+                      and other VCS ignore rules. Use --depth to limit directory depth.\n\
+                      Optionally pass a path to root the tree at a subdirectory.",
+        after_help = "Examples:\n  cq tree\n  cq tree src/ --depth 2"
+    )]
     Tree {
-        /// Path to root (defaults to project root)
+        /// Root path to display (defaults to project root)
         path: Option<PathBuf>,
     },
     /// Structural search using AST patterns
+    #[command(
+        long_about = "Search for code matching a structural pattern across the project.\n\
+                      Patterns use a template syntax with $NAME placeholders for wildcards:\n\
+                      `fn $NAME() -> Result` matches any function returning Result.\n\
+                      With --raw, accepts tree-sitter S-expression queries directly.",
+        after_help = "Examples:\n  cq search 'fn $NAME() -> Result'\n  \
+                     cq search 'for $VAR in $ITER'\n  \
+                     cq --raw search '(function_item name: (identifier) @fn)'"
+    )]
     Search {
-        /// Pattern to search for (structural pattern or S-expression with --raw)
+        /// Pattern to search for (template syntax, or S-expression with --raw)
         pattern: String,
     },
     /// Manage the disk cache
+    #[command(
+        long_about = "Manage the .cq-cache directory used for disk caching of symbol\n\
+                      indexes and scan results. Caching is opt-in via --cache or CQ_CACHE=1."
+    )]
     Cache {
         #[command(subcommand)]
         action: CacheAction,
     },
-    /// Manage the LSP daemon
+    /// Manage the LSP daemon for fast semantic queries
+    #[command(
+        long_about = "Control the background LSP daemon that keeps language servers warm.\n\
+                      A running daemon makes --semantic queries much faster by reusing\n\
+                      an already-initialized language server instead of cold-starting one\n\
+                      for each query.",
+        after_help = "Examples:\n  cq daemon start\n  cq daemon status\n  cq daemon stop"
+    )]
     Daemon {
         #[command(subcommand)]
         action: DaemonAction,

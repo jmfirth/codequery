@@ -400,10 +400,7 @@ fn test_refs_kotlin_finds_call_sites() {
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("definition"), "should show definitions: {out}");
-    assert!(
-        out.contains("reference"),
-        "should find references: {out}"
-    );
+    assert!(out.contains("reference"), "should find references: {out}");
 }
 
 #[test]
@@ -531,10 +528,7 @@ fn test_refs_scala_finds_call_sites() {
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("definition"), "should show definition: {out}");
-    assert!(
-        out.contains("reference"),
-        "should find references: {out}"
-    );
+    assert!(out.contains("reference"), "should find references: {out}");
     assert!(
         out.contains("animal.speak()"),
         "should show call site: {out}"

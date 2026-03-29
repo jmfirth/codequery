@@ -98,12 +98,11 @@ pub fn run(
     //   - A file containing a known definition of this symbol, OR
     //   - The same file as the reference itself (import re-binding / local alias)
     if !definitions.is_empty() {
-        let def_files: std::collections::HashSet<&std::path::Path> = definitions
-            .iter()
-            .map(|d| d.file.as_path())
-            .collect();
-        resolution_result.references.retain(|rr| {
-            match rr.resolution {
+        let def_files: std::collections::HashSet<&std::path::Path> =
+            definitions.iter().map(|d| d.file.as_path()).collect();
+        resolution_result
+            .references
+            .retain(|rr| match rr.resolution {
                 Resolution::Resolved => {
                     if let Some(df) = &rr.def_file {
                         def_files.contains(df.as_path()) || df == &rr.ref_file
@@ -112,8 +111,7 @@ pub fn run(
                     }
                 }
                 _ => true,
-            }
-        });
+            });
     }
 
     // Determine the top-level resolution quality.
@@ -200,10 +198,8 @@ pub fn run(
     // definition in the references list by default. Adding it here ensures
     // consistent results across all resolution tiers.
     {
-        let ref_locations: std::collections::HashSet<(std::path::PathBuf, usize)> = all_refs
-            .iter()
-            .map(|r| (r.file.clone(), r.line))
-            .collect();
+        let ref_locations: std::collections::HashSet<(std::path::PathBuf, usize)> =
+            all_refs.iter().map(|r| (r.file.clone(), r.line)).collect();
         for def in &def_clones {
             if !ref_locations.contains(&(def.file.clone(), def.line)) {
                 let context = source_map

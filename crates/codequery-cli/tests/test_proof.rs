@@ -303,7 +303,10 @@ fn proof2_rust_greet_exact_reference_count() {
         "expected a definition-kind reference in lib.rs"
     );
     let def_line = def_ref.unwrap()["line"].as_u64().unwrap_or(0);
-    assert_eq!(def_line, 9, "definition ref should be at lib.rs:9, got line {def_line}");
+    assert_eq!(
+        def_line, 9,
+        "definition ref should be at lib.rs:9, got line {def_line}"
+    );
 
     // Verify specific lines across all refs.
     let ref_lines: Vec<u64> = refs.iter().filter_map(|r| r["line"].as_u64()).collect();

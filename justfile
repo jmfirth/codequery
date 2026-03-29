@@ -36,6 +36,19 @@ doc:
 bench:
     cargo bench --workspace
 
+# Generate man page (writes to cq.1, or install with `just man install`)
+man *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build --bin generate-manpage --quiet
+    if [ "{{ARGS}}" = "install" ]; then
+        cargo run --bin generate-manpage --quiet -- /usr/local/share/man/man1/cq.1
+        echo "installed to /usr/local/share/man/man1/cq.1"
+    else
+        cargo run --bin generate-manpage --quiet -- cq.1
+        echo "generated cq.1"
+    fi
+
 # Clean build artifacts
 clean:
     cargo clean
