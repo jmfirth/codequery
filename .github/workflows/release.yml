@@ -1,0 +1,154 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            binary: cq
+            mcp_binary: cq-mcp
+            archive: tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            binary: cq
+            mcp_binary: cq-mcp
+            archive: tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-13
+            binary: cq
+            mcp_binary: cq-mcp
+            archive: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            binary: cq
+            mcp_binary: cq-mcp
+            archive: tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            binary: cq.exe
+            mcp_binary: cq-mcp.exe
+            archive: zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (aarch64-linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build release binary
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: ${{ matrix.target == 'aarch64-unknown-linux-gnu' && 'aarch64-linux-gnu-gcc' || '' }}
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Determine archive name
+        id: archive
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "name=codequery-${TAG}-${{ matrix.target }}" >> "$GITHUB_OUTPUT"
+
+      - name: Package (tar.gz)
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        run: |
+          STAGING="${{ steps.archive.outputs.name }}"
+          mkdir -p "$STAGING"
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "$STAGING/"
+          cp "target/${{ matrix.target }}/release/${{ matrix.mcp_binary }}" "$STAGING/"
+          cp README.md "$STAGING/" 2>/dev/null || true
+          cp LICENSE* "$STAGING/" 2>/dev/null || true
+          tar czf "$STAGING.tar.gz" "$STAGING"
+          echo "ASSET=$STAGING.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Package (zip)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $staging = "${{ steps.archive.outputs.name }}"
+          New-Item -ItemType Directory -Path $staging -Force
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.binary }}" "$staging/"
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.mcp_binary }}" "$staging/"
+          if (Test-Path "README.md") { Copy-Item "README.md" "$staging/" }
+          Get-ChildItem "LICENSE*" -ErrorAction SilentlyContinue | Copy-Item -Destination "$staging/"
+          Compress-Archive -Path "$staging/*" -DestinationPath "$staging.zip"
+          echo "ASSET=$staging.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Generate SHA256 checksum
+        shell: bash
+        run: |
+          if [[ "${{ matrix.archive }}" == "tar.gz" ]]; then
+            ASSET="${{ steps.archive.outputs.name }}.tar.gz"
+          else
+            ASSET="${{ steps.archive.outputs.name }}.zip"
+          fi
+          if command -v sha256sum &>/dev/null; then
+            sha256sum "$ASSET" > "$ASSET.sha256"
+          else
+            shasum -a 256 "$ASSET" > "$ASSET.sha256"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.archive.outputs.name }}
+          path: |
+            ${{ steps.archive.outputs.name }}.${{ matrix.archive }}
+            ${{ steps.archive.outputs.name }}.${{ matrix.archive }}.sha256
+
+  publish-release:
+    name: Publish Release
+    needs: build-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect release assets
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.sha256' \) -exec cp {} release/ \;
+          cd release
+          cat *.sha256 > SHA256SUMS.txt
+          ls -la
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            release/*
