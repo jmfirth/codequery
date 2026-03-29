@@ -733,7 +733,8 @@ mod tests {
         for (lang, path, source, symbol) in &cases {
             let files = vec![parse_source(Path::new(path), source, *lang)];
             let mut result = build_graph(&files, *lang).unwrap();
-            let refs = resolve_references(&result.graph, &mut result.partial_paths, symbol).unwrap();
+            let refs =
+                resolve_references(&result.graph, &mut result.partial_paths, symbol).unwrap();
             eprintln!(
                 "{lang:?}: resolve_references returned {} resolved refs for '{symbol}'",
                 refs.len()

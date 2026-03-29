@@ -399,7 +399,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // resolve_refs — Rust (syntactic fallback — TSG rules produce 0 refs)
+    // resolve_refs — Rust (resolved — TSG scope wiring now works)
     // -----------------------------------------------------------------------
 
     #[test]
@@ -410,12 +410,16 @@ mod tests {
         let mut resolver = StackGraphResolver::new();
         let result = resolver.resolve_refs(&[fs], "greet");
 
-        // Rust TSG rules produce 0 reference nodes, so the resolver falls
-        // back to syntactic extraction. Previously this test was vacuously
-        // true (empty results made the loop body unreachable).
+        // Rust TSG scope wiring now correctly propagates lexical scopes
+        // through expression_statement → call_expression → identifier,
+        // so path stitching succeeds and references are Resolved.
+        assert!(
+            !result.references.is_empty(),
+            "Rust same-file: expected >= 1 resolved reference for 'greet'"
+        );
         for r in &result.references {
             assert_eq!(r.symbol, "greet");
-            assert_eq!(r.resolution, Resolution::Syntactic);
+            assert_eq!(r.resolution, Resolution::Resolved);
         }
     }
 

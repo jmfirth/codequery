@@ -539,6 +539,22 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 }
 
 ;; =========================
+;;  Expression-to-child scope wiring
+;; =========================
+
+;; expression_statement wraps a child expression. The child must be able
+;; to see the enclosing scope so that references inside it can resolve.
+(expression_statement (_) @child) @stmt {
+  edge @child.lexical_scope -> @stmt.lexical_scope
+}
+
+;; return_statement wraps a return value expression. The child must be
+;; able to see the enclosing scope for the same reason.
+(return_statement (_) @child) @stmt {
+  edge @child.lexical_scope -> @stmt.lexical_scope
+}
+
+;; =========================
 ;;  Call Expressions
 ;; =========================
 

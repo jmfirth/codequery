@@ -99,6 +99,7 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   (await_expression)
   (type_cast_expression)
   (parenthesized_expression)
+  (arguments)
   (string_literal)
   (integer_literal)
   (float_literal)
@@ -665,6 +666,89 @@ inherit .mod_scope
   attr (ext_alias_def) node_definition = @alias
   edge @ext_crate_alias.defs -> ext_alias_def
   edge ext_alias_def -> ROOT_NODE
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Expression-to-child scope wiring
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; expression_statement wraps a child expression (e.g. `greet();`).
+;; The child must inherit the statement's lexical_scope so references resolve.
+;; We use specific node types to avoid accessing .lexical_scope on nodes that
+;; lack it (e.g. scoped_identifier).
+(expression_statement (call_expression) @child) @stmt {
+  edge @child.lexical_scope -> @stmt.lexical_scope
+}
+
+(expression_statement (macro_invocation) @child) @stmt {
+  edge @child.lexical_scope -> @stmt.lexical_scope
+}
+
+(expression_statement (assignment_expression) @child) @stmt {
+  edge @child.lexical_scope -> @stmt.lexical_scope
+}
+
+(expression_statement (binary_expression) @child) @stmt {
+  edge @child.lexical_scope -> @stmt.lexical_scope
+}
+
+(expression_statement (return_expression) @child) @stmt {
+  edge @child.lexical_scope -> @stmt.lexical_scope
+}
+
+(expression_statement (if_expression) @child) @stmt {
+  edge @child.lexical_scope -> @stmt.lexical_scope
+}
+
+;; return_expression wraps a return value (e.g. `return greet();`).
+(return_expression (call_expression) @child) @ret {
+  edge @child.lexical_scope -> @ret.lexical_scope
+}
+
+;; let_declaration value expression (e.g. `let x = greet();`).
+(let_declaration value: (call_expression) @val) @let_decl {
+  edge @val.lexical_scope -> @let_decl.lexical_scope
+}
+
+(let_declaration value: (binary_expression) @val) @let_decl {
+  edge @val.lexical_scope -> @let_decl.lexical_scope
+}
+
+(let_declaration value: (if_expression) @val) @let_decl {
+  edge @val.lexical_scope -> @let_decl.lexical_scope
+}
+
+;; call_expression wires its function identifier and arguments to its scope.
+(call_expression
+  function: (identifier) @func) @call {
+  edge @func.lexical_scope -> @call.lexical_scope
+}
+
+(call_expression
+  function: (field_expression) @func) @call {
+  edge @func.lexical_scope -> @call.lexical_scope
+}
+
+(call_expression
+  arguments: (arguments) @args) @call {
+  edge @args.lexical_scope -> @call.lexical_scope
+}
+
+;; arguments: wire each argument expression to the arguments list scope.
+(arguments (identifier) @arg) @args {
+  edge @arg.lexical_scope -> @args.lexical_scope
+}
+
+(arguments (call_expression) @arg) @args {
+  edge @arg.lexical_scope -> @args.lexical_scope
+}
+
+(arguments (string_literal) @arg) @args {
+  edge @arg.lexical_scope -> @args.lexical_scope
+}
+
+(arguments (integer_literal) @arg) @args {
+  edge @arg.lexical_scope -> @args.lexical_scope
 }
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

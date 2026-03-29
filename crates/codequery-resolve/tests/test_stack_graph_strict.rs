@@ -1,8 +1,8 @@
 //! Strict stack graph resolution tests.
 //!
 //! These tests enforce exact expectations per language:
-//! - Python, TypeScript, JavaScript, Java: MUST produce `Resolution::Resolved`
-//! - Rust, Go, C: MUST fall back to `Resolution::Syntactic` (proving the fallback works)
+//! - Python, TypeScript, JavaScript, Java, Rust, Go, C: MUST produce `Resolution::Resolved`
+//!   for same-file references (TSG scope wiring enables path stitching)
 //! - Exact reference counts where deterministic
 //! - Cross-file resolution with specific file paths
 
@@ -226,11 +226,11 @@ fn java_same_file_resolved() {
 }
 
 // ===========================================================================
-// Rust: MUST fall back to Resolution::Syntactic (broken TSG rules)
+// Rust: MUST produce Resolution::Resolved (TSG scope wiring fixed)
 // ===========================================================================
 
 #[test]
-fn rust_same_file_syntactic_fallback() {
+fn rust_same_file_resolved() {
     let source = "fn greet() -> String { String::from(\"hello\") }\nfn main() { greet(); }\n";
     let fs = make_file_symbols("main.rs", source, Language::Rust);
 
@@ -240,7 +240,7 @@ fn rust_same_file_syntactic_fallback() {
     let refs = &result.references;
     assert!(
         !refs.is_empty(),
-        "Rust same-file: expected >= 1 syntactic fallback reference for 'greet', got 0. \
+        "Rust same-file: expected >= 1 resolved reference for 'greet', got 0. \
          Warnings: {:?}",
         result.warnings
     );
@@ -248,29 +248,19 @@ fn rust_same_file_syntactic_fallback() {
         assert_eq!(r.symbol, "greet");
         assert_eq!(
             r.resolution,
-            Resolution::Syntactic,
-            "Rust same-file: reference MUST be Syntactic (fallback), got {:?}. \
-             This proves the empty-result fallback is working.",
+            Resolution::Resolved,
+            "Rust same-file: all references MUST be Resolved, got {:?}",
             r.resolution
         );
     }
-    // Verify the warning mentions the fallback.
-    assert!(
-        result
-            .warnings
-            .iter()
-            .any(|w| w.contains("stack graph found no references")),
-        "Rust: expected 'stack graph found no references' warning, got: {:?}",
-        result.warnings
-    );
 }
 
 // ===========================================================================
-// Go: MUST fall back to Resolution::Syntactic (broken TSG rules)
+// Go: MUST produce Resolution::Resolved (TSG scope wiring fixed)
 // ===========================================================================
 
 #[test]
-fn go_same_file_syntactic_fallback() {
+fn go_same_file_resolved() {
     let source =
         "package main\n\nfunc greet() string { return \"hello\" }\n\nfunc main() { greet() }\n";
     let fs = make_file_symbols("main.go", source, Language::Go);
@@ -281,7 +271,7 @@ fn go_same_file_syntactic_fallback() {
     let refs = &result.references;
     assert!(
         !refs.is_empty(),
-        "Go same-file: expected >= 1 syntactic fallback reference for 'greet', got 0. \
+        "Go same-file: expected >= 1 resolved reference for 'greet', got 0. \
          Warnings: {:?}",
         result.warnings
     );
@@ -289,28 +279,19 @@ fn go_same_file_syntactic_fallback() {
         assert_eq!(r.symbol, "greet");
         assert_eq!(
             r.resolution,
-            Resolution::Syntactic,
-            "Go same-file: reference MUST be Syntactic (fallback), got {:?}. \
-             This proves the empty-result fallback is working.",
+            Resolution::Resolved,
+            "Go same-file: all references MUST be Resolved, got {:?}",
             r.resolution
         );
     }
-    assert!(
-        result
-            .warnings
-            .iter()
-            .any(|w| w.contains("stack graph found no references")),
-        "Go: expected 'stack graph found no references' warning, got: {:?}",
-        result.warnings
-    );
 }
 
 // ===========================================================================
-// C: MUST fall back to Resolution::Syntactic (broken TSG rules)
+// C: MUST produce Resolution::Resolved (TSG scope wiring fixed)
 // ===========================================================================
 
 #[test]
-fn c_same_file_syntactic_fallback() {
+fn c_same_file_resolved() {
     let source = "void greet() {}\nint main() { greet(); return 0; }\n";
     let fs = make_file_symbols("main.c", source, Language::C);
 
@@ -320,7 +301,7 @@ fn c_same_file_syntactic_fallback() {
     let refs = &result.references;
     assert!(
         !refs.is_empty(),
-        "C same-file: expected >= 1 syntactic fallback reference for 'greet', got 0. \
+        "C same-file: expected >= 1 resolved reference for 'greet', got 0. \
          Warnings: {:?}",
         result.warnings
     );
@@ -328,20 +309,11 @@ fn c_same_file_syntactic_fallback() {
         assert_eq!(r.symbol, "greet");
         assert_eq!(
             r.resolution,
-            Resolution::Syntactic,
-            "C same-file: reference MUST be Syntactic (fallback), got {:?}. \
-             This proves the empty-result fallback is working.",
+            Resolution::Resolved,
+            "C same-file: all references MUST be Resolved, got {:?}",
             r.resolution
         );
     }
-    assert!(
-        result
-            .warnings
-            .iter()
-            .any(|w| w.contains("stack graph found no references")),
-        "C: expected 'stack graph found no references' warning, got: {:?}",
-        result.warnings
-    );
 }
 
 // ===========================================================================
@@ -407,54 +379,74 @@ fn python_resolved_refs_have_def_file() {
 }
 
 #[test]
-fn rust_syntactic_refs_lack_def_file() {
+fn rust_resolved_refs_have_def_file() {
     let source = "fn greet() -> String { String::from(\"hello\") }\nfn main() { greet(); }\n";
     let fs = make_file_symbols("main.rs", source, Language::Rust);
 
     let mut resolver = StackGraphResolver::new();
     let result = resolver.resolve_refs(&[fs], "greet");
 
-    // Syntactic fallback references should NOT have def_file.
+    // Resolved references should have def_file set.
+    assert!(
+        !result.references.is_empty(),
+        "Rust A/B: expected >= 1 resolved reference for 'greet', got 0"
+    );
     for r in &result.references {
         assert_eq!(
             r.resolution,
-            Resolution::Syntactic,
-            "Rust A/B: expected Syntactic, got {:?}",
+            Resolution::Resolved,
+            "Rust A/B: expected Resolved, got {:?}",
             r.resolution
         );
         assert!(
-            r.def_file.is_none(),
-            "Rust A/B: syntactic references should NOT have def_file, but got {:?}",
-            r.def_file
+            r.def_file.is_some(),
+            "Rust A/B: resolved references MUST have def_file set, but got None"
         );
     }
 }
 
 // ===========================================================================
-// resolve_callers: Rust syntactic fallback is filtered out
+// resolve_callers: Rust resolved refs are returned by callers
 // ===========================================================================
 
 #[test]
-fn rust_callers_filters_syntactic_fallback() {
+fn rust_callers_returns_resolved() {
     let source = "fn greet() -> String { String::from(\"hello\") }\nfn main() { greet(); }\n";
 
     let mut resolver = StackGraphResolver::new();
 
-    // resolve_refs should find syntactic refs (via fallback).
+    // resolve_refs should find resolved refs (TSG scope wiring works).
     let fs_for_refs = make_file_symbols("main.rs", source, Language::Rust);
     let refs_result = resolver.resolve_refs(&[fs_for_refs], "greet");
     assert!(
         !refs_result.references.is_empty(),
-        "resolve_refs should find syntactic fallback refs for Rust"
+        "resolve_refs should find resolved refs for Rust"
     );
+    for r in &refs_result.references {
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "resolve_refs should return Resolved, got {:?}",
+            r.resolution
+        );
+    }
 
-    // resolve_callers filters to Resolved only, so syntactic fallback gets excluded.
+    // resolve_callers filters to Resolved only — with working TSG rules,
+    // Rust should now return callers.
     let fs_for_callers = make_file_symbols("main.rs", source, Language::Rust);
     let callers_result = resolver.resolve_callers(&[fs_for_callers], "greet");
     assert!(
-        callers_result.references.is_empty(),
-        "resolve_callers should filter out syntactic fallback refs for Rust, \
-         but got: {:?}",
-        callers_result.references
+        !callers_result.references.is_empty(),
+        "resolve_callers should return resolved refs for Rust, \
+         but got empty. Warnings: {:?}",
+        callers_result.warnings
     );
+    for r in &callers_result.references {
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "resolve_callers should only contain Resolved refs, got {:?}",
+            r.resolution
+        );
+    }
 }
