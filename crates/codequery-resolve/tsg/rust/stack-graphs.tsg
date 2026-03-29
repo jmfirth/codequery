@@ -73,6 +73,42 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   node @item.lexical_scope
 }
 
+;; Expression types that can appear as direct children of blocks (tail
+;; expressions, match arms, etc.) need .defs and .lexical_scope stubs.
+[
+  (call_expression)
+  (field_expression)
+  (return_expression)
+  (binary_expression)
+  (unary_expression)
+  (reference_expression)
+  (try_expression)
+  (assignment_expression)
+  (compound_assignment_expr)
+  (if_expression)
+  (match_expression)
+  (while_expression)
+  (loop_expression)
+  (for_expression)
+  (closure_expression)
+  (tuple_expression)
+  (array_expression)
+  (struct_expression)
+  (index_expression)
+  (range_expression)
+  (await_expression)
+  (type_cast_expression)
+  (parenthesized_expression)
+  (string_literal)
+  (integer_literal)
+  (float_literal)
+  (boolean_literal)
+  (char_literal)
+] @expr {
+  node @expr.defs
+  node @expr.lexical_scope
+}
+
 ;; Block nodes (function bodies, impl bodies, etc.)
 (block) @blk {
   node @blk.defs
@@ -87,18 +123,21 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 ;; Identifier nodes
 (identifier) @id {
   node @id.ref
+  node @id.lexical_scope
   attr (@id.ref) node_reference = @id
 }
 
 ;; Type identifier nodes
 (type_identifier) @tid {
   node @tid.ref
+  node @tid.lexical_scope
   attr (@tid.ref) node_reference = @tid
 }
 
 ;; Field identifier nodes
 (field_identifier) @fid {
   node @fid.ref
+  node @fid.lexical_scope
   attr (@fid.ref) node_reference = @fid
 }
 
