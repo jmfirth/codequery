@@ -8,7 +8,7 @@ See `SPECIFICATION.md` for the full design.
 
 ## Project State
 
-Phase 4 (LSP Integration) complete. 1590 tests, 6 crates, 12 commands, 16 languages. Phase 5 (Distribution) not started. 70 tasks completed across Phases 0-4.
+Release prep in progress. 1811 tests, 6 crates, 12 commands, 16 languages. Stack graphs fixed for all 7 TSG languages (same-file resolution). LSP oneshot working with progress-aware readiness. Phase 5 (Distribution) not started. 70 phase tasks + release hardening completed.
 
 ## Key Documents
 
