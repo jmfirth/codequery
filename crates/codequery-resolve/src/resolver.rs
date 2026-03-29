@@ -102,15 +102,34 @@ impl StackGraphResolver {
                     match resolve_language_group(files_for_lang, lang, symbol) {
                         Ok((refs, group_warnings)) => {
                             // Filter to references within the target file and line range.
-                            for r in refs {
-                                if r.ref_file == target_file
-                                    && r.ref_line >= start_line
-                                    && r.ref_line <= end_line
-                                {
-                                    all_refs.push(r);
+                            let filtered: Vec<_> = refs
+                                .into_iter()
+                                .filter(|r| {
+                                    r.ref_file == target_file
+                                        && r.ref_line >= start_line
+                                        && r.ref_line <= end_line
+                                })
+                                .collect();
+                            if filtered.is_empty() {
+                                // Stack graph built but found no references in range —
+                                // fall back to syntactic for this file.
+                                let syntactic = syntactic_refs_for_file(
+                                    target_fs,
+                                    symbol,
+                                    Some(target_line_range),
+                                );
+                                if !syntactic.is_empty() {
+                                    all_refs.extend(syntactic);
+                                    any_syntactic = true;
+                                    warnings.push(format!(
+                                        "{lang:?}: stack graph found no references, using syntactic fallback"
+                                    ));
                                 }
+                                warnings.extend(group_warnings);
+                            } else {
+                                all_refs.extend(filtered);
+                                warnings.extend(group_warnings);
                             }
-                            warnings.extend(group_warnings);
                         }
                         Err(e) => {
                             warnings.push(format!("{lang:?}: {e}"));
@@ -153,8 +172,23 @@ impl StackGraphResolver {
             if has_rules(*lang) {
                 match resolve_language_group(files, *lang, symbol) {
                     Ok((refs, group_warnings)) => {
-                        all_refs.extend(refs);
-                        warnings.extend(group_warnings);
+                        if refs.is_empty() {
+                            // Stack graph built but found no references — fall back to syntactic.
+                            // This happens when TSG rules don't cover the reference patterns
+                            // for this language (e.g., Rust, Go, C have limited rules).
+                            let syntactic = syntactic_refs_for_group(files, symbol);
+                            if !syntactic.is_empty() {
+                                all_refs.extend(syntactic);
+                                any_syntactic = true;
+                                warnings.push(format!(
+                                    "{lang:?}: stack graph found no references, using syntactic fallback"
+                                ));
+                            }
+                            warnings.extend(group_warnings);
+                        } else {
+                            all_refs.extend(refs);
+                            warnings.extend(group_warnings);
+                        }
                     }
                     Err(e) => {
                         // Graph construction or resolution failed; fall back to syntactic.
@@ -365,7 +399,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // resolve_refs — Rust (resolved path)
+    // resolve_refs — Rust (syntactic fallback — TSG rules produce 0 refs)
     // -----------------------------------------------------------------------
 
     #[test]
@@ -376,9 +410,12 @@ mod tests {
         let mut resolver = StackGraphResolver::new();
         let result = resolver.resolve_refs(&[fs], "greet");
 
+        // Rust TSG rules produce 0 reference nodes, so the resolver falls
+        // back to syntactic extraction. Previously this test was vacuously
+        // true (empty results made the loop body unreachable).
         for r in &result.references {
             assert_eq!(r.symbol, "greet");
-            assert_eq!(r.resolution, Resolution::Resolved);
+            assert_eq!(r.resolution, Resolution::Syntactic);
         }
     }
 
