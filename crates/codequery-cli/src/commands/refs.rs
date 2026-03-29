@@ -72,7 +72,7 @@ pub fn run(
     }
 
     // 5. Use resolution cascade (daemon -> oneshot LSP -> stack graph)
-    let resolution_result = if let Some(def) = definitions.first() {
+    let mut resolution_result = if let Some(def) = definitions.first() {
         let def_lang =
             codequery_core::language_for_file(&def.file).unwrap_or(codequery_core::Language::Rust);
         resolve_with_cascade(
@@ -90,6 +90,31 @@ pub fn run(
         let mut resolver = StackGraphResolver::new();
         resolver.resolve_refs(&scan_results, symbol)
     };
+
+    // 5b. Filter out resolved references whose definition doesn't match the
+    // queried symbol. Eliminates false positives from name collisions (e.g.,
+    // different `parse` functions in different modules). A resolved ref is
+    // kept if its def_file is either:
+    //   - A file containing a known definition of this symbol, OR
+    //   - The same file as the reference itself (import re-binding / local alias)
+    if !definitions.is_empty() {
+        let def_files: std::collections::HashSet<&std::path::Path> = definitions
+            .iter()
+            .map(|d| d.file.as_path())
+            .collect();
+        resolution_result.references.retain(|rr| {
+            match rr.resolution {
+                Resolution::Resolved => {
+                    if let Some(df) = &rr.def_file {
+                        def_files.contains(df.as_path()) || df == &rr.ref_file
+                    } else {
+                        true
+                    }
+                }
+                _ => true,
+            }
+        });
+    }
 
     // Determine the top-level resolution quality.
     // Use the highest resolution tier present in the cascade result.
