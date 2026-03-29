@@ -2,6 +2,8 @@
 name = "codequery-lsp"
 version = "0.1.0"
 license = "Apache-2.0"
+description = "LSP client, daemon, and precision cascade for cq"
+repository = "https://github.com/jmfirth/codequery"
 edition = "2021"
 
 [dependencies]

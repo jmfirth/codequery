@@ -2,6 +2,8 @@
 name = "codequery-core"
 version = "0.1.0"
 license = "Apache-2.0"
+description = "Core types, project detection, and file discovery for cq"
+repository = "https://github.com/jmfirth/codequery"
 edition = "2021"
 
 [dependencies]

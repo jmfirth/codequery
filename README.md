@@ -70,7 +70,7 @@ cargo install codequery-cli
 From source:
 
 ```
-git clone https://github.com/jfirth/codequery.git
+git clone https://github.com/jmfirth/codequery.git
 cd codequery
 cargo build --release
 # binary at target/release/cq
