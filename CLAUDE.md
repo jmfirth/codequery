@@ -1,26 +1,33 @@
 # codequery (`cq`)
 
-A semantic code query tool for the command line. Tree-sitter-powered structural navigation for AI agents and humans.
+Semantic code query tool for the command line. Tree-sitter-powered structural navigation for AI agents and humans.
 
-See `SPECIFICATION.md` for the full design.
+See `SPECIFICATION.md` for the full design. See `CONVENTIONS.md` for coding standards — all code changes must follow those conventions.
 
 ---
 
 ## Project State
 
-Release prep in progress. 1811 tests, 6 crates, 12 commands, 16 languages. Stack graphs fixed for all 7 TSG languages (same-file resolution). LSP oneshot working with progress-aware readiness. Phase 5 (Distribution) not started. 70 phase tasks + release hardening completed.
+Release-ready. 1960 tests, 7 crates, 12 commands, 16 languages. Stack graphs for 10 languages (all Tier 1 + Ruby, C#), hardened against 24 real-world open-source projects. LSP defaults for all 16 languages. MCP server ships as `cq-mcp`.
 
 ## Key Documents
 
 | Document | Purpose | Read when |
 |----------|---------|-----------|
 | `SPECIFICATION.md` | Tool design, command surface, output formats, architecture | Before any design decision |
-| `PLAN.md` | Task plan, dependencies, status tracking | Before starting any work |
-| `PROCESS.md` | Agent workflow, quality gates, task lifecycle | Before any work |
-| `CONVENTIONS.md` | Coding standards, style, architecture rules | Before writing code |
-| `BOOTSTRAP.md` | TL/Orchestrator role activation | TL role only |
-| `agents/` | Developer, reviewer, plan-reviewer role contracts | Agents read their own role doc |
-| `tasks/` | Per-task specifications | Developer and reviewer agents |
+| `CONVENTIONS.md` | Coding standards, style, architecture rules | Before writing any code |
+
+## Crate Structure
+
+| Crate | Purpose |
+|-------|---------|
+| `codequery-core` | Symbol types, project detection, file discovery, config |
+| `codequery-parse` | Tree-sitter parsing, per-language extraction (16 languages), search engine |
+| `codequery-index` | Parallel scanning (rayon), grep pre-filter (memchr), symbol index, reference extraction, caching |
+| `codequery-resolve` | Stack graph resolution (10 languages), TSG rules, resolver facade |
+| `codequery-lsp` | LSP client, JSON-RPC transport, server lifecycle, daemon, cascade |
+| `codequery-cli` | Binary entry point (`cq`), 12 commands, output formatting |
+| `codequery-mcp` | MCP server (`cq-mcp`), exposes all commands as AI-callable tools |
 
 ## Query Pipeline
 
@@ -28,59 +35,72 @@ Release prep in progress. 1811 tests, 6 crates, 12 commands, 16 languages. Stack
 file discovery → language detection → tree-sitter parse → AST query → symbol extraction → output formatting
 ```
 
-For narrow commands (def, body, sig): text pre-filter → candidate files → parse subset → extract
-For wide commands (refs, callers, symbols): parallel parse all files → index → query → merge results
+For narrow commands (`def`, `body`, `sig`): text pre-filter → candidate files → parse subset → extract
+For wide commands (`refs`, `callers`, `symbols`): parallel parse all files → index → query → merge results
 
-### Crate Structure
+### Precision Cascade
 
-| Crate | Purpose |
-|-------|---------|
-| `codequery-core` | Symbol types, project detection, file discovery, config |
-| `codequery-parse` | Tree-sitter parsing, per-language extraction (16 languages), search engine |
-| `codequery-index` | Parallel scanning (rayon), grep pre-filter (memchr), symbol index, reference extraction, caching |
-| `codequery-resolve` | Stack graph resolution (7 languages), TSG rules, resolver facade |
-| `codequery-lsp` | LSP client, JSON-RPC transport, server lifecycle, daemon, cascade |
-| `codequery-cli` | Binary entry point, 12 commands, output formatting |
+Cross-reference commands (`refs`, `callers`, `deps`) use a three-tier cascade:
+
+```
+1. Daemon running?  → semantic precision (sub-second, compiler-level)
+2. --semantic flag?  → oneshot LSP (10-30s, but precise)
+3. Stack graph rules? → scope-resolved (follows imports, qualified names)
+4. Fallback          → syntactic (tree-sitter name matching)
+```
+
+Every result carries `resolution` metadata (`semantic`, `resolved`, or `syntactic`) so consumers know the precision level.
 
 ## Architectural Invariants
 
-These are non-negotiable constraints from the specification:
+These are non-negotiable constraints:
 
-1. **Stateless by default.** Every invocation parses what it needs. Optional caching is opt-in only. An optional daemon mode (`cq daemon start`) provides a warm LSP connection for semantic precision; the daemon is never required -- the three-tier cascade (daemon, oneshot LSP, stack graph) falls back gracefully.
+1. **Stateless by default.** Every invocation parses what it needs. Optional caching is opt-in. Daemon mode is optional — the cascade falls back gracefully.
 2. **Error-tolerant.** Tree-sitter produces usable ASTs even on broken code. A parse error in one file must not block results from other files.
-3. **Cross-language from one binary.** Tier 1 grammars (Rust, TypeScript, Python, Go, C/C++, Java) are compiled into the binary. No runtime dependencies on language toolchains.
+3. **Cross-language from one binary.** All 16 language grammars are compiled into the binary. No runtime dependencies on language toolchains.
 4. **Human-readable default output.** Framed plain text with `@@ file:line:column kind name @@` delimiters. JSON and raw modes via flags.
 5. **Performance contract.** Narrow commands sub-100ms on any project size. Wide commands under 2s on 400k lines with 8 cores.
 
-## Commands
+## Build Commands
 
 | Command | What it does |
 |---------|-------------|
 | `just check` | Format check + clippy |
-| `just test` | Fast test suite (<10s) |
-| `just test-all` | Full suite: unit + integration + cross-language + performance |
+| `just test` | Full test suite |
 | `just build` | Debug build |
 | `just release` | Release build |
-| `just start` | Run cq (pass-through args) |
 | `just ci` | Full CI pipeline |
-| `just doc` | Build and open docs |
+| `just man` | Generate man page |
 
-## Code Standards
+## Development Workflow
 
-- `#![warn(clippy::pedantic)]` on all crates
-- `cargo fmt` enforced — no exceptions
-- No `unwrap()` or `expect()` in library code
-- Doc comments on all public types, traits, functions
-- `thiserror` for library errors, `anyhow` in binary crate only
-- See `CONVENTIONS.md` for complete standards
+- Run `just check` before committing — enforces `cargo fmt` and clippy
+- Run `just test` after changes — must pass before merging
+- Write tests for new functionality — correctness tests first (red-green)
+- Follow `CONVENTIONS.md` strictly for all code changes
 
-## Testing Model
+### Testing Model
 
 | Level | What | Where |
 |-------|------|-------|
 | Unit | Internal API correctness | `#[cfg(test)]` in each module |
-| Integration | Command → expected output against fixture projects | `tests/integration/` |
-| Cross-language | Same commands across all Tier 1 languages | `tests/cross_language/` |
-| Performance | Benchmarks on large projects | `tests/performance/` |
+| Integration | Command → expected output against fixture projects | `crates/codequery-cli/tests/` |
+| Cross-language | Same commands across all 16 languages | `test_coverage_tier1.rs`, `test_coverage_tier2.rs` |
+| Precision | Stack graph resolution proof, LSP comparison | `test_proof.rs`, `test_precision.rs` |
+| Strict | Exact resolution tiers per language | `test_stack_graph_strict.rs` |
 
-Phase goals are measured by test passage and command correctness. See `PROCESS.md` for the full quality framework.
+### Stack Graph Rules
+
+TSG rules live in `crates/codequery-resolve/tsg/{language}/stack-graphs.tsg`. When writing or modifying TSG rules:
+
+- **Never use `(_)` wildcards** in parent-child stanzas. Always use explicit type lists. Wildcards match comments, literals, and other node types that don't have scoped variable stubs, breaking graph construction.
+- Test against real-world projects, not just synthetic fixtures. Use `scripts/smoke-test.sh` to scan popular open-source projects.
+- Validate against LSP ground truth using `scripts/lsp-validation.sh`.
+- After changes, run the comprehensive TSG error survey (see `test_stack_graph_strict.rs` diagnostic tests).
+
+### Validation Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/smoke-test.sh` | Clone and test against 15+ real open-source projects |
+| `scripts/lsp-validation.sh` | Compare stack graph results against language server ground truth |
