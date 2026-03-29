@@ -425,11 +425,16 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   edge @vparam.lexical_scope -> @params.lexical_scope
 }
 
-(variadic_parameter_declaration
-  name: (identifier) @name) @vparam {
+;; Unconditional stub: always declare .defs and .lexical_scope so the wiring
+;; above succeeds even when there is no named parameter (e.g., `func(...int)`).
+(variadic_parameter_declaration) @vparam {
   node @vparam.defs
   node @vparam.lexical_scope
+}
 
+;; Named variadic parameter: create a definition for the name.
+(variadic_parameter_declaration
+  name: (identifier) @name) @vparam {
   node def
   attr (def) node_definition = @name
   edge @vparam.defs -> def
