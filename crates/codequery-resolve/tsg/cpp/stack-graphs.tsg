@@ -1,0 +1,1511 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Stack graphs definition for C++
+;;
+;; C++ extends C with:
+;;   - Namespaces (namespace_definition, using_declaration)
+;;   - Classes (class_specifier with field_declaration_list)
+;;   - Qualified identifiers (Dog::speak, std::cout)
+;;   - Templates (template_declaration wrapping other declarations)
+;;   - Enum classes (scoped enumerations)
+;;   - Constructors, destructors, virtual methods
+;;
+;; The base scoping model from C still applies:
+;;   - File scope (translation unit) holds all top-level declarations
+;;   - Function definitions create definition nodes
+;;   - #include directives create import-like edges
+;;   - Function bodies introduce a new scope for local variables
+;;
+;; Wildcard avoidance: we list handled node types explicitly in child-wiring
+;; stanzas so that extras (comment) and field-only children do not cause
+;; "Undefined scoped variable" errors.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;
+;; Global Variables
+
+global FILE_PATH           ; project-relative path of this file
+global ROOT_NODE
+global JUMP_TO_SCOPE_NODE
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Attribute Shorthands
+
+attribute node_definition = node        => type = "pop_symbol", node_symbol = node, is_definition
+attribute node_reference = node         => type = "push_symbol", node_symbol = node, is_reference
+attribute pop_node = node               => type = "pop_symbol", node_symbol = node
+attribute pop_scoped_node = node        => type = "pop_scoped_symbol", node_symbol = node
+attribute pop_scoped_symbol = symbol    => type = "pop_scoped_symbol", symbol = symbol
+attribute pop_symbol = symbol           => type = "pop_symbol", symbol = symbol
+attribute push_node = node              => type = "push_symbol", node_symbol = node
+attribute push_scoped_node = node       => type = "push_scoped_symbol", node_symbol = node
+attribute push_scoped_symbol = symbol   => type = "push_scoped_symbol", symbol = symbol
+attribute push_symbol = symbol          => type = "push_symbol", symbol = symbol
+attribute scoped_node_definition = node => type = "pop_scoped_symbol", node_symbol = node, is_definition
+attribute scoped_node_reference = node  => type = "push_scoped_symbol", node_symbol = node, is_reference
+attribute symbol_definition = symbol    => type = "pop_symbol", symbol = symbol, is_definition
+attribute symbol_reference = symbol     => type = "push_symbol", symbol = symbol, is_reference
+
+attribute node_symbol = node            => symbol = (source-text node), source_node = node
+
+;; =============================
+;;  Comment stub (extra node)
+;; =============================
+
+(comment) @c {
+  node @c.defs
+  node @c.lexical_scope
+  node @c.before_scope
+  node @c.after_scope
+  edge @c.after_scope -> @c.before_scope
+}
+
+;; =============================
+;;  Translation Unit (file root)
+;; =============================
+
+(translation_unit) @tu {
+  node @tu.defs
+  node @tu.lexical_scope
+
+  ; File scope can see the global root (for cross-file / #include resolution)
+  edge @tu.lexical_scope -> ROOT_NODE
+  ; File scope can see its own definitions
+  edge @tu.lexical_scope -> @tu.defs
+
+  ; Expose file-level definitions to the global root
+  edge ROOT_NODE -> @tu.defs
+}
+
+;; Wire each top-level child into the translation unit's scope.
+;; Explicit node types — C base types plus C++ additions.
+(translation_unit
+  [
+    (function_definition)
+    (declaration)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (for_range_loop)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (compound_statement)
+    (case_statement)
+    (namespace_definition)
+    (template_declaration)
+    (using_declaration)
+    (static_assert_declaration)
+    (template_instantiation)
+    (throw_statement)
+    (try_statement)
+    (co_return_statement)
+    (co_yield_statement)
+    (namespace_alias_definition)
+    (concept_definition)
+    (alias_declaration)
+  ] @child
+) @tu {
+  edge @tu.defs -> @child.defs
+  edge @child.lexical_scope -> @tu.lexical_scope
+}
+
+;; ==========================
+;;  Top-level declaration stubs
+;; ==========================
+
+;; These nodes need .defs and .lexical_scope so they can participate in
+;; the wiring above even when we do not have more specific rules.
+
+[
+  (preproc_include)
+  (preproc_def)
+  (preproc_function_def)
+  (preproc_ifdef)
+  (preproc_if)
+  (preproc_elif)
+  (preproc_elifdef)
+  (preproc_else)
+  (preproc_call)
+  (linkage_specification)
+  (attributed_statement)
+  (case_statement)
+  (else_clause)
+  (static_assert_declaration)
+  (template_instantiation)
+  (throw_statement)
+  (try_statement)
+  (co_return_statement)
+  (co_yield_statement)
+  (namespace_alias_definition)
+  (concept_definition)
+  (alias_declaration)
+  (friend_declaration)
+  (for_range_loop)
+] @decl
+{
+  node @decl.defs
+  node @decl.lexical_scope
+}
+
+;; Nodes that also need before_scope / after_scope for block sequencing.
+[
+  (preproc_include)
+  (preproc_def)
+  (preproc_function_def)
+  (preproc_ifdef)
+  (preproc_if)
+  (preproc_call)
+  (linkage_specification)
+  (attributed_statement)
+  (case_statement)
+  (else_clause)
+  (static_assert_declaration)
+  (template_instantiation)
+  (throw_statement)
+  (try_statement)
+  (co_return_statement)
+  (co_yield_statement)
+  (namespace_alias_definition)
+  (concept_definition)
+  (alias_declaration)
+  (friend_declaration)
+  (for_range_loop)
+] @seqd
+{
+  node @seqd.before_scope
+  node @seqd.after_scope
+  edge @seqd.after_scope -> @seqd.before_scope
+}
+
+;; ============================
+;;  #include as import edges
+;; ============================
+
+(preproc_include
+  path: [
+    (string_literal)
+    (system_lib_string)
+  ] @path) @inc
+{
+  node ref
+  attr (ref) node_reference = @path
+  edge ref -> ROOT_NODE
+  edge @inc.lexical_scope -> ref
+}
+
+;; ========================
+;;  Identifier (references)
+;; ========================
+
+(identifier) @name {
+  node @name.ref
+  node @name.defs
+  node @name.lexical_scope
+  attr (@name.ref) node_reference = @name
+  edge @name.ref -> @name.lexical_scope
+}
+
+;; =============================
+;;  Namespace identifier stub
+;; =============================
+
+;; namespace_identifier is a leaf node used in namespace names.
+;; It needs stubs so namespace_definition and qualified_identifier wiring works.
+
+(namespace_identifier) @nsid {
+  node @nsid.defs
+  node @nsid.lexical_scope
+  node @nsid.ref
+  attr (@nsid.ref) node_reference = @nsid
+  edge @nsid.ref -> @nsid.lexical_scope
+}
+
+;; =============================
+;;  Field identifier stub
+;; =============================
+
+;; field_identifier is used for member names in declarations.
+
+(field_identifier) @fid {
+  node @fid.defs
+  node @fid.lexical_scope
+  node @fid.ref
+  attr (@fid.ref) node_reference = @fid
+  edge @fid.ref -> @fid.lexical_scope
+}
+
+;; =============================
+;;  Function definitions
+;; =============================
+
+;; All function_definition nodes need stubs.
+(function_definition) @func_stub {
+  node @func_stub.defs
+  node @func_stub.lexical_scope
+  node @func_stub.before_scope
+  node @func_stub.after_scope
+  edge @func_stub.after_scope -> @func_stub.before_scope
+}
+
+;; A function_definition creates a definition at file scope and introduces
+;; a body scope for locals and parameters.
+
+(function_definition
+  declarator: (function_declarator
+    declarator: (identifier) @name
+    parameters: (parameter_list) @params)
+  body: (compound_statement) @body) @func
+{
+  ; Define the function name at file scope
+  node def
+  attr (def) node_definition = @name
+  edge @func.defs -> def
+
+  ; Function body scope can see file-level scope
+  edge @body.lexical_scope -> @func.lexical_scope
+
+  ; Parameters are visible inside the body
+  edge @body.lexical_scope -> @params.defs
+  attr (@body.lexical_scope -> @params.defs) precedence = 1
+}
+
+;; Function definition with pointer return type (e.g. `char* func(...)`)
+(function_definition
+  declarator: (pointer_declarator
+    declarator: (function_declarator
+      declarator: (identifier) @name
+      parameters: (parameter_list) @params))
+  body: (compound_statement) @body) @func
+{
+  node def
+  attr (def) node_definition = @name
+  edge @func.defs -> def
+
+  edge @body.lexical_scope -> @func.lexical_scope
+  edge @body.lexical_scope -> @params.defs
+  attr (@body.lexical_scope -> @params.defs) precedence = 1
+}
+
+;; Function definition with reference return type (e.g. `string& func(...)`)
+(function_definition
+  declarator: (reference_declarator
+    (function_declarator
+      declarator: (identifier) @name
+      parameters: (parameter_list) @params))
+  body: (compound_statement) @body) @func
+{
+  node def
+  attr (def) node_definition = @name
+  edge @func.defs -> def
+
+  edge @body.lexical_scope -> @func.lexical_scope
+  edge @body.lexical_scope -> @params.defs
+  attr (@body.lexical_scope -> @params.defs) precedence = 1
+}
+
+;; =======================================
+;;  Qualified function definitions (C++)
+;; =======================================
+;;
+;; Out-of-class method: `void Dog::speak() { ... }`
+;; The declarator chain is: function_declarator -> qualified_identifier -> identifier
+
+(function_definition
+  declarator: (function_declarator
+    declarator: (qualified_identifier
+      name: (identifier) @name)
+    parameters: (parameter_list) @params)
+  body: (compound_statement) @body) @func
+{
+  node def
+  attr (def) node_definition = @name
+  edge @func.defs -> def
+  edge @body.lexical_scope -> @func.lexical_scope
+  edge @body.lexical_scope -> @params.defs
+  attr (@body.lexical_scope -> @params.defs) precedence = 1
+}
+
+;; Out-of-class destructor: `Dog::~Dog() { ... }`
+(function_definition
+  declarator: (function_declarator
+    declarator: (qualified_identifier
+      name: (destructor_name) @name))
+  body: (compound_statement) @body) @func
+{
+  node def
+  attr (def) node_definition = @name
+  edge @func.defs -> def
+  edge @body.lexical_scope -> @func.lexical_scope
+}
+
+;; =============================
+;;  Parameter declarations
+;; =============================
+
+(parameter_list) @params {
+  node @params.defs
+  node @params.lexical_scope
+}
+
+(parameter_list (parameter_declaration) @param) @params {
+  edge @params.defs -> @param.defs
+  edge @param.lexical_scope -> @params.lexical_scope
+}
+
+;; Optional parameter: parameter with default value
+(parameter_list (optional_parameter_declaration) @param) @params {
+  edge @params.defs -> @param.defs
+  edge @param.lexical_scope -> @params.lexical_scope
+}
+
+(optional_parameter_declaration) @param {
+  node @param.defs
+  node @param.lexical_scope
+}
+
+(optional_parameter_declaration
+  declarator: (identifier) @name) @param
+{
+  node def
+  attr (def) node_definition = @name
+  edge @param.defs -> def
+}
+
+;; Stub for all parameter_declaration nodes
+(parameter_declaration) @param {
+  node @param.defs
+  node @param.lexical_scope
+}
+
+(parameter_declaration
+  declarator: (identifier) @name) @param
+{
+  node def
+  attr (def) node_definition = @name
+  edge @param.defs -> def
+}
+
+;; Parameter with pointer declarator (e.g. `int *p`)
+(parameter_declaration
+  declarator: (pointer_declarator
+    declarator: (identifier) @name)) @param
+{
+  node def
+  attr (def) node_definition = @name
+  edge @param.defs -> def
+}
+
+;; Parameter with array declarator (e.g. `char* argv[]`)
+(parameter_declaration
+  declarator: (pointer_declarator
+    declarator: (array_declarator
+      declarator: (identifier) @name))) @param
+{
+  node def
+  attr (def) node_definition = @name
+  edge @param.defs -> def
+}
+
+;; Parameter with reference declarator (C++) (e.g. `const string& name`)
+(parameter_declaration
+  declarator: (reference_declarator
+    (identifier) @name)) @param
+{
+  node def
+  attr (def) node_definition = @name
+  edge @param.defs -> def
+}
+
+;; =============================
+;;  Compound statements (blocks)
+;; =============================
+
+(compound_statement) @block {
+  node @block.defs
+  node @block.lexical_scope
+  node @block.before_scope
+  node @block.after_scope
+
+  edge @block.lexical_scope -> @block.before_scope
+}
+
+;; Sequence statements within a block: first child inherits block scope.
+(compound_statement .
+  [
+    (declaration)
+    (function_definition)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (for_range_loop)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (namespace_definition)
+    (template_declaration)
+    (using_declaration)
+    (static_assert_declaration)
+    (template_instantiation)
+    (throw_statement)
+    (try_statement)
+    (co_return_statement)
+    (co_yield_statement)
+    (namespace_alias_definition)
+    (concept_definition)
+    (alias_declaration)
+    (comment)
+  ] @first
+) @block {
+  edge @first.before_scope -> @block.lexical_scope
+}
+
+;; Chain statements: right sees definitions from left.
+(compound_statement
+  [
+    (declaration)
+    (function_definition)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (for_range_loop)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (namespace_definition)
+    (template_declaration)
+    (using_declaration)
+    (static_assert_declaration)
+    (template_instantiation)
+    (throw_statement)
+    (try_statement)
+    (co_return_statement)
+    (co_yield_statement)
+    (namespace_alias_definition)
+    (concept_definition)
+    (alias_declaration)
+    (comment)
+  ] @left
+  .
+  [
+    (declaration)
+    (function_definition)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (for_range_loop)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (namespace_definition)
+    (template_declaration)
+    (using_declaration)
+    (static_assert_declaration)
+    (template_instantiation)
+    (throw_statement)
+    (try_statement)
+    (co_return_statement)
+    (co_yield_statement)
+    (namespace_alias_definition)
+    (concept_definition)
+    (alias_declaration)
+    (comment)
+  ] @right
+) {
+  edge @right.before_scope -> @left.after_scope
+}
+
+;; =============================
+;;  Statements
+;; =============================
+
+[
+  (expression_statement)
+  (return_statement)
+  (if_statement)
+  (while_statement)
+  (do_statement)
+  (for_statement)
+  (switch_statement)
+  (break_statement)
+  (continue_statement)
+  (goto_statement)
+  (labeled_statement)
+] @stmt
+{
+  node @stmt.defs
+  node @stmt.lexical_scope
+  node @stmt.before_scope
+  node @stmt.after_scope
+  edge @stmt.after_scope -> @stmt.before_scope
+}
+
+;; Declaration statements (local variables) bring names into scope.
+
+(declaration) @decl_stmt {
+  node @decl_stmt.defs
+  node @decl_stmt.lexical_scope
+  node @decl_stmt.before_scope
+  node @decl_stmt.after_scope
+
+  edge @decl_stmt.lexical_scope -> @decl_stmt.before_scope
+}
+
+;; Simple declaration: `int x = expr;`
+(declaration
+  declarator: (init_declarator
+    declarator: (identifier) @name)) @decl_stmt
+{
+  node def
+  attr (def) node_definition = @name
+  edge @decl_stmt.after_scope -> def
+  edge @decl_stmt.after_scope -> @decl_stmt.before_scope
+  edge @decl_stmt.defs -> def
+}
+
+;; Wire initializer value expressions to the declaration's scope.
+(declaration
+  declarator: (init_declarator
+    value: (call_expression) @val)) @decl_init
+{
+  edge @val.lexical_scope -> @decl_init.lexical_scope
+}
+(declaration
+  declarator: (init_declarator
+    value: (identifier) @val)) @decl_init
+{
+  edge @val.lexical_scope -> @decl_init.lexical_scope
+}
+
+;; Simple declaration without initializer: `int x;`
+(declaration
+  declarator: (identifier) @name) @decl_stmt
+{
+  node def
+  attr (def) node_definition = @name
+  edge @decl_stmt.after_scope -> def
+  edge @decl_stmt.after_scope -> @decl_stmt.before_scope
+  edge @decl_stmt.defs -> def
+}
+
+;; Pointer variable declaration: `int *p = expr;`
+(declaration
+  declarator: (init_declarator
+    declarator: (pointer_declarator
+      declarator: (identifier) @name))) @decl_stmt
+{
+  node def
+  attr (def) node_definition = @name
+  edge @decl_stmt.after_scope -> def
+  edge @decl_stmt.after_scope -> @decl_stmt.before_scope
+  edge @decl_stmt.defs -> def
+}
+
+;; Reference variable declaration (C++): `string& ref = orig;`
+(declaration
+  declarator: (init_declarator
+    declarator: (reference_declarator
+      (identifier) @name))) @decl_stmt
+{
+  node def
+  attr (def) node_definition = @name
+  edge @decl_stmt.after_scope -> def
+  edge @decl_stmt.after_scope -> @decl_stmt.before_scope
+  edge @decl_stmt.defs -> def
+}
+
+;; Expression statement: wire the expression to the current scope.
+(expression_statement
+  [
+    (identifier)
+    (call_expression)
+    (assignment_expression)
+    (binary_expression)
+    (unary_expression)
+    (update_expression)
+    (cast_expression)
+    (conditional_expression)
+    (parenthesized_expression)
+    (subscript_expression)
+    (sizeof_expression)
+    (field_expression)
+    (pointer_expression)
+    (number_literal)
+    (string_literal)
+    (char_literal)
+    (true)
+    (false)
+    (null)
+    (concatenated_string)
+    (compound_literal_expression)
+    (gnu_asm_expression)
+    (qualified_identifier)
+    (new_expression)
+    (delete_expression)
+    (lambda_expression)
+    (co_await_expression)
+    (user_defined_literal)
+    (raw_string_literal)
+    (this)
+  ] @expr
+) @expr_stmt {
+  edge @expr.lexical_scope -> @expr_stmt.before_scope
+}
+
+;; Return statement: wire the return value expression.
+(return_statement
+  [
+    (identifier)
+    (call_expression)
+    (assignment_expression)
+    (binary_expression)
+    (unary_expression)
+    (update_expression)
+    (cast_expression)
+    (conditional_expression)
+    (parenthesized_expression)
+    (subscript_expression)
+    (sizeof_expression)
+    (field_expression)
+    (pointer_expression)
+    (number_literal)
+    (string_literal)
+    (char_literal)
+    (true)
+    (false)
+    (null)
+    (concatenated_string)
+    (compound_literal_expression)
+    (gnu_asm_expression)
+    (qualified_identifier)
+    (new_expression)
+    (delete_expression)
+    (lambda_expression)
+    (co_await_expression)
+    (user_defined_literal)
+    (raw_string_literal)
+    (this)
+  ] @expr
+) @stmt {
+  edge @expr.lexical_scope -> @stmt.before_scope
+}
+
+;; If statement: C++ uses condition_clause, not parenthesized_expression.
+(if_statement
+  condition: (condition_clause) @cond
+  consequence: (_) @cons) @stmt
+{
+  edge @cond.lexical_scope -> @stmt.before_scope
+  edge @cons.before_scope -> @stmt.before_scope
+}
+
+(if_statement
+  alternative: (else_clause) @alt) @stmt
+{
+  edge @alt.before_scope -> @stmt.before_scope
+}
+
+;; While statement: C++ uses condition_clause.
+(while_statement
+  condition: (condition_clause) @cond
+  body: (_) @body) @stmt
+{
+  edge @cond.lexical_scope -> @stmt.before_scope
+  edge @body.before_scope -> @stmt.before_scope
+}
+
+;; For statement.
+(for_statement
+  body: (_) @body) @stmt
+{
+  edge @body.before_scope -> @stmt.before_scope
+}
+
+;; For-range loop (C++11): `for (auto& x : vec) { ... }`
+(for_range_loop
+  body: (_) @body) @stmt
+{
+  edge @body.before_scope -> @stmt.before_scope
+}
+
+;; ============================
+;;  Struct specifier
+;; ============================
+
+(struct_specifier
+  name: (type_identifier) @name
+  body: (field_declaration_list) @body) @struct_def
+{
+  node @struct_def.defs
+  node @struct_def.lexical_scope
+
+  node def
+  attr (def) node_definition = @name
+  edge @struct_def.defs -> def
+
+  edge @body.lexical_scope -> @struct_def.lexical_scope
+}
+
+(struct_specifier
+  name: (type_identifier) @_name
+  !body) @struct_ref
+{
+  node @struct_ref.defs
+  node @struct_ref.lexical_scope
+}
+
+(field_declaration_list) @fields {
+  node @fields.defs
+  node @fields.lexical_scope
+}
+
+;; =============================
+;;  Field declarations in class/struct body
+;; =============================
+
+(field_declaration) @fdecl {
+  node @fdecl.defs
+  node @fdecl.lexical_scope
+}
+
+(field_declaration
+  declarator: (field_identifier) @name) @fdecl
+{
+  node def
+  attr (def) node_definition = @name
+  edge @fdecl.defs -> def
+}
+
+;; Wire field declarations into the class body.
+(field_declaration_list
+  [
+    (field_declaration)
+    (function_definition)
+    (declaration)
+    (template_declaration)
+    (using_declaration)
+    (type_definition)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (preproc_include)
+    (static_assert_declaration)
+    (alias_declaration)
+    (friend_declaration)
+    (access_specifier)
+    (comment)
+  ] @child
+) @fields {
+  edge @fields.defs -> @child.defs
+  edge @child.lexical_scope -> @fields.lexical_scope
+}
+
+;; Access specifier stub (public:, private:, protected:)
+(access_specifier) @acc {
+  node @acc.defs
+  node @acc.lexical_scope
+  node @acc.before_scope
+  node @acc.after_scope
+  edge @acc.after_scope -> @acc.before_scope
+}
+
+;; ============================
+;;  Enum specifier
+;; ============================
+
+(enum_specifier
+  name: (type_identifier) @name
+  body: (enumerator_list) @body) @enum_def
+{
+  node @enum_def.defs
+  node @enum_def.lexical_scope
+
+  node def
+  attr (def) node_definition = @name
+  edge @enum_def.defs -> def
+
+  ; Enumerator constants are visible at enclosing scope in C
+  ; (C++ enum class restricts this, but we still export for basic resolution)
+  edge @enum_def.defs -> @body.defs
+}
+
+(enum_specifier
+  name: (type_identifier) @_name
+  !body) @enum_ref
+{
+  node @enum_ref.defs
+  node @enum_ref.lexical_scope
+}
+
+(enumerator_list) @elist {
+  node @elist.defs
+  node @elist.lexical_scope
+}
+
+(enumerator name: (identifier) @name) @entry {
+  node @entry.defs
+  node @entry.lexical_scope
+
+  node def
+  attr (def) node_definition = @name
+  edge @entry.defs -> def
+}
+
+(enumerator_list (enumerator) @entry) @elist {
+  edge @elist.defs -> @entry.defs
+}
+
+;; ============================
+;;  Typedef
+;; ============================
+
+(type_definition
+  declarator: (type_identifier) @name) @typedef
+{
+  node @typedef.defs
+  node @typedef.lexical_scope
+
+  node def
+  attr (def) node_definition = @name
+  edge @typedef.defs -> def
+}
+
+;; Function pointer typedef: `typedef int (*handler)(int, int);`
+(type_definition
+  declarator: (function_declarator
+    declarator: (parenthesized_declarator
+      (pointer_declarator
+        declarator: (type_identifier) @name)))) @typedef
+{
+  node @typedef.defs
+  node @typedef.lexical_scope
+
+  node def
+  attr (def) node_definition = @name
+  edge @typedef.defs -> def
+}
+
+;; ============================
+;;  Preprocessor macros
+;; ============================
+
+(preproc_def
+  name: (identifier) @name) @macro_def
+{
+  node def
+  attr (def) node_definition = @name
+  edge @macro_def.defs -> def
+}
+
+(preproc_function_def
+  name: (identifier) @name) @macro_def
+{
+  node def
+  attr (def) node_definition = @name
+  edge @macro_def.defs -> def
+}
+
+;; ===============================
+;;  Preprocessor conditional blocks
+;; ===============================
+
+(preproc_ifdef
+  [
+    (function_definition)
+    (declaration)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (for_range_loop)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (namespace_definition)
+    (template_declaration)
+    (using_declaration)
+    (static_assert_declaration)
+    (template_instantiation)
+    (alias_declaration)
+    (concept_definition)
+    (namespace_alias_definition)
+    (comment)
+  ] @child
+) @pp {
+  edge @pp.defs -> @child.defs
+  edge @child.lexical_scope -> @pp.lexical_scope
+}
+
+(preproc_if
+  [
+    (function_definition)
+    (declaration)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (for_range_loop)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (namespace_definition)
+    (template_declaration)
+    (using_declaration)
+    (static_assert_declaration)
+    (template_instantiation)
+    (alias_declaration)
+    (concept_definition)
+    (namespace_alias_definition)
+    (comment)
+  ] @child
+) @pp {
+  edge @pp.defs -> @child.defs
+  edge @child.lexical_scope -> @pp.lexical_scope
+}
+
+(preproc_elif
+  [
+    (function_definition)
+    (declaration)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (for_range_loop)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (namespace_definition)
+    (template_declaration)
+    (using_declaration)
+    (static_assert_declaration)
+    (template_instantiation)
+    (alias_declaration)
+    (concept_definition)
+    (namespace_alias_definition)
+    (comment)
+  ] @child
+) @pp {
+  edge @pp.defs -> @child.defs
+  edge @child.lexical_scope -> @pp.lexical_scope
+}
+
+(preproc_else
+  [
+    (function_definition)
+    (declaration)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (for_range_loop)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (namespace_definition)
+    (template_declaration)
+    (using_declaration)
+    (static_assert_declaration)
+    (template_instantiation)
+    (alias_declaration)
+    (concept_definition)
+    (namespace_alias_definition)
+    (comment)
+  ] @child
+) @pp {
+  edge @pp.defs -> @child.defs
+  edge @child.lexical_scope -> @pp.lexical_scope
+}
+
+;; =============================
+;;  Call expressions (references)
+;; =============================
+
+(call_expression) @call_stub {
+  node @call_stub.defs
+  node @call_stub.lexical_scope
+}
+
+(call_expression
+  function: (identifier) @name) @call
+{
+  edge @name.lexical_scope -> @call.lexical_scope
+}
+
+;; Call via qualified identifier: `Dog::create()`, `std::sort()`
+(call_expression
+  function: (qualified_identifier) @qname) @call
+{
+  edge @qname.lexical_scope -> @call.lexical_scope
+}
+
+;; Call via field expression: `obj.method()`, `ptr->method()`
+(call_expression
+  function: (field_expression) @fexpr) @call
+{
+  edge @fexpr.lexical_scope -> @call.lexical_scope
+}
+
+;; Wire argument expressions to the call's scope.
+(call_expression
+  arguments: (argument_list
+    [
+      (identifier)
+      (call_expression)
+      (assignment_expression)
+      (binary_expression)
+      (unary_expression)
+      (update_expression)
+      (cast_expression)
+      (conditional_expression)
+      (parenthesized_expression)
+      (subscript_expression)
+      (sizeof_expression)
+      (field_expression)
+      (pointer_expression)
+      (number_literal)
+      (string_literal)
+      (char_literal)
+      (true)
+      (false)
+      (null)
+      (concatenated_string)
+      (compound_literal_expression)
+      (compound_statement)
+      (preproc_defined)
+      (gnu_asm_expression)
+      (qualified_identifier)
+      (new_expression)
+      (delete_expression)
+      (lambda_expression)
+      (co_await_expression)
+      (user_defined_literal)
+      (raw_string_literal)
+      (this)
+      (initializer_list)
+    ] @arg
+  )
+) @call
+{
+  edge @arg.lexical_scope -> @call.lexical_scope
+}
+
+;; =============================
+;;  Other expressions
+;; =============================
+
+[
+  (assignment_expression)
+  (binary_expression)
+  (unary_expression)
+  (update_expression)
+  (cast_expression)
+  (conditional_expression)
+  (parenthesized_expression)
+  (subscript_expression)
+  (sizeof_expression)
+  (field_expression)
+  (pointer_expression)
+  (number_literal)
+  (string_literal)
+  (char_literal)
+  (true)
+  (false)
+  (null)
+  (concatenated_string)
+  (compound_literal_expression)
+  (initializer_list)
+  (gnu_asm_expression)
+  (preproc_defined)
+  (new_expression)
+  (delete_expression)
+  (lambda_expression)
+  (co_await_expression)
+  (user_defined_literal)
+  (raw_string_literal)
+  (this)
+  (template_function)
+  (qualified_identifier)
+] @expr
+{
+  node @expr.defs
+  node @expr.lexical_scope
+}
+
+(assignment_expression left: (_) @left right: (_) @right) @expr {
+  edge @left.lexical_scope -> @expr.lexical_scope
+  edge @right.lexical_scope -> @expr.lexical_scope
+}
+
+(binary_expression left: (_) @left right: (_) @right) @expr {
+  edge @left.lexical_scope -> @expr.lexical_scope
+  edge @right.lexical_scope -> @expr.lexical_scope
+}
+
+;; =============================
+;;  Type identifiers (references)
+;; =============================
+
+(type_identifier) @type_id {
+  node @type_id.ref
+  node @type_id.lexical_scope
+  attr (@type_id.ref) node_reference = @type_id
+  edge @type_id.ref -> @type_id.lexical_scope
+}
+
+;; =============================
+;;  Primitive type stub
+;; =============================
+
+(primitive_type) @prim {
+  node @prim.defs
+  node @prim.lexical_scope
+}
+
+;; =============================
+;;  Sized type specifier stub
+;; =============================
+
+;; C++ uses sized_type_specifier for e.g. `unsigned int`, `long long`.
+(sized_type_specifier) @sized {
+  node @sized.defs
+  node @sized.lexical_scope
+}
+
+;; =====================================================================
+;;  C++ EXTENSIONS
+;; =====================================================================
+
+;; =============================
+;;  Namespace definitions
+;; =============================
+;;
+;; `namespace MyLib { ... }` creates a scope for its body declarations
+;; and defines a name at the enclosing scope.
+
+(namespace_definition
+  name: (namespace_identifier) @name
+  body: (declaration_list) @body) @ns
+{
+  node @ns.defs
+  node @ns.lexical_scope
+
+  ; Define the namespace name at enclosing scope
+  node def
+  attr (def) node_definition = @name
+  edge @ns.defs -> def
+
+  ; Namespace body can see the enclosing scope (for cross-references)
+  edge @body.lexical_scope -> @ns.lexical_scope
+
+  ; Namespace body definitions are also accessible through the namespace name
+  edge @ns.defs -> @body.defs
+
+  ; Allow lookup through namespace name to reach body definitions
+  edge def -> @body.defs
+}
+
+;; Anonymous namespace (no name field)
+(namespace_definition
+  !name
+  body: (declaration_list) @body) @ns
+{
+  node @ns.defs
+  node @ns.lexical_scope
+  edge @body.lexical_scope -> @ns.lexical_scope
+  edge @ns.defs -> @body.defs
+}
+
+;; Declaration list (namespace body)
+(declaration_list) @dlist {
+  node @dlist.defs
+  node @dlist.lexical_scope
+}
+
+;; Wire children of declaration_list (namespace body) to scope.
+(declaration_list
+  [
+    (function_definition)
+    (declaration)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (namespace_definition)
+    (template_declaration)
+    (using_declaration)
+    (static_assert_declaration)
+    (template_instantiation)
+    (alias_declaration)
+    (concept_definition)
+    (namespace_alias_definition)
+    (comment)
+  ] @child
+) @dlist {
+  edge @dlist.defs -> @child.defs
+  edge @child.lexical_scope -> @dlist.lexical_scope
+}
+
+;; =============================
+;;  Class specifier
+;; =============================
+;;
+;; `class Dog { ... };` or `class Dog : public Animal { ... };`
+;; Creates a type definition and a scope for members.
+
+(class_specifier
+  name: (type_identifier) @name
+  body: (field_declaration_list) @body) @cls
+{
+  node @cls.defs
+  node @cls.lexical_scope
+
+  ; Define the class name at enclosing scope
+  node def
+  attr (def) node_definition = @name
+  edge @cls.defs -> def
+
+  ; Class body scope can see the enclosing scope
+  edge @body.lexical_scope -> @cls.lexical_scope
+
+  ; Class body definitions are accessible through the class name
+  edge def -> @body.defs
+  edge @cls.defs -> @body.defs
+}
+
+;; Forward-declared class (no body)
+(class_specifier
+  name: (type_identifier) @_name
+  !body) @cls_ref
+{
+  node @cls_ref.defs
+  node @cls_ref.lexical_scope
+}
+
+;; =============================
+;;  Using declarations
+;; =============================
+;;
+;; `using namespace std;` — makes all names from the namespace visible.
+;; `using std::vector;` — makes one specific name visible.
+;; We model these as stubs since full semantic import resolution is complex.
+
+(using_declaration) @using {
+  node @using.defs
+  node @using.lexical_scope
+  node @using.before_scope
+  node @using.after_scope
+  edge @using.after_scope -> @using.before_scope
+}
+
+;; =============================
+;;  Template declarations
+;; =============================
+;;
+;; `template<typename T> T add(T a, T b) { ... }`
+;; Templates wrap another declaration. We pass through to the inner declaration.
+
+(template_declaration) @tmpl {
+  node @tmpl.defs
+  node @tmpl.lexical_scope
+  node @tmpl.before_scope
+  node @tmpl.after_scope
+  edge @tmpl.after_scope -> @tmpl.before_scope
+}
+
+;; Wire the inner declaration of a template to the template's scope.
+(template_declaration
+  [
+    (function_definition)
+    (declaration)
+    (alias_declaration)
+    (concept_definition)
+    (friend_declaration)
+    (template_declaration)
+  ] @inner
+) @tmpl {
+  edge @tmpl.defs -> @inner.defs
+  edge @inner.lexical_scope -> @tmpl.lexical_scope
+}
+
+;; Template wrapping a class_specifier (embedded in declaration node type
+;; via type field). We need to handle template wrapping a type_specifier too.
+;; The class_specifier appears as a direct child when it's the type of a declaration.
+
+;; Template parameter list stub
+(template_parameter_list) @tpl {
+  node @tpl.defs
+  node @tpl.lexical_scope
+}
+
+;; =============================
+;;  Base class clause stub
+;; =============================
+
+(base_class_clause) @bcc {
+  node @bcc.defs
+  node @bcc.lexical_scope
+}
+
+;; =============================
+;;  Destructor name stub
+;; =============================
+
+(destructor_name) @dtor {
+  node @dtor.defs
+  node @dtor.lexical_scope
+  node @dtor.ref
+  attr (@dtor.ref) node_reference = @dtor
+  edge @dtor.ref -> @dtor.lexical_scope
+}
+
+;; =============================
+;;  Other C++ node stubs
+;; =============================
+
+;; These nodes can appear in various contexts and need scoped variable stubs.
+
+[
+  (type_qualifier)
+  (storage_class_specifier)
+  (virtual_specifier)
+] @misc {
+  node @misc.defs
+  node @misc.lexical_scope
+}
+
+;; Condition clause stub
+(condition_clause) @condcl {
+  node @condcl.defs
+  node @condcl.lexical_scope
+  node @condcl.before_scope
+  node @condcl.after_scope
+  edge @condcl.after_scope -> @condcl.before_scope
+}

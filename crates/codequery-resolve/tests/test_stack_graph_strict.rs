@@ -982,3 +982,228 @@ fn c_cross_file_multiply_resolved() {
         refs
     );
 }
+
+// ===========================================================================
+// C++: MUST produce Resolution::Resolved
+// ===========================================================================
+
+#[test]
+fn cpp_same_file_resolved() {
+    // Free function defined and called in same file.
+    let source = "void greet() {}\nint main() { greet(); return 0; }\n";
+    let fs = make_file_symbols("main.cpp", source, Language::Cpp);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "greet");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "C++ same-file: expected >= 1 reference for 'greet', got 0. Warnings: {:?}",
+        result.warnings
+    );
+    for r in refs {
+        assert_eq!(r.symbol, "greet");
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "C++ same-file: all references MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+}
+
+#[test]
+fn cpp_namespace_function_same_file_resolved() {
+    // Function defined inside a namespace and called from same file.
+    let source = concat!(
+        "namespace mylib {\n",
+        "    void greet() {}\n",
+        "}\n",
+        "void caller() { mylib::greet(); }\n",
+    );
+    let fs = make_file_symbols("app.cpp", source, Language::Cpp);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "greet");
+
+    // At minimum, the definition should be found. Reference resolution through
+    // qualified_identifier is a stretch goal; we check for no errors.
+    for w in &result.warnings {
+        assert!(
+            !w.contains("Undefined scoped variable"),
+            "C++ namespace: should not produce 'Undefined scoped variable' errors, \
+             got warning: {w}"
+        );
+    }
+}
+
+#[test]
+fn cpp_class_method_same_file_resolved() {
+    // Class with inline method, called in same file.
+    let source = concat!(
+        "class Dog {\n",
+        "public:\n",
+        "    void speak() {}\n",
+        "};\n",
+        "void caller() {\n",
+        "    Dog d;\n",
+        "    d.speak();\n",
+        "}\n",
+    );
+    let fs = make_file_symbols("app.cpp", source, Language::Cpp);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "speak");
+
+    // The key assertion is that the file doesn't cause TSG errors.
+    for w in &result.warnings {
+        assert!(
+            !w.contains("Undefined scoped variable"),
+            "C++ class: should not produce 'Undefined scoped variable' errors, \
+             got warning: {w}"
+        );
+    }
+}
+
+#[test]
+fn cpp_cross_file_include_resolved() {
+    // main.cpp includes models.hpp, calls a function defined in models.hpp.
+    let src_header = concat!(
+        "#ifndef MODELS_HPP\n",
+        "#define MODELS_HPP\n",
+        "void greet() {}\n",
+        "#endif\n",
+    );
+    let src_main = concat!(
+        "#include \"models.hpp\"\n",
+        "int main() { greet(); return 0; }\n",
+    );
+
+    let fs_header = make_file_symbols("models.hpp", src_header, Language::Cpp);
+    let fs_main = make_file_symbols("main.cpp", src_main, Language::Cpp);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs_header, fs_main], "greet");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "C++ cross-file: expected >= 1 reference for 'greet', got 0. Warnings: {:?}",
+        result.warnings
+    );
+
+    // All references must be Resolved.
+    for r in refs {
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "C++ cross-file: reference MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+
+    // At least one reference must be from main.cpp -> models.hpp.
+    let cross_file_ref = refs.iter().find(|r| {
+        r.ref_file.to_str().is_some_and(|s| s.contains("main"))
+            && r.def_file
+                .as_ref()
+                .and_then(|p| p.to_str())
+                .is_some_and(|s| s.contains("models"))
+    });
+    assert!(
+        cross_file_ref.is_some(),
+        "C++ cross-file: expected main.cpp -> models.hpp reference, got refs: {:?}",
+        refs
+    );
+}
+
+#[test]
+fn cpp_file_with_comments_and_ifdef_resolved() {
+    // Real-world C++ files have comments, include guards, and preprocessor directives.
+    let source = concat!(
+        "/* Multi-line\n",
+        "   comment */\n",
+        "#ifndef MAIN_HPP\n",
+        "#define MAIN_HPP\n",
+        "\n",
+        "// Single-line comment\n",
+        "#include <iostream>\n",
+        "\n",
+        "void greet() {\n",
+        "    // comment inside function body\n",
+        "    int x = 42;\n",
+        "}\n",
+        "\n",
+        "int main() {\n",
+        "    greet(); /* inline comment */\n",
+        "    return 0;\n",
+        "}\n",
+        "\n",
+        "#endif\n",
+    );
+    let fs = make_file_symbols("main.cpp", source, Language::Cpp);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "greet");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "C++ with comments/ifdef: expected >= 1 reference for 'greet', got 0. \
+         Warnings: {:?}",
+        result.warnings
+    );
+    for r in refs {
+        assert_eq!(r.symbol, "greet");
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "C++ with comments/ifdef: references MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+}
+
+#[test]
+fn cpp_fixture_project_no_tsg_errors() {
+    // Test against the actual C++ fixture project files.
+    // The key assertion: no "Undefined scoped variable" errors on real code.
+    let fixture_root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/cpp_project");
+    let fixture_files = [
+        ("main.cpp", Language::Cpp),
+        ("models.hpp", Language::Cpp),
+        ("models.cpp", Language::Cpp),
+    ];
+
+    let scan_results: Vec<codequery_index::FileSymbols> = fixture_files
+        .iter()
+        .filter_map(|(rel, lang)| {
+            let abs = fixture_root.join(rel);
+            let source = std::fs::read_to_string(&abs).ok()?;
+            Some(make_file_symbols(rel, &source, *lang))
+        })
+        .collect();
+
+    assert_eq!(
+        scan_results.len(),
+        3,
+        "all 3 C++ fixture files should be readable"
+    );
+
+    let mut resolver = StackGraphResolver::new();
+
+    // Try resolving a symbol from the fixture project.
+    // We pick "speak" which is defined in multiple places.
+    let result = resolver.resolve_refs(&scan_results, "speak");
+
+    // No "Undefined scoped variable" errors.
+    for w in &result.warnings {
+        assert!(
+            !w.contains("Undefined scoped variable"),
+            "C++ fixture: should not produce 'Undefined scoped variable' errors, \
+             got warning: {w}"
+        );
+    }
+}

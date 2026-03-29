@@ -424,36 +424,40 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // resolve_refs — C++ (syntactic fallback)
+    // resolve_refs — C++ (resolved via stack graph rules)
     // -----------------------------------------------------------------------
 
     #[test]
-    fn test_resolve_refs_cpp_uses_syntactic_fallback() {
+    fn test_resolve_refs_cpp_resolves_same_file() {
         let source = "void greet() {}\nint main() { greet(); return 0; }\n";
         let fs = make_file_symbols("main.cpp", source, Language::Cpp);
 
         let mut resolver = StackGraphResolver::new();
         let result = resolver.resolve_refs(&[fs], "greet");
 
-        // C++ has no stack graph rules, so all references should be syntactic.
-        for r in &result.references {
-            assert_eq!(r.symbol, "greet");
-            assert_eq!(r.resolution, Resolution::Syntactic);
-        }
-        // Should have a warning about syntactic fallback.
+        // C++ now has stack graph rules, so references should be resolved.
         assert!(
-            result.warnings.iter().any(|w| w.contains("syntactic")),
-            "expected syntactic fallback warning, got: {:?}",
+            !result.references.is_empty(),
+            "C++ same-file: expected >= 1 reference for 'greet', got 0. Warnings: {:?}",
             result.warnings
         );
+        for r in &result.references {
+            assert_eq!(r.symbol, "greet");
+            assert_eq!(
+                r.resolution,
+                Resolution::Resolved,
+                "C++ same-file: references should be Resolved, got {:?}",
+                r.resolution
+            );
+        }
     }
 
     // -----------------------------------------------------------------------
-    // resolve_refs — mixed languages (resolved + syntactic)
+    // resolve_refs — mixed languages (both resolved with stack graphs)
     // -----------------------------------------------------------------------
 
     #[test]
-    fn test_resolve_refs_mixed_languages_produces_mixed_metadata() {
+    fn test_resolve_refs_mixed_languages_both_resolved() {
         let py_source = "def greet(name):\n    return f'Hello, {name}!'\n\ngreet('world')\n";
         let cpp_source = "void greet() {}\nint main() { greet(); return 0; }\n";
 
@@ -464,39 +468,31 @@ mod tests {
         let result = resolver.resolve_refs(&[fs_py, fs_cpp], "greet");
 
         // Should have references from both languages.
+        assert!(
+            !result.references.is_empty(),
+            "expected references from Python and/or C++, got 0. Warnings: {:?}",
+            result.warnings
+        );
+
+        // Both Python and C++ now have stack graph rules, so all references
+        // should be resolved.
         let has_resolved = result
             .references
             .iter()
             .any(|r| r.resolution == Resolution::Resolved);
-        let has_syntactic = result
-            .references
-            .iter()
-            .any(|r| r.resolution == Resolution::Syntactic);
-
-        // Python refs might be empty if stack graphs don't find the pattern,
-        // but C++ should always produce syntactic results.
         assert!(
-            has_syntactic,
-            "expected at least syntactic references from C++"
+            has_resolved,
+            "expected at least some resolved references from Python and C++"
         );
 
-        // If we got resolved refs too, that's great but not guaranteed by TSG quality.
-        if has_resolved {
-            assert!(
-                result
-                    .references
-                    .iter()
-                    .filter(|r| r.resolution == Resolution::Resolved)
-                    .all(|r| r.symbol == "greet"),
-                "all resolved references should be for 'greet'"
-            );
-        }
-
-        // Should warn about syntactic fallback.
+        // All resolved references should be for 'greet'.
         assert!(
-            result.warnings.iter().any(|w| w.contains("syntactic")),
-            "expected syntactic fallback warning, got: {:?}",
-            result.warnings
+            result
+                .references
+                .iter()
+                .filter(|r| r.resolution == Resolution::Resolved)
+                .all(|r| r.symbol == "greet"),
+            "all resolved references should be for 'greet'"
         );
     }
 

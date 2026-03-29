@@ -248,7 +248,7 @@ mod tests {
     // ─── cascade with C++ (syntactic fallback) ────────────────────────
 
     #[test]
-    fn test_cascade_cpp_uses_syntactic_from_stack_graph() {
+    fn test_cascade_cpp_uses_stack_graph_resolution() {
         let source = "void greet() {}\nint main() { greet(); return 0; }\n";
         let fs = make_file_symbols("main.cpp", source, Language::Cpp);
 
@@ -263,10 +263,10 @@ mod tests {
             false,
         );
 
-        // C++ has no stack graph rules, so all should be syntactic.
+        // C++ now has stack graph rules — references should be resolved.
         for r in &result.references {
             assert_eq!(r.symbol, "greet");
-            assert_eq!(r.resolution, Resolution::Syntactic);
+            assert_eq!(r.resolution, Resolution::Resolved);
         }
     }
 

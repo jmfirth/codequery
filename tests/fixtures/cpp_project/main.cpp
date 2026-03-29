@@ -8,6 +8,11 @@ int main() {
     return 0;
 }
 
+int add(int a, int b) {
+    return a + b;
+}
+
 void free_function() {
+    int result = add(2, 3);
     // A free function outside any namespace or class
 }

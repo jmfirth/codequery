@@ -212,15 +212,32 @@ mod tests {
 
     #[test]
     fn test_build_graph_unsupported_language_returns_error() {
-        let source = "int main() {}";
-        let files = vec![parse_source(Path::new("main.cpp"), source, Language::Cpp)];
-        let result = build_graph(&files, Language::Cpp);
+        let source = "puts 'hello'";
+        let files = vec![parse_source(Path::new("main.rb"), source, Language::Ruby)];
+        let result = build_graph(&files, Language::Ruby);
 
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
             err.to_string().contains("no stack graph rules"),
             "error should mention missing rules: {err}"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // build_graph — C++ now supported
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_build_graph_cpp_succeeds() {
+        let source = "void greet() {}\nint main() { greet(); return 0; }\n";
+        let files = vec![parse_source(Path::new("main.cpp"), source, Language::Cpp)];
+        let result = build_graph(&files, Language::Cpp);
+
+        assert!(
+            result.is_ok(),
+            "C++ graph build should succeed: {:?}",
+            result.err()
         );
     }
 
