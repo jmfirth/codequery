@@ -51,6 +51,13 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   node @file.lexical_scope
   edge @file.lexical_scope -> ROOT_NODE
   edge @file.lexical_scope -> @file.defs
+
+  ;; Direct edge from ROOT_NODE to file definitions enables cross-file
+  ;; same-package resolution. In Go, functions within the same package
+  ;; are called without qualification (Greet(), not main.Greet()), so
+  ;; references that reach ROOT_NODE must find definitions in any file
+  ;; without going through the package_clause pop_symbol node.
+  edge ROOT_NODE -> @file.defs
 }
 
 ;; Each top-level declaration is connected to the file scope.
@@ -484,6 +491,20 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   attr (def) node_definition = @name
   edge @svd.after_scope -> def
   edge def -> @svd.before_scope
+}
+
+;; Wire the RHS of a short variable declaration to the SVD's scope so
+;; that references in the initializer expression can resolve.
+(short_var_declaration
+  right: (expression_list) @rhs) @svd {
+  edge @rhs.lexical_scope -> @svd.lexical_scope
+}
+
+;; Wire the RHS of an assignment statement to the statement's scope so
+;; that references in the assigned expression can resolve.
+(assignment_statement
+  right: (expression_list) @rhs) @assign {
+  edge @rhs.lexical_scope -> @assign.lexical_scope
 }
 
 ;; =========================

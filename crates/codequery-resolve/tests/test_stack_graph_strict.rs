@@ -256,6 +256,70 @@ fn rust_same_file_resolved() {
 }
 
 // ===========================================================================
+// Rust: cross-file use crate:: resolution
+// ===========================================================================
+
+#[test]
+fn rust_cross_file_use_crate_resolved() {
+    // services.rs uses `crate::models::User` from models.rs.
+    // The stack graph must resolve `User` in services.rs to the definition
+    // in models.rs (not fall back to syntactic).
+    //
+    // lib.rs declares `pub mod models;` and `pub mod services;`, matching
+    // the fixture project layout.
+
+    let src_lib = concat!("pub mod models;\n", "pub mod services;\n",);
+    let src_models = concat!("pub struct User {\n", "    pub name: String,\n", "}\n",);
+    let src_services = concat!(
+        "use crate::models::User;\n",
+        "\n",
+        "pub fn create_user(name: &str) -> User {\n",
+        "    User { name: name.to_string() }\n",
+        "}\n",
+    );
+
+    let fs_lib = make_file_symbols("src/lib.rs", src_lib, Language::Rust);
+    let fs_models = make_file_symbols("src/models.rs", src_models, Language::Rust);
+    let fs_services = make_file_symbols("src/services.rs", src_services, Language::Rust);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs_lib, fs_models, fs_services], "User");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "Rust cross-file: expected >= 1 reference for 'User', got 0. Warnings: {:?}",
+        result.warnings
+    );
+
+    // All references must be Resolved (not Syntactic).
+    for r in refs {
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "Rust cross-file: reference MUST be Resolved, got {:?}. Warnings: {:?}",
+            r.resolution,
+            result.warnings
+        );
+    }
+
+    // At least one reference must be in services.rs pointing to models.rs definition.
+    let cross_file_ref = refs.iter().find(|r| {
+        r.ref_file.to_str().is_some_and(|s| s.contains("services"))
+            && r.def_file
+                .as_ref()
+                .and_then(|p| p.to_str())
+                .is_some_and(|s| s.contains("models"))
+    });
+    assert!(
+        cross_file_ref.is_some(),
+        "Rust cross-file: expected at least one reference from services.rs -> models.rs, \
+         got refs: {:?}",
+        refs
+    );
+}
+
+// ===========================================================================
 // Go: MUST produce Resolution::Resolved (TSG scope wiring fixed)
 // ===========================================================================
 
@@ -283,6 +347,141 @@ fn go_same_file_resolved() {
             "Go same-file: all references MUST be Resolved, got {:?}",
             r.resolution
         );
+    }
+}
+
+// ===========================================================================
+// Go: Cross-file same-package resolution
+// ===========================================================================
+
+#[test]
+fn go_cross_file_same_package_resolved() {
+    // Two files in package main: main.go defines Greet, test.go calls it.
+    // In Go, same-package functions are called without qualification,
+    // so cross-file resolution requires a direct ROOT_NODE -> file.defs edge.
+    let src_main = concat!(
+        "package main\n",
+        "\n",
+        "// Greet returns a greeting.\n",
+        "func Greet(name string) string {\n",
+        "\treturn \"Hello, \" + name\n",
+        "}\n",
+    );
+    let src_test = concat!(
+        "package main\n",
+        "\n",
+        "func TestGreet() {\n",
+        "\tgot := Greet(\"World\")\n",
+        "\t_ = got\n",
+        "}\n",
+    );
+
+    let fs_main = make_file_symbols("main.go", src_main, Language::Go);
+    let fs_test = make_file_symbols("main_test.go", src_test, Language::Go);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs_main, fs_test], "Greet");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "Go cross-file: expected >= 1 reference for 'Greet', got 0. Warnings: {:?}",
+        result.warnings
+    );
+
+    // All references must be Resolved (not Syntactic).
+    for r in refs {
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "Go cross-file: reference MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+
+    // At least one reference must be in main_test.go pointing to main.go definition.
+    let cross_file_ref = refs.iter().find(|r| {
+        r.ref_file.to_str().is_some_and(|s| s.contains("test"))
+            && r.def_file
+                .as_ref()
+                .and_then(|p| p.to_str())
+                .is_some_and(|s| s.contains("main.go"))
+    });
+    assert!(
+        cross_file_ref.is_some(),
+        "Go cross-file: expected at least one reference from main_test.go -> main.go, \
+         got refs: {:?}",
+        refs
+    );
+}
+
+#[test]
+fn go_cross_file_multiple_files_same_package_resolved() {
+    // Three files in package main: main.go defines Greet, utils.go defines FormatName,
+    // consumer.go calls both. All cross-file references should resolve.
+    let src_main = "package main\n\nfunc Greet() string { return \"hello\" }\n";
+    let src_utils = "package main\n\nfunc FormatName(s string) string { return s }\n";
+    let src_consumer = concat!(
+        "package main\n",
+        "\n",
+        "func run() {\n",
+        "\tGreet()\n",
+        "\tFormatName(\"test\")\n",
+        "}\n",
+    );
+
+    // Check Greet resolution (build fresh FileSymbols per resolve call)
+    {
+        let mut resolver = StackGraphResolver::new();
+        let result = resolver.resolve_refs(
+            &[
+                make_file_symbols("main.go", src_main, Language::Go),
+                make_file_symbols("utils.go", src_utils, Language::Go),
+                make_file_symbols("consumer.go", src_consumer, Language::Go),
+            ],
+            "Greet",
+        );
+        let refs = &result.references;
+        assert!(
+            !refs.is_empty(),
+            "Go multi-file: expected >= 1 reference for 'Greet', got 0. Warnings: {:?}",
+            result.warnings
+        );
+        for r in refs {
+            assert_eq!(
+                r.resolution,
+                Resolution::Resolved,
+                "Go multi-file: Greet reference MUST be Resolved, got {:?}",
+                r.resolution
+            );
+        }
+    }
+
+    // Check FormatName resolution
+    {
+        let mut resolver = StackGraphResolver::new();
+        let result = resolver.resolve_refs(
+            &[
+                make_file_symbols("main.go", src_main, Language::Go),
+                make_file_symbols("utils.go", src_utils, Language::Go),
+                make_file_symbols("consumer.go", src_consumer, Language::Go),
+            ],
+            "FormatName",
+        );
+        let refs = &result.references;
+        assert!(
+            !refs.is_empty(),
+            "Go multi-file: expected >= 1 reference for 'FormatName', got 0. Warnings: {:?}",
+            result.warnings
+        );
+        for r in refs {
+            assert_eq!(
+                r.resolution,
+                Resolution::Resolved,
+                "Go multi-file: FormatName reference MUST be Resolved, got {:?}",
+                r.resolution
+            );
+        }
     }
 }
 
@@ -580,4 +779,206 @@ fn rust_callers_returns_resolved() {
             r.resolution
         );
     }
+}
+
+// ===========================================================================
+// C: cross-file resolution via #include
+// ===========================================================================
+
+#[test]
+fn c_cross_file_include_resolved() {
+    // main.c includes utils.h, calls add() defined in utils.c.
+    // The reference must resolve as Resolution::Resolved across files.
+    let src_main = concat!(
+        "#include \"utils.h\"\n",
+        "#include <stdio.h>\n",
+        "\n",
+        "int main(int argc, char* argv[]) {\n",
+        "    int result = add(2, 3);\n",
+        "    printf(\"Result: %d\\n\", result);\n",
+        "    return 0;\n",
+        "}\n",
+    );
+    let src_utils_h = concat!(
+        "#ifndef UTILS_H\n",
+        "#define UTILS_H\n",
+        "\n",
+        "int add(int a, int b);\n",
+        "int multiply(int a, int b);\n",
+        "\n",
+        "#endif\n",
+    );
+    let src_utils_c = concat!(
+        "#include \"utils.h\"\n",
+        "\n",
+        "int add(int a, int b) {\n",
+        "    return a + b;\n",
+        "}\n",
+        "\n",
+        "int multiply(int a, int b) {\n",
+        "    return a * b;\n",
+        "}\n",
+    );
+
+    let fs_main = make_file_symbols("main.c", src_main, Language::C);
+    let fs_utils_h = make_file_symbols("utils.h", src_utils_h, Language::C);
+    let fs_utils_c = make_file_symbols("utils.c", src_utils_c, Language::C);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs_main, fs_utils_h, fs_utils_c], "add");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "C cross-file: expected >= 1 reference for 'add', got 0. Warnings: {:?}",
+        result.warnings
+    );
+
+    // All references must be Resolved (not Syntactic).
+    for r in refs {
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "C cross-file: reference MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+
+    // At least one reference must be in main.c pointing to utils.c definition.
+    let cross_file_ref = refs.iter().find(|r| {
+        r.ref_file.to_str().is_some_and(|s| s.contains("main"))
+            && r.def_file
+                .as_ref()
+                .and_then(|p| p.to_str())
+                .is_some_and(|s| s.contains("utils"))
+    });
+    assert!(
+        cross_file_ref.is_some(),
+        "C cross-file: expected at least one reference from main.c -> utils.c, \
+         got refs: {:?}",
+        refs
+    );
+}
+
+#[test]
+fn c_cross_file_fixture_project_resolved() {
+    // Test against the actual C fixture project files.
+    let fixture_root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/c_project");
+    let fixture_files = [
+        ("main.c", Language::C),
+        ("utils.h", Language::C),
+        ("utils.c", Language::C),
+    ];
+
+    let scan_results: Vec<codequery_index::FileSymbols> = fixture_files
+        .iter()
+        .filter_map(|(rel, lang)| {
+            let abs = fixture_root.join(rel);
+            let source = std::fs::read_to_string(&abs).ok()?;
+            Some(make_file_symbols(rel, &source, *lang))
+        })
+        .collect();
+
+    assert_eq!(
+        scan_results.len(),
+        3,
+        "all 3 C fixture files should be readable"
+    );
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&scan_results, "add");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "C fixture cross-file: expected >= 1 reference for 'add', got 0. Warnings: {:?}",
+        result.warnings
+    );
+
+    // All references must be Resolved.
+    for r in refs {
+        assert_eq!(r.symbol, "add");
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "C fixture cross-file: reference MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+
+    // The reference from main.c should resolve to utils.c.
+    let cross_file_ref = refs.iter().find(|r| {
+        r.ref_file.to_str().is_some_and(|s| s.contains("main"))
+            && r.def_file
+                .as_ref()
+                .and_then(|p| p.to_str())
+                .is_some_and(|s| s.contains("utils"))
+    });
+    assert!(
+        cross_file_ref.is_some(),
+        "C fixture cross-file: expected main.c -> utils.c reference, got refs: {:?}",
+        refs
+    );
+}
+
+#[test]
+fn c_cross_file_multiply_resolved() {
+    // Verify cross-file works for multiply too (same pattern, different symbol).
+    let src_main = concat!(
+        "#include \"utils.h\"\n",
+        "\n",
+        "int main() {\n",
+        "    int r = multiply(3, 4);\n",
+        "    return r;\n",
+        "}\n",
+    );
+    let src_utils_h = concat!(
+        "#ifndef UTILS_H\n",
+        "#define UTILS_H\n",
+        "int multiply(int a, int b);\n",
+        "#endif\n",
+    );
+    let src_utils_c = concat!(
+        "#include \"utils.h\"\n",
+        "int multiply(int a, int b) {\n",
+        "    return a * b;\n",
+        "}\n",
+    );
+
+    let fs_main = make_file_symbols("main.c", src_main, Language::C);
+    let fs_utils_h = make_file_symbols("utils.h", src_utils_h, Language::C);
+    let fs_utils_c = make_file_symbols("utils.c", src_utils_c, Language::C);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs_main, fs_utils_h, fs_utils_c], "multiply");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "C cross-file multiply: expected >= 1 reference, got 0. Warnings: {:?}",
+        result.warnings
+    );
+
+    for r in refs {
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "C cross-file multiply: reference MUST be Resolved, got {:?}",
+            r.resolution
+        );
+    }
+
+    let cross_file_ref = refs.iter().find(|r| {
+        r.ref_file.to_str().is_some_and(|s| s.contains("main"))
+            && r.def_file
+                .as_ref()
+                .and_then(|p| p.to_str())
+                .is_some_and(|s| s.contains("utils"))
+    });
+    assert!(
+        cross_file_ref.is_some(),
+        "C cross-file multiply: expected main.c -> utils.c reference, got refs: {:?}",
+        refs
+    );
 }

@@ -178,13 +178,25 @@ inherit .mod_scope
 
   ;; Build module path from FILE_PATH
   ;; e.g. "src/auth/mod.rs" -> auth module
+  ;; Rust convention: src/ is the crate root directory and is NOT a module
+  ;; segment. We skip it so that `crate::models` maps to `src/models.rs`.
+  ;; Between module segments we insert pop("::") nodes to match the `::`
+  ;; separators pushed by scoped_identifier reference chains.
   var module_scope = mod_def
   scan FILE_PATH {
+    ;; Skip the src/ prefix — it's the crate root, not a module name
+    "^src/"
+    {
+    }
+
     "([^/]+)/"
     {
       attr (module_scope) pop_symbol = $1
+      node separator
+      attr (separator) pop_symbol = "::"
+      edge module_scope -> separator
       node next_scope
-      edge module_scope -> next_scope
+      edge separator -> next_scope
       set module_scope = next_scope
     }
 
@@ -195,11 +207,16 @@ inherit .mod_scope
     }
 
     ;; Regular file - add the filename (sans .rs) as a module segment
+    ;; Insert a :: separator after the module name so cross-file references
+    ;; like `crate::models::User` can pop the :: before reaching definitions.
     "([^/]+)\.rs$"
     {
       attr (module_scope) pop_symbol = $1
+      node separator
+      attr (separator) pop_symbol = "::"
       node file_scope
-      edge module_scope -> file_scope
+      edge module_scope -> separator
+      edge separator -> file_scope
       edge file_scope -> @src.defs
     }
   }
@@ -242,6 +259,9 @@ inherit .mod_scope
 
 ;; `mod name;` (external module) -- creates a definition node in the current scope
 ;; that can be resolved to the corresponding file's definitions.
+;; After popping the module name, we pop `::` (matching the separator pushed by
+;; scoped_identifier chains), then re-push the module name and resolve through
+;; ROOT_NODE to find the file that defines this module.
 (mod_item
   name: (identifier) @name
   !body
@@ -252,14 +272,20 @@ inherit .mod_scope
   ;; The mod name is a definition in the enclosing scope
   edge @mod.defs -> mod_def
 
-  ;; The mod name resolves into ROOT_NODE so it can find the file module
+  ;; Pop :: separator, then redirect through ROOT_NODE to find the file module
+  node separator
+  attr (separator) pop_symbol = "::"
+  edge mod_def -> separator
+
   node mod_ref
   attr (mod_ref) node_reference = @name
-  edge mod_def -> mod_ref
+  edge separator -> mod_ref
   edge mod_ref -> ROOT_NODE
 }
 
 ;; `mod name { ... }` (inline module) -- creates a scope for the body
+;; After popping the module name, pop `::` before reaching the body definitions,
+;; matching the `::` pushed by scoped_identifier reference chains.
 (mod_item
   name: (identifier) @name
   body: (declaration_list) @body
@@ -270,8 +296,11 @@ inherit .mod_scope
   ;; The mod name is a definition in the enclosing scope
   edge @mod.defs -> mod_def
 
-  ;; The mod body definitions are reachable through the mod name
-  edge mod_def -> @body.defs
+  ;; Pop :: separator, then reach the body definitions
+  node separator
+  attr (separator) pop_symbol = "::"
+  edge mod_def -> separator
+  edge separator -> @body.defs
 
   ;; The body can see its own definitions plus the parent scope
   edge @body.lexical_scope -> @body.defs
