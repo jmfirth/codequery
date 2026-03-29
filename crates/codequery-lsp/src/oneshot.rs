@@ -16,12 +16,13 @@ use crate::error::{LspError, Result};
 use crate::queries::uri_to_path;
 use crate::server::LspServer;
 
-/// Default time to wait after opening a document for the server to index.
+/// Default maximum time to wait for the server to become ready.
 ///
-/// Language servers need time to analyze the workspace after initialization
-/// and document open notifications. Two seconds is a reasonable default for
-/// most servers on small-to-medium projects.
-const DEFAULT_INDEX_WAIT: Duration = Duration::from_secs(2);
+/// This is the upper bound — if the server signals readiness via `$/progress`
+/// notifications earlier, the wait terminates immediately. 30 seconds
+/// accommodates rust-analyzer on medium projects while ensuring the fallback
+/// to stack graphs isn't unreasonably delayed.
+const DEFAULT_INDEX_WAIT: Duration = Duration::from_secs(30);
 
 /// Performs semantic reference finding via start-query-stop.
 ///
@@ -92,9 +93,11 @@ pub fn semantic_refs_with_wait(
     let lang_id = lsp_language_id(language);
     server.open_document(symbol_file, &source, lang_id)?;
 
-    // Wait for the server to index.
+    // Wait for the server to finish indexing.
+    // Uses $/progress notifications from the server to detect readiness.
+    // Falls back to a grace-period timeout if the server doesn't send progress.
     if !index_wait.is_zero() {
-        std::thread::sleep(index_wait);
+        let _ = server.wait_for_ready(index_wait);
     }
 
     // Query references at the symbol position.
@@ -192,9 +195,11 @@ pub fn semantic_definition_with_wait(
     let lang_id = lsp_language_id(language);
     server.open_document(file, &source, lang_id)?;
 
-    // Wait for the server to index.
+    // Wait for the server to finish indexing.
+    // Uses $/progress notifications from the server to detect readiness.
+    // Falls back to a grace-period timeout if the server doesn't send progress.
     if !index_wait.is_zero() {
-        std::thread::sleep(index_wait);
+        let _ = server.wait_for_ready(index_wait);
     }
 
     // Query definitions at the position.
@@ -640,8 +645,8 @@ mod tests {
     }
 
     #[test]
-    fn test_default_index_wait_is_two_seconds() {
-        assert_eq!(DEFAULT_INDEX_WAIT, Duration::from_secs(2));
+    fn test_default_index_wait_is_thirty_seconds() {
+        assert_eq!(DEFAULT_INDEX_WAIT, Duration::from_secs(30));
     }
 
     #[test]

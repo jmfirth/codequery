@@ -108,7 +108,7 @@ impl LspServer {
         let init_params = InitializeParams {
             process_id: Some(std::process::id()),
             root_uri: Some(root_uri.clone()),
-            capabilities: ClientCapabilities::default(),
+            capabilities: ClientCapabilities::with_progress(),
         };
 
         let params = serde_json::to_value(&init_params)
@@ -198,6 +198,110 @@ impl LspServer {
     /// initialization.
     pub fn transport_mut(&mut self) -> &mut StdioTransport {
         &mut self.transport
+    }
+
+    /// Waits for the language server to finish initial indexing.
+    ///
+    /// Reads incoming notifications from the server, tracking `$/progress`
+    /// tokens. Returns when:
+    /// - All `$/progress` tokens reach "end" state (server is ready)
+    /// - No progress notifications arrive within a 2-second grace period
+    ///   (server doesn't support progress or was immediately ready)
+    /// - The overall timeout expires
+    ///
+    /// Also responds to `window/workDoneProgress/create` requests from the
+    /// server, which is required for the progress protocol.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Ok(())` in all normal cases, including timeout (we proceed
+    /// with the query anyway). Only returns an error if the transport itself
+    /// has a fatal failure.
+    #[cfg(unix)]
+    pub fn wait_for_ready(&mut self, timeout: Duration) -> Result<()> {
+        use std::time::Instant;
+
+        let deadline = Instant::now() + timeout;
+        let grace_period = Duration::from_secs(2);
+        let grace_deadline = Instant::now() + grace_period;
+        let mut progress_active: HashSet<String> = HashSet::new();
+        let mut seen_progress = false;
+
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                break; // Overall timeout — proceed with query
+            }
+
+            let poll_timeout = remaining.min(Duration::from_millis(200));
+
+            match self.transport.try_read_message(poll_timeout) {
+                Ok(Some(msg)) => {
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&msg) {
+                        let method = json.get("method").and_then(|m| m.as_str()).unwrap_or("");
+
+                        match method {
+                            "$/progress" => {
+                                seen_progress = true;
+                                if let Some(params) = json.get("params") {
+                                    let token = params
+                                        .get("token")
+                                        .map(std::string::ToString::to_string)
+                                        .unwrap_or_default();
+                                    let kind = params
+                                        .get("value")
+                                        .and_then(|v| v.get("kind"))
+                                        .and_then(|k| k.as_str())
+                                        .unwrap_or("");
+
+                                    match kind {
+                                        "begin" => {
+                                            progress_active.insert(token);
+                                        }
+                                        "end" => {
+                                            progress_active.remove(&token);
+                                            if progress_active.is_empty() {
+                                                break; // All progress done — server ready
+                                            }
+                                        }
+                                        _ => {} // "report" — still in progress
+                                    }
+                                }
+                            }
+                            "window/workDoneProgress/create" => {
+                                // Server is requesting we create a progress token.
+                                // We must respond or the server may hang.
+                                seen_progress = true;
+                                if let Some(id) = json.get("id") {
+                                    let response = serde_json::json!({
+                                        "jsonrpc": "2.0",
+                                        "id": id,
+                                        "result": null
+                                    });
+                                    let response_str =
+                                        serde_json::to_string(&response).unwrap_or_default();
+                                    let _ = self.transport.write_raw(&response_str);
+                                }
+                            }
+                            _ => {
+                                // Other notifications (logMessage, diagnostics, etc.)
+                            }
+                        }
+                    }
+                }
+                Ok(None) => {
+                    // No data within poll timeout.
+                    if !seen_progress && Instant::now() >= grace_deadline {
+                        break; // Server doesn't support progress — assume ready
+                    }
+                }
+                Err(_) => {
+                    break; // I/O error — proceed anyway
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

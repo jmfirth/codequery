@@ -25,12 +25,47 @@ pub struct InitializeParams {
 
 /// Client capabilities sent during initialization.
 ///
-/// Kept minimal — cq does not need to advertise rich editor capabilities.
+/// Kept minimal — cq does not need to advertise rich editor capabilities,
+/// but does advertise `window.workDoneProgress` so language servers send
+/// `$/progress` notifications that allow us to detect indexing completion.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ClientCapabilities {
     /// Text document specific client capabilities.
     #[serde(rename = "textDocument", skip_serializing_if = "Option::is_none")]
     pub text_document: Option<serde_json::Value>,
+
+    /// Window-related client capabilities.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window: Option<WindowCapabilities>,
+}
+
+impl ClientCapabilities {
+    /// Creates capabilities with work-done progress support enabled.
+    ///
+    /// This tells the language server that we can handle `$/progress`
+    /// notifications, which is required for servers like rust-analyzer
+    /// to report indexing status.
+    #[must_use]
+    pub fn with_progress() -> Self {
+        Self {
+            text_document: None,
+            window: Some(WindowCapabilities {
+                work_done_progress: Some(true),
+            }),
+        }
+    }
+}
+
+/// Window-related client capabilities.
+///
+/// Currently only advertises work-done progress support, which enables
+/// language servers to send `$/progress` notifications during indexing.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowCapabilities {
+    /// Whether the client supports `$/progress` notifications.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub work_done_progress: Option<bool>,
 }
 
 /// Server capabilities returned from the `initialize` response.
@@ -394,6 +429,29 @@ mod tests {
     fn test_client_capabilities_default_is_empty() {
         let caps = ClientCapabilities::default();
         assert!(caps.text_document.is_none());
+        assert!(caps.window.is_none());
+    }
+
+    #[test]
+    fn test_client_capabilities_with_progress_enables_work_done() {
+        let caps = ClientCapabilities::with_progress();
+        assert!(caps.text_document.is_none());
+        let window = caps.window.expect("window should be Some");
+        assert_eq!(window.work_done_progress, Some(true));
+    }
+
+    #[test]
+    fn test_client_capabilities_with_progress_serializes_correctly() {
+        let caps = ClientCapabilities::with_progress();
+        let json = serde_json::to_value(&caps).unwrap();
+        assert_eq!(json["window"]["workDoneProgress"], true);
+    }
+
+    #[test]
+    fn test_window_capabilities_omitted_when_none() {
+        let caps = ClientCapabilities::default();
+        let json = serde_json::to_value(&caps).unwrap();
+        assert!(json.get("window").is_none());
     }
 
     #[test]

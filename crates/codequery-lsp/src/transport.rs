@@ -109,6 +109,65 @@ impl StdioTransport {
         }
     }
 
+    /// Tries to read one LSP-framed message within the given timeout.
+    ///
+    /// Returns `Ok(Some(message))` if a message was read, `Ok(None)` if the
+    /// timeout expired before any data arrived, or an error on I/O failure.
+    ///
+    /// Uses `libc::poll` on the underlying file descriptor to avoid blocking
+    /// indefinitely. Checks the `BufReader` buffer before polling the fd,
+    /// since data may already be buffered from a previous read.
+    ///
+    /// # Errors
+    ///
+    /// Returns `LspError::Io` on I/O failures during reading, or
+    /// `LspError::ConnectionFailed` if the message framing is invalid.
+    #[cfg(unix)]
+    pub fn try_read_message(&mut self, timeout: Duration) -> Result<Option<String>> {
+        use std::os::unix::io::AsRawFd;
+
+        // If the BufReader already has data buffered, read immediately.
+        if !self.stdout.buffer().is_empty() {
+            return read_message(&mut self.stdout).map(Some);
+        }
+
+        // Poll the raw fd for readability.
+        let fd = self.stdout.get_ref().as_raw_fd();
+        let timeout_ms = i32::try_from(timeout.as_millis()).unwrap_or(i32::MAX);
+
+        let mut pfd = libc::pollfd {
+            fd,
+            events: libc::POLLIN,
+            revents: 0,
+        };
+
+        // SAFETY: pfd is a valid pollfd struct on the stack, nfds=1, timeout is bounded.
+        let ret = unsafe { libc::poll(&raw mut pfd, 1, timeout_ms) };
+
+        if ret <= 0 {
+            return Ok(None); // Timeout (0) or error (-1)
+        }
+
+        if pfd.revents & (libc::POLLIN | libc::POLLHUP) == 0 {
+            return Ok(None); // No readable data
+        }
+
+        read_message(&mut self.stdout).map(Some)
+    }
+
+    /// Writes a raw LSP-framed message to the server's stdin.
+    ///
+    /// Used for responding to server-initiated requests (e.g.,
+    /// `window/workDoneProgress/create`) where we need to write a response
+    /// but don't want to read one back.
+    ///
+    /// # Errors
+    ///
+    /// Returns `LspError::Io` on write failures.
+    pub fn write_raw(&mut self, json: &str) -> Result<()> {
+        write_message(&mut self.stdin, json)
+    }
+
     /// Sends a JSON-RPC notification (no response expected).
     ///
     /// Serializes the notification with LSP wire framing and writes it to the
