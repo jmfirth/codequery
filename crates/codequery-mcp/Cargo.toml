@@ -1,6 +1,7 @@
 [package]
 name = "codequery-mcp"
 version = "0.1.0"
+license = "Apache-2.0"
 edition = "2021"
 description = "MCP (Model Context Protocol) server exposing cq functionality to AI tools"
 
