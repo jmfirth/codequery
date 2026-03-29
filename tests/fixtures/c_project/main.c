@@ -24,5 +24,16 @@ typedef unsigned long size_t_alias;
 
 int global_counter = 0;
 
+/* Helper to compute sum of squares. */
+int sum_of_squares(int a, int b) {
+    return a * a + b * b;
+}
+
+/* Entry point for same-file resolution test. */
+void run_tests(void) {
+    int x = sum_of_squares(3, 4);
+    printf("Sum of squares: %d\n", x);
+}
+
 #define MAX_BUFFER_SIZE 1024
 #define SQUARE(x) ((x) * (x))

@@ -296,10 +296,7 @@ fn test_symbols_cpp_finds_all_expected_symbols() {
         "should find Animal class: {out}"
     );
     assert!(out.contains("class Dog"), "should find Dog class: {out}");
-    assert!(
-        out.contains("enum Color"),
-        "should find Color enum: {out}"
-    );
+    assert!(out.contains("enum Color"), "should find Color enum: {out}");
     assert!(
         out.contains("function free_function"),
         "should find free_function: {out}"
@@ -529,10 +526,7 @@ fn test_search_js_finds_functions_by_sexpr() {
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("formatName"),
-        "should find formatName: {out}"
-    );
+    assert!(out.contains("formatName"), "should find formatName: {out}");
     assert!(
         out.contains("exported"),
         "should find exported function: {out}"
@@ -621,14 +615,8 @@ fn test_callers_c_finds_add_callers() {
     let output = run_cq_project(&c_project(), &["callers", "add"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("caller"),
-        "should find callers of add: {out}"
-    );
-    assert!(
-        out.contains("main.c"),
-        "should find call in main.c: {out}"
-    );
+    assert!(out.contains("caller"), "should find callers of add: {out}");
+    assert!(out.contains("main.c"), "should find call in main.c: {out}");
 }
 
 // ===========================================================================
@@ -640,10 +628,7 @@ fn test_deps_c_finds_main_dependencies() {
     let output = run_cq_project(&c_project(), &["deps", "main"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("add"),
-        "main should depend on add: {out}"
-    );
+    assert!(out.contains("add"), "main should depend on add: {out}");
     assert!(
         out.contains("utils.c"),
         "add should resolve to utils.c: {out}"
@@ -689,10 +674,7 @@ fn test_search_go_finds_function_declarations() {
     let out = stdout(&output);
     assert!(out.contains("Greet"), "should find Greet: {out}");
     assert!(out.contains("helper"), "should find helper: {out}");
-    assert!(
-        out.contains("FormatName"),
-        "should find FormatName: {out}"
-    );
+    assert!(out.contains("FormatName"), "should find FormatName: {out}");
 }
 
 // ===========================================================================
@@ -778,10 +760,7 @@ fn test_search_java_finds_class_declarations() {
 
 #[test]
 fn test_json_def_cpp_produces_valid_json() {
-    let output = run_cq_project(
-        &cpp_project(),
-        &["--json", "--pretty", "def", "Dog"],
-    );
+    let output = run_cq_project(&cpp_project(), &["--json", "--pretty", "def", "Dog"]);
     assert_exit_code(&output, 0);
     let json = parse_json(&output);
     assert!(
@@ -804,10 +783,7 @@ fn test_json_def_cpp_produces_valid_json() {
 
 #[test]
 fn test_json_symbols_java_produces_valid_json() {
-    let output = run_cq_project(
-        &java_project(),
-        &["--json", "--pretty", "symbols"],
-    );
+    let output = run_cq_project(&java_project(), &["--json", "--pretty", "symbols"]);
     assert_exit_code(&output, 0);
     let json = parse_json(&output);
     let text = stdout(&output);
@@ -820,10 +796,7 @@ fn test_json_symbols_java_produces_valid_json() {
 
 #[test]
 fn test_json_refs_go_produces_valid_json() {
-    let output = run_cq_project(
-        &go_project(),
-        &["--json", "--pretty", "refs", "Greet"],
-    );
+    let output = run_cq_project(&go_project(), &["--json", "--pretty", "refs", "Greet"]);
     assert_exit_code(&output, 0);
     let json = parse_json(&output);
     assert!(
@@ -834,10 +807,7 @@ fn test_json_refs_go_produces_valid_json() {
 
 #[test]
 fn test_json_callers_c_produces_valid_json() {
-    let output = run_cq_project(
-        &c_project(),
-        &["--json", "--pretty", "callers", "add"],
-    );
+    let output = run_cq_project(&c_project(), &["--json", "--pretty", "callers", "add"]);
     assert_exit_code(&output, 0);
     let json = parse_json(&output);
     let text = stdout(&output);

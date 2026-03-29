@@ -79,12 +79,7 @@ fn proof1_python_stack_graph_resolution_metadata() {
     // All references should be in services.py (the importing file).
     let services_refs: Vec<&serde_json::Value> = refs
         .iter()
-        .filter(|r| {
-            r["file"]
-                .as_str()
-                .unwrap_or("")
-                .contains("services.py")
-        })
+        .filter(|r| r["file"].as_str().unwrap_or("").contains("services.py"))
         .collect();
     assert!(
         services_refs.len() >= 2,
@@ -134,10 +129,7 @@ fn proof1_typescript_stack_graph_resolution_metadata() {
         refs.len()
     );
 
-    let ref_files: Vec<&str> = refs
-        .iter()
-        .filter_map(|r| r["file"].as_str())
-        .collect();
+    let ref_files: Vec<&str> = refs.iter().filter_map(|r| r["file"].as_str()).collect();
     let has_services = ref_files.iter().any(|f| f.contains("services.ts"));
     assert!(
         has_services,
@@ -194,12 +186,7 @@ fn proof2_python_format_name_exact_reference_count() {
     // All 4 references must be in services.py.
     let services_refs: Vec<&serde_json::Value> = refs
         .iter()
-        .filter(|r| {
-            r["file"]
-                .as_str()
-                .unwrap_or("")
-                .contains("services.py")
-        })
+        .filter(|r| r["file"].as_str().unwrap_or("").contains("services.py"))
         .collect();
     assert_eq!(
         services_refs.len(),
@@ -209,10 +196,7 @@ fn proof2_python_format_name_exact_reference_count() {
     );
 
     // Verify specific lines.
-    let ref_lines: Vec<u64> = refs
-        .iter()
-        .filter_map(|r| r["line"].as_u64())
-        .collect();
+    let ref_lines: Vec<u64> = refs.iter().filter_map(|r| r["line"].as_u64()).collect();
     assert!(
         ref_lines.contains(&4),
         "expected import ref at line 4, got lines: {ref_lines:?}"
@@ -249,38 +233,40 @@ fn proof2_rust_greet_exact_reference_count() {
 
     let total = json["total"].as_u64().expect("missing total");
     assert_eq!(
-        total, 3,
-        "expected exactly 3 references for greet, got {total}"
+        total, 4,
+        "expected exactly 4 references for greet, got {total}"
     );
     assert_eq!(
         refs.len(),
-        3,
-        "references array length should be 3, got {}",
+        4,
+        "references array length should be 4, got {}",
         refs.len()
     );
 
-    // All 3 references must be in integration.rs.
+    // 3 references must be in integration.rs, 1 in lib.rs (same-file call).
     let integration_refs: Vec<&serde_json::Value> = refs
         .iter()
-        .filter(|r| {
-            r["file"]
-                .as_str()
-                .unwrap_or("")
-                .contains("integration.rs")
-        })
+        .filter(|r| r["file"].as_str().unwrap_or("").contains("integration.rs"))
         .collect();
     assert_eq!(
         integration_refs.len(),
         3,
-        "all 3 references should be in integration.rs, got {} there",
+        "3 references should be in integration.rs, got {} there",
         integration_refs.len()
+    );
+    let lib_refs: Vec<&serde_json::Value> = refs
+        .iter()
+        .filter(|r| r["file"].as_str().unwrap_or("").contains("lib.rs"))
+        .collect();
+    assert_eq!(
+        lib_refs.len(),
+        1,
+        "1 reference should be in lib.rs (same-file call), got {} there",
+        lib_refs.len()
     );
 
     // Verify specific lines.
-    let ref_lines: Vec<u64> = refs
-        .iter()
-        .filter_map(|r| r["line"].as_u64())
-        .collect();
+    let ref_lines: Vec<u64> = refs.iter().filter_map(|r| r["line"].as_u64()).collect();
     assert!(
         ref_lines.contains(&1),
         "expected import ref at line 1, got lines: {ref_lines:?}"
@@ -317,9 +303,7 @@ fn proof3_good_file_parses_successfully() {
 
     let json = parse_json(&output);
     let symbols = json["symbols"].as_array().expect("missing symbols array");
-    let has_greet = symbols
-        .iter()
-        .any(|s| s["name"].as_str() == Some("greet"));
+    let has_greet = symbols.iter().any(|s| s["name"].as_str() == Some("greet"));
     assert!(has_greet, "outline should find 'greet' in good.py");
 }
 
@@ -329,11 +313,7 @@ fn proof3_good_file_parses_successfully() {
 #[test]
 fn proof3_bad_file_does_not_crash() {
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(
-        dir.path().join("bad.py"),
-        "def )(\n    @@@invalid{{{\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("bad.py"), "def )(\n    @@@invalid{{{\n").unwrap();
 
     let project = dir.path().to_path_buf();
     let bad_path = project.join("bad.py");
@@ -366,11 +346,7 @@ fn proof3_mixed_directory_good_symbols_survive() {
         "def greet(name):\n    return f'Hello, {name}!'\n",
     )
     .unwrap();
-    std::fs::write(
-        dir.path().join("bad.py"),
-        "def )(\n    @@@invalid{{{\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("bad.py"), "def )(\n    @@@invalid{{{\n").unwrap();
 
     let project = dir.path().to_path_buf();
     let output = run_cq_project(&project, &["symbols", "--json"]);
@@ -378,9 +354,7 @@ fn proof3_mixed_directory_good_symbols_survive() {
 
     let json = parse_json(&output);
     let symbols = json["symbols"].as_array().expect("missing symbols array");
-    let has_greet = symbols
-        .iter()
-        .any(|s| s["name"].as_str() == Some("greet"));
+    let has_greet = symbols.iter().any(|s| s["name"].as_str() == Some("greet"));
     assert!(
         has_greet,
         "symbols should find 'greet' from good.py even when bad.py exists"
@@ -558,10 +532,7 @@ fn proof5_semantic_finds_trait_definition() {
     let refs = json["references"]
         .as_array()
         .expect("missing references array");
-    let ref_files: Vec<&str> = refs
-        .iter()
-        .filter_map(|r| r["file"].as_str())
-        .collect();
+    let ref_files: Vec<&str> = refs.iter().filter_map(|r| r["file"].as_str()).collect();
     let has_traits = ref_files.iter().any(|f| f.contains("traits.rs"));
     let has_services = ref_files.iter().any(|f| f.contains("services.rs"));
     assert!(
@@ -605,10 +576,7 @@ fn proof6_dogfood_outline() {
 
     let json = parse_json(&output);
     let symbols = json["symbols"].as_array().expect("missing symbols array");
-    let names: Vec<&str> = symbols
-        .iter()
-        .filter_map(|s| s["name"].as_str())
-        .collect();
+    let names: Vec<&str> = symbols.iter().filter_map(|s| s["name"].as_str()).collect();
 
     // Must contain known modules from lib.rs.
     assert!(
@@ -670,34 +638,19 @@ fn proof6_dogfood_tree() {
         .filter_map(|f| f["file"].as_str())
         .filter(|f| f.ends_with(".rs"))
         .collect();
-    assert!(
-        !rs_files.is_empty(),
-        "tree output must contain .rs files"
-    );
+    assert!(!rs_files.is_empty(), "tree output must contain .rs files");
 
     // Must span multiple crates.
-    let has_core = rs_files
-        .iter()
-        .any(|f| f.contains("codequery-core"));
-    let has_parse = rs_files
-        .iter()
-        .any(|f| f.contains("codequery-parse"));
-    let has_cli = rs_files
-        .iter()
-        .any(|f| f.contains("codequery-cli"));
+    let has_core = rs_files.iter().any(|f| f.contains("codequery-core"));
+    let has_parse = rs_files.iter().any(|f| f.contains("codequery-parse"));
+    let has_cli = rs_files.iter().any(|f| f.contains("codequery-cli"));
     assert!(
         has_core,
         "tree should include codequery-core files, got: {:?}",
         &rs_files[..5.min(rs_files.len())]
     );
-    assert!(
-        has_parse,
-        "tree should include codequery-parse files"
-    );
-    assert!(
-        has_cli,
-        "tree should include codequery-cli files"
-    );
+    assert!(has_parse, "tree should include codequery-parse files");
+    assert!(has_cli, "tree should include codequery-cli files");
 }
 
 /// cq def StackGraphResolver on its own codebase: must find the struct in codequery-resolve.

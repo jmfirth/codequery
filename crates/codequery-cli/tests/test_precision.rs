@@ -89,10 +89,7 @@ fn assert_ref_at(json: &serde_json::Value, key: &str, file_suffix: &str, line: u
 /// Assert that the total count is at least the given minimum.
 fn assert_total_at_least(json: &serde_json::Value, min: u64) {
     let total = json["total"].as_u64().unwrap_or(0);
-    assert!(
-        total >= min,
-        "expected total >= {min}, got {total}"
-    );
+    assert!(total >= min, "expected total >= {min}, got {total}");
 }
 
 // ===========================================================================
@@ -410,10 +407,7 @@ fn python_deps_process_user() {
         .expect("missing dependencies array");
 
     // Should find User and format_name as dependencies
-    let dep_names: Vec<&str> = deps
-        .iter()
-        .filter_map(|d| d["name"].as_str())
-        .collect();
+    let dep_names: Vec<&str> = deps.iter().filter_map(|d| d["name"].as_str()).collect();
 
     assert!(
         dep_names.contains(&"User"),
@@ -436,10 +430,7 @@ fn rust_deps_process_users() {
         .as_array()
         .expect("missing dependencies array");
 
-    let dep_names: Vec<&str> = deps
-        .iter()
-        .filter_map(|d| d["name"].as_str())
-        .collect();
+    let dep_names: Vec<&str> = deps.iter().filter_map(|d| d["name"].as_str()).collect();
 
     // Should find User and summarize as dependencies
     assert!(
@@ -463,10 +454,7 @@ fn typescript_deps_user_service() {
         .as_array()
         .expect("missing dependencies array");
 
-    let dep_names: Vec<&str> = deps
-        .iter()
-        .filter_map(|d| d["name"].as_str())
-        .collect();
+    let dep_names: Vec<&str> = deps.iter().filter_map(|d| d["name"].as_str()).collect();
 
     // Should find greet as a dependency (called in greetUser method)
     assert!(
@@ -548,7 +536,10 @@ fn kotlin_fallback_syntactic() {
     assert!(!defs.is_empty(), "should find Animal class in Kotlin");
 
     let refs = json["references"].as_array().expect("missing references");
-    assert!(!refs.is_empty(), "should find references for Animal in Kotlin");
+    assert!(
+        !refs.is_empty(),
+        "should find references for Animal in Kotlin"
+    );
 }
 
 #[test]
@@ -765,10 +756,7 @@ fn rust_refs_greet_has_call_kind() {
         let l = r["line"].as_u64().unwrap_or(0);
         f.ends_with("integration.rs") && l == 5
     });
-    assert!(
-        call_ref.is_some(),
-        "expected call ref at integration.rs:5"
-    );
+    assert!(call_ref.is_some(), "expected call ref at integration.rs:5");
 
     let kind = call_ref.unwrap()["kind"].as_str().unwrap_or("");
     assert!(
@@ -836,10 +824,7 @@ fn rust_refs_user_has_import_kind() {
         let l = r["line"].as_u64().unwrap_or(0);
         f.ends_with("services.rs") && l == 3
     });
-    assert!(
-        import_ref.is_some(),
-        "expected import ref at services.rs:3"
-    );
+    assert!(import_ref.is_some(), "expected import ref at services.rs:3");
 
     let kind = import_ref.unwrap()["kind"].as_str().unwrap_or("");
     assert!(
@@ -914,10 +899,7 @@ fn go_imports_main() {
     assert_exit_code(&output, 0);
     let text = stdout(&output);
 
-    assert!(
-        text.contains("fmt"),
-        "imports should contain 'fmt': {text}"
-    );
+    assert!(text.contains("fmt"), "imports should contain 'fmt': {text}");
 }
 
 // ===========================================================================
@@ -1000,10 +982,7 @@ fn python_symbols_completeness() {
     let json = parse_json(&output);
 
     let symbols = json["symbols"].as_array().expect("missing symbols array");
-    let names: Vec<&str> = symbols
-        .iter()
-        .filter_map(|s| s["name"].as_str())
-        .collect();
+    let names: Vec<&str> = symbols.iter().filter_map(|s| s["name"].as_str()).collect();
 
     let expected = [
         "User",
@@ -1033,10 +1012,7 @@ fn rust_symbols_completeness() {
     let json = parse_json(&output);
 
     let symbols = json["symbols"].as_array().expect("missing symbols array");
-    let names: Vec<&str> = symbols
-        .iter()
-        .filter_map(|s| s["name"].as_str())
-        .collect();
+    let names: Vec<&str> = symbols.iter().filter_map(|s| s["name"].as_str()).collect();
 
     let expected = [
         "greet",
@@ -1278,10 +1254,7 @@ fn python_deps_process_user_resolves_sources() {
     let fmt_dep = deps
         .iter()
         .find(|d| d["name"].as_str() == Some("format_name"));
-    assert!(
-        fmt_dep.is_some(),
-        "format_name should be in dependencies"
-    );
+    assert!(fmt_dep.is_some(), "format_name should be in dependencies");
     let defined_in = fmt_dep.unwrap()["defined_in"].as_str().unwrap_or("");
     assert!(
         defined_in.contains("utils.py"),
@@ -1313,10 +1286,7 @@ fn rust_deps_process_users_resolves_sources() {
     let sum_dep = deps
         .iter()
         .find(|d| d["name"].as_str() == Some("summarize"));
-    assert!(
-        sum_dep.is_some(),
-        "summarize should be in dependencies"
-    );
+    assert!(sum_dep.is_some(), "summarize should be in dependencies");
     let defined_in = sum_dep.unwrap()["defined_in"].as_str().unwrap_or("");
     assert!(
         defined_in.contains("services.rs"),

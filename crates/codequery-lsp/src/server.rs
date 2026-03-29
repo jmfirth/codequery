@@ -317,12 +317,24 @@ impl LspServer {
                         while Instant::now() < drain_deadline && Instant::now() < deadline {
                             match self.transport.try_read_message(Duration::from_millis(100)) {
                                 Ok(Some(drain_msg)) => {
-                                    if let Ok(drain_json) = serde_json::from_str::<serde_json::Value>(&drain_msg) {
-                                        let m = drain_json.get("method").and_then(|x| x.as_str()).unwrap_or("");
+                                    if let Ok(drain_json) =
+                                        serde_json::from_str::<serde_json::Value>(&drain_msg)
+                                    {
+                                        let m = drain_json
+                                            .get("method")
+                                            .and_then(|x| x.as_str())
+                                            .unwrap_or("");
                                         if m == "$/progress" {
                                             if let Some(p) = drain_json.get("params") {
-                                                let t = p.get("token").map(std::string::ToString::to_string).unwrap_or_default();
-                                                let k = p.get("value").and_then(|v| v.get("kind")).and_then(|x| x.as_str()).unwrap_or("");
+                                                let t = p
+                                                    .get("token")
+                                                    .map(std::string::ToString::to_string)
+                                                    .unwrap_or_default();
+                                                let k = p
+                                                    .get("value")
+                                                    .and_then(|v| v.get("kind"))
+                                                    .and_then(|x| x.as_str())
+                                                    .unwrap_or("");
                                                 if k == "begin" {
                                                     progress_active.insert(t);
                                                     new_progress = true;
@@ -332,7 +344,10 @@ impl LspServer {
                                         } else if m == "window/workDoneProgress/create" {
                                             if let Some(id) = drain_json.get("id") {
                                                 let resp = serde_json::json!({"jsonrpc":"2.0","id":id,"result":null});
-                                                let _ = self.transport.write_raw(&serde_json::to_string(&resp).unwrap_or_default());
+                                                let _ = self.transport.write_raw(
+                                                    &serde_json::to_string(&resp)
+                                                        .unwrap_or_default(),
+                                                );
                                             }
                                             new_progress = true;
                                             // Don't break yet — the begin is coming next

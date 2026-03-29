@@ -8,6 +8,10 @@
 ;;   - #include directives create import-like edges for header resolution
 ;;   - Function bodies introduce a new scope for local variables
 ;;   - No modules, no namespaces, no classes
+;;
+;; Wildcard avoidance: we list handled node types explicitly in child-wiring
+;; stanzas so that extras (comment) and field-only children (identifier inside
+;; preproc_ifdef) do not cause "Undefined scoped variable" errors.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;;;;;;;;;;;;;;;;;
@@ -38,6 +42,22 @@ attribute symbol_reference = symbol     => type = "push_symbol", symbol = symbol
 attribute node_symbol = node            => symbol = (source-text node), source_node = node
 
 ;; =============================
+;;  Comment stub (extra node)
+;; =============================
+;;
+;; Comments are tree-sitter "extras" that can appear as children of any node.
+;; They need all scoped variables that any parent-child wiring rule might
+;; reference so that wildcard-free explicit lists are not the only defence.
+
+(comment) @c {
+  node @c.defs
+  node @c.lexical_scope
+  node @c.before_scope
+  node @c.after_scope
+  edge @c.after_scope -> @c.before_scope
+}
+
+;; =============================
 ;;  Translation Unit (file root)
 ;; =============================
 
@@ -59,7 +79,36 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 }
 
 ;; Wire each top-level child into the translation unit's scope.
-(translation_unit (_) @child) @tu {
+;; We list handled node types explicitly so that extras (comments) and
+;; unhandled nodes do not cause "Undefined scoped variable" errors.
+(translation_unit
+  [
+    (function_definition)
+    (declaration)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (compound_statement)
+    (case_statement)
+  ] @child
+) @tu {
   edge @tu.defs -> @child.defs
   edge @child.lexical_scope -> @tu.lexical_scope
 }
@@ -78,12 +127,36 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   (preproc_ifdef)
   (preproc_if)
   (preproc_elif)
+  (preproc_elifdef)
   (preproc_else)
+  (preproc_call)
   (linkage_specification)
+  (attributed_statement)
+  (case_statement)
+  (else_clause)
 ] @decl
 {
   node @decl.defs
   node @decl.lexical_scope
+}
+
+;; Nodes that also need before_scope / after_scope for block sequencing.
+[
+  (preproc_include)
+  (preproc_def)
+  (preproc_function_def)
+  (preproc_ifdef)
+  (preproc_if)
+  (preproc_call)
+  (linkage_specification)
+  (attributed_statement)
+  (case_statement)
+  (else_clause)
+] @seqd
+{
+  node @seqd.before_scope
+  node @seqd.after_scope
+  edge @seqd.after_scope -> @seqd.before_scope
 }
 
 ;; ============================
@@ -112,6 +185,7 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 
 (identifier) @name {
   node @name.ref
+  node @name.defs
   node @name.lexical_scope
   attr (@name.ref) node_reference = @name
   edge @name.ref -> @name.lexical_scope
@@ -126,6 +200,9 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 (function_definition) @func_stub {
   node @func_stub.defs
   node @func_stub.lexical_scope
+  node @func_stub.before_scope
+  node @func_stub.after_scope
+  edge @func_stub.after_scope -> @func_stub.before_scope
 }
 
 ;; A function_definition creates a definition at file scope and introduces
@@ -183,12 +260,16 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   edge @param.lexical_scope -> @params.lexical_scope
 }
 
+;; Stub for all parameter_declaration nodes (handles unnamed params,
+;; complex declarators like `char* argv[]`, function pointers, etc.)
+(parameter_declaration) @param {
+  node @param.defs
+  node @param.lexical_scope
+}
+
 (parameter_declaration
   declarator: (identifier) @name) @param
 {
-  node @param.defs
-  node @param.lexical_scope
-
   node def
   attr (def) node_definition = @name
   edge @param.defs -> def
@@ -199,9 +280,17 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   declarator: (pointer_declarator
     declarator: (identifier) @name)) @param
 {
-  node @param.defs
-  node @param.lexical_scope
+  node def
+  attr (def) node_definition = @name
+  edge @param.defs -> def
+}
 
+;; Parameter with array declarator (e.g. `char* argv[]`)
+(parameter_declaration
+  declarator: (pointer_declarator
+    declarator: (array_declarator
+      declarator: (identifier) @name))) @param
+{
   node def
   attr (def) node_definition = @name
   edge @param.defs -> def
@@ -223,12 +312,98 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 ;; Sequence statements within a block: first child inherits block scope.
 ;; Wire to lexical_scope (not before_scope) so children can reach the
 ;; enclosing function/file scope through the block's lexical_scope edges.
-(compound_statement . (_) @first) @block {
+;; Explicit node types to avoid matching comment extras.
+(compound_statement .
+  [
+    (declaration)
+    (function_definition)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (comment)
+  ] @first
+) @block {
   edge @first.before_scope -> @block.lexical_scope
 }
 
 ;; Chain statements: right sees definitions from left.
-(compound_statement (_) @left . (_) @right) {
+;; Explicit node types to avoid matching comment extras.
+(compound_statement
+  [
+    (declaration)
+    (function_definition)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (comment)
+  ] @left
+  .
+  [
+    (declaration)
+    (function_definition)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (comment)
+  ] @right
+) {
   edge @right.before_scope -> @left.after_scope
 }
 
@@ -266,6 +441,11 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   node @decl_stmt.lexical_scope
   node @decl_stmt.before_scope
   node @decl_stmt.after_scope
+
+  ;; Wire lexical_scope to before_scope so child expressions (call_expression,
+  ;; identifier, etc.) can reach the enclosing scope chain through the
+  ;; declaration's position in the compound_statement sequence.
+  edge @decl_stmt.lexical_scope -> @decl_stmt.before_scope
 }
 
 ;; Simple declaration: `int x;` or `int x = expr;`
@@ -278,6 +458,21 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   edge @decl_stmt.after_scope -> def
   edge @decl_stmt.after_scope -> @decl_stmt.before_scope
   edge @decl_stmt.defs -> def
+}
+
+;; Wire initializer value expressions to the declaration's scope so
+;; function calls in initializers can resolve to definitions.
+(declaration
+  declarator: (init_declarator
+    value: (call_expression) @val)) @decl_init
+{
+  edge @val.lexical_scope -> @decl_init.lexical_scope
+}
+(declaration
+  declarator: (init_declarator
+    value: (identifier) @val)) @decl_init
+{
+  edge @val.lexical_scope -> @decl_init.lexical_scope
 }
 
 ;; Simple declaration without initializer: `int x;`
@@ -305,12 +500,72 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 }
 
 ;; Expression statement: wire the expression to the current scope.
-(expression_statement (_) @expr) @expr_stmt {
+;; Explicit expression types to avoid matching comment extras.
+(expression_statement
+  [
+    (identifier)
+    (call_expression)
+    (assignment_expression)
+    (binary_expression)
+    (unary_expression)
+    (update_expression)
+    (cast_expression)
+    (conditional_expression)
+    (comma_expression)
+    (parenthesized_expression)
+    (subscript_expression)
+    (sizeof_expression)
+    (field_expression)
+    (pointer_expression)
+    (number_literal)
+    (string_literal)
+    (char_literal)
+    (true)
+    (false)
+    (null)
+    (concatenated_string)
+    (compound_literal_expression)
+    (alignof_expression)
+    (offsetof_expression)
+    (generic_expression)
+    (gnu_asm_expression)
+  ] @expr
+) @expr_stmt {
   edge @expr.lexical_scope -> @expr_stmt.before_scope
 }
 
 ;; Return statement: wire the return value expression.
-(return_statement (_) @expr) @stmt {
+;; Explicit expression types to avoid matching comment extras.
+(return_statement
+  [
+    (identifier)
+    (call_expression)
+    (assignment_expression)
+    (binary_expression)
+    (unary_expression)
+    (update_expression)
+    (cast_expression)
+    (conditional_expression)
+    (comma_expression)
+    (parenthesized_expression)
+    (subscript_expression)
+    (sizeof_expression)
+    (field_expression)
+    (pointer_expression)
+    (number_literal)
+    (string_literal)
+    (char_literal)
+    (true)
+    (false)
+    (null)
+    (concatenated_string)
+    (compound_literal_expression)
+    (alignof_expression)
+    (offsetof_expression)
+    (generic_expression)
+    (gnu_asm_expression)
+  ] @expr
+) @stmt {
   edge @expr.lexical_scope -> @stmt.before_scope
 }
 
@@ -324,7 +579,7 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 }
 
 (if_statement
-  alternative: (_) @alt) @stmt
+  alternative: (else_clause) @alt) @stmt
 {
   edge @alt.before_scope -> @stmt.before_scope
 }
@@ -365,7 +620,7 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   edge @body.lexical_scope -> @struct_def.lexical_scope
 }
 
-;; Struct without a body (forward declaration or reference) — no definition node.
+;; Struct without a body (forward declaration or reference) -- no definition node.
 (struct_specifier
   name: (type_identifier) @_name
   !body) @struct_ref
@@ -483,24 +738,139 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 ;;  Preprocessor conditional blocks
 ;; ===============================
 
-;; Contents inside #ifdef / #if / #elif are wired through to the parent scope.
+;; Contents inside #ifdef / #if / #elif / #else are wired through to the
+;; parent scope.  We list explicit child types to avoid matching the
+;; identifier in the `name:` field of preproc_ifdef (which does not have
+;; .defs) and to avoid matching comment extras.
 
-(preproc_ifdef (_) @child) @pp {
+(preproc_ifdef
+  [
+    (function_definition)
+    (declaration)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (comment)
+  ] @child
+) @pp {
   edge @pp.defs -> @child.defs
   edge @child.lexical_scope -> @pp.lexical_scope
 }
 
-(preproc_if (_) @child) @pp {
+(preproc_if
+  [
+    (function_definition)
+    (declaration)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (comment)
+  ] @child
+) @pp {
   edge @pp.defs -> @child.defs
   edge @child.lexical_scope -> @pp.lexical_scope
 }
 
-(preproc_elif (_) @child) @pp {
+(preproc_elif
+  [
+    (function_definition)
+    (declaration)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (comment)
+  ] @child
+) @pp {
   edge @pp.defs -> @child.defs
   edge @child.lexical_scope -> @pp.lexical_scope
 }
 
-(preproc_else (_) @child) @pp {
+(preproc_else
+  [
+    (function_definition)
+    (declaration)
+    (type_definition)
+    (preproc_include)
+    (preproc_def)
+    (preproc_function_def)
+    (preproc_ifdef)
+    (preproc_if)
+    (preproc_call)
+    (linkage_specification)
+    (expression_statement)
+    (return_statement)
+    (if_statement)
+    (while_statement)
+    (do_statement)
+    (for_statement)
+    (switch_statement)
+    (break_statement)
+    (continue_statement)
+    (goto_statement)
+    (labeled_statement)
+    (attributed_statement)
+    (case_statement)
+    (compound_statement)
+    (comment)
+  ] @child
+) @pp {
   edge @pp.defs -> @child.defs
   edge @child.lexical_scope -> @pp.lexical_scope
 }
@@ -521,8 +891,42 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   edge @name.lexical_scope -> @call.lexical_scope
 }
 
+;; Wire argument expressions to the call's scope.
+;; Explicit expression types to avoid matching comment extras.
 (call_expression
-  arguments: (argument_list (_) @arg)) @call
+  arguments: (argument_list
+    [
+      (identifier)
+      (call_expression)
+      (assignment_expression)
+      (binary_expression)
+      (unary_expression)
+      (update_expression)
+      (cast_expression)
+      (conditional_expression)
+      (comma_expression)
+      (parenthesized_expression)
+      (subscript_expression)
+      (sizeof_expression)
+      (field_expression)
+      (pointer_expression)
+      (number_literal)
+      (string_literal)
+      (char_literal)
+      (true)
+      (false)
+      (null)
+      (concatenated_string)
+      (compound_literal_expression)
+      (compound_statement)
+      (preproc_defined)
+      (alignof_expression)
+      (offsetof_expression)
+      (generic_expression)
+      (gnu_asm_expression)
+    ] @arg
+  )
+) @call
 {
   edge @arg.lexical_scope -> @call.lexical_scope
 }
@@ -553,6 +957,11 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   (concatenated_string)
   (compound_literal_expression)
   (initializer_list)
+  (alignof_expression)
+  (offsetof_expression)
+  (generic_expression)
+  (gnu_asm_expression)
+  (preproc_defined)
 ] @expr
 {
   node @expr.defs
@@ -578,4 +987,16 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   node @type_id.lexical_scope
   attr (@type_id.ref) node_reference = @type_id
   edge @type_id.ref -> @type_id.lexical_scope
+}
+
+;; =============================
+;;  Primitive type stub
+;; =============================
+
+;; primitive_type nodes (int, void, char, etc.) can appear where
+;; type_specifier is expected. They need a lexical_scope stub.
+
+(primitive_type) @prim {
+  node @prim.defs
+  node @prim.lexical_scope
 }

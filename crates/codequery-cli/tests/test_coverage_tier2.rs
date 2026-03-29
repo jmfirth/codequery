@@ -140,10 +140,7 @@ fn test_imports_csharp_finds_using_directive() {
     let output = run_cq_project(&project, &["imports", file.to_str().unwrap()]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("System"),
-        "should find using System: {out}"
-    );
+    assert!(out.contains("System"), "should find using System: {out}");
 }
 
 #[test]
@@ -262,10 +259,7 @@ fn test_refs_swift_finds_definitions() {
     let output = run_cq_project(&swift_project(), &["refs", "greet"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("definition"),
-        "should list definition: {out}"
-    );
+    assert!(out.contains("definition"), "should list definition: {out}");
     assert!(
         out.contains("function greet"),
         "should identify as function: {out}"
@@ -328,10 +322,7 @@ fn test_tree_swift_shows_structure() {
     let output = run_cq_project(&swift_project(), &["tree"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("main.swift"),
-        "should list main.swift: {out}"
-    );
+    assert!(out.contains("main.swift"), "should list main.swift: {out}");
     assert!(
         out.contains("greet (function, pub)"),
         "should show greet: {out}"
@@ -353,17 +344,11 @@ fn test_symbols_swift_lists_all_symbols() {
     let output = run_cq_project(&swift_project(), &["symbols"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("function greet"),
-        "should list greet: {out}"
-    );
+    assert!(out.contains("function greet"), "should list greet: {out}");
     assert!(out.contains("class Animal"), "should list Animal: {out}");
     assert!(out.contains("method speak"), "should list speak: {out}");
     assert!(out.contains("struct Point"), "should list Point: {out}");
-    assert!(
-        out.contains("function helper"),
-        "should list helper: {out}"
-    );
+    assert!(out.contains("function helper"), "should list helper: {out}");
 }
 
 #[test]
@@ -414,10 +399,7 @@ fn test_refs_kotlin_finds_call_sites() {
     let output = run_cq_project(&kotlin_project(), &["refs", "greet"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("definition"),
-        "should show definitions: {out}"
-    );
+    assert!(out.contains("definition"), "should show definitions: {out}");
     assert!(
         out.contains("1 reference"),
         "should find the call reference in main(): {out}"
@@ -494,10 +476,7 @@ fn test_symbols_kotlin_lists_all_symbols() {
     let output = run_cq_project(&kotlin_project(), &["symbols"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("function greet"),
-        "should list greet: {out}"
-    );
+    assert!(out.contains("function greet"), "should list greet: {out}");
     assert!(out.contains("class Animal"), "should list Animal: {out}");
     assert!(out.contains("module Config"), "should list Config: {out}");
     assert!(
@@ -505,25 +484,19 @@ fn test_symbols_kotlin_lists_all_symbols() {
         "should list Drawable: {out}"
     );
     assert!(out.contains("struct Point"), "should list Point: {out}");
-    assert!(out.contains("enum Direction"), "should list Direction: {out}");
     assert!(
-        out.contains("function main"),
-        "should list main: {out}"
+        out.contains("enum Direction"),
+        "should list Direction: {out}"
     );
+    assert!(out.contains("function main"), "should list main: {out}");
 }
 
 #[test]
 fn test_search_kotlin_finds_functions_by_pattern() {
-    let output = run_cq_project(
-        &kotlin_project(),
-        &["search", "fun $NAME(): $RET"],
-    );
+    let output = run_cq_project(&kotlin_project(), &["search", "fun $NAME(): $RET"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("fun reset()"),
-        "should find reset: {out}"
-    );
+    assert!(out.contains("fun reset()"), "should find reset: {out}");
 }
 
 // ===========================================================================
@@ -557,10 +530,7 @@ fn test_refs_scala_finds_call_sites() {
     let output = run_cq_project(&scala_project(), &["refs", "speak"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("definition"),
-        "should show definition: {out}"
-    );
+    assert!(out.contains("definition"), "should show definition: {out}");
     assert!(
         out.contains("1 reference"),
         "should find the call in Main.run: {out}"
@@ -576,10 +546,7 @@ fn test_callers_scala_finds_call_site() {
     let output = run_cq_project(&scala_project(), &["callers", "speak"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("1 caller"),
-        "should find 1 caller: {out}"
-    );
+    assert!(out.contains("1 caller"), "should find 1 caller: {out}");
     assert!(
         out.contains("animal.speak()"),
         "should show call expression: {out}"
@@ -591,10 +558,7 @@ fn test_deps_scala_shows_callees() {
     let output = run_cq_project(&scala_project(), &["deps", "run"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("speak"),
-        "run should depend on speak: {out}"
-    );
+    assert!(out.contains("speak"), "run should depend on speak: {out}");
 }
 
 #[test]
@@ -629,10 +593,7 @@ fn test_tree_scala_shows_structure() {
     let output = run_cq_project(&scala_project(), &["tree"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("Main.scala"),
-        "should list Main.scala: {out}"
-    );
+    assert!(out.contains("Main.scala"), "should list Main.scala: {out}");
     assert!(
         out.contains("Animal (class, pub)"),
         "should show Animal: {out}"
@@ -661,10 +622,7 @@ fn test_symbols_scala_lists_all_symbols() {
         out.contains("trait Drawable"),
         "should list Drawable: {out}"
     );
-    assert!(
-        out.contains("module Config"),
-        "should list Config: {out}"
-    );
+    assert!(out.contains("module Config"), "should list Config: {out}");
     assert!(out.contains("struct Point"), "should list Point: {out}");
     assert!(
         out.contains("module Main"),
@@ -739,10 +697,7 @@ fn test_callers_lua_finds_call_sites() {
     let output = run_cq_project(&lua_project(), &["callers", "greet"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("2 callers"),
-        "should find 2 callers: {out}"
-    );
+    assert!(out.contains("2 callers"), "should find 2 callers: {out}");
 }
 
 #[test]
@@ -839,10 +794,7 @@ fn test_search_lua_raw_finds_functions() {
         out.contains("private_helper"),
         "should find private_helper: {out}"
     );
-    assert!(
-        out.contains("global_fn"),
-        "should find global_fn: {out}"
-    );
+    assert!(out.contains("global_fn"), "should find global_fn: {out}");
 }
 
 // ===========================================================================
@@ -876,10 +828,7 @@ fn test_refs_bash_finds_definition() {
     let output = run_cq_project(&bash_project(), &["refs", "greet"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("definition"),
-        "should show definition: {out}"
-    );
+    assert!(out.contains("definition"), "should show definition: {out}");
     assert!(
         out.contains("function greet"),
         "should identify as function: {out}"
@@ -945,10 +894,7 @@ fn test_symbols_bash_lists_all_symbols() {
     let output = run_cq_project(&bash_project(), &["symbols"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("function greet"),
-        "should list greet: {out}"
-    );
+    assert!(out.contains("function greet"), "should list greet: {out}");
     assert!(
         out.contains("function say_hello"),
         "should list say_hello: {out}"
@@ -984,10 +930,7 @@ fn test_search_bash_raw_finds_functions() {
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("greet"), "should find greet: {out}");
-    assert!(
-        out.contains("say_hello"),
-        "should find say_hello: {out}"
-    );
+    assert!(out.contains("say_hello"), "should find say_hello: {out}");
     assert!(
         out.contains("log_info"),
         "should find log_info from utils: {out}"
@@ -1054,10 +997,7 @@ fn test_tree_php_shows_structure() {
     let output = run_cq_project(&php_project(), &["tree"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("src/main.php"),
-        "should list main.php: {out}"
-    );
+    assert!(out.contains("src/main.php"), "should list main.php: {out}");
     assert!(
         out.contains("src/models.php"),
         "should list models.php: {out}"
@@ -1093,10 +1033,7 @@ fn test_symbols_php_lists_all_symbols() {
         out.contains("function globalFunction"),
         "should list globalFunction: {out}"
     );
-    assert!(
-        out.contains("function add"),
-        "should list add: {out}"
-    );
+    assert!(out.contains("function add"), "should list add: {out}");
     assert!(out.contains("class User"), "should list User: {out}");
     assert!(
         out.contains("interface Greeter"),
@@ -1160,26 +1097,17 @@ fn test_tree_ruby_shows_full_project_tree() {
     let output = run_cq_project(&ruby_project(), &["tree"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("lib/main.rb"),
-        "should list main.rb: {out}"
-    );
+    assert!(out.contains("lib/main.rb"), "should list main.rb: {out}");
     assert!(
         out.contains("lib/models.rb"),
         "should list models.rb: {out}"
     );
-    assert!(
-        out.contains("lib/utils.rb"),
-        "should list utils.rb: {out}"
-    );
+    assert!(out.contains("lib/utils.rb"), "should list utils.rb: {out}");
     assert!(
         out.contains("greet (function, pub)"),
         "should show greet: {out}"
     );
-    assert!(
-        out.contains("User (class, pub)"),
-        "should show User: {out}"
-    );
+    assert!(out.contains("User (class, pub)"), "should show User: {out}");
     assert!(
         out.contains("Utils (module, pub)"),
         "should show Utils module: {out}"
@@ -1191,28 +1119,18 @@ fn test_symbols_ruby_lists_all_project_symbols() {
     let output = run_cq_project(&ruby_project(), &["symbols"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("function greet"),
-        "should list greet: {out}"
-    );
+    assert!(out.contains("function greet"), "should list greet: {out}");
     assert!(out.contains("function add"), "should list add: {out}");
     assert!(out.contains("class User"), "should list User: {out}");
     assert!(out.contains("class Admin"), "should list Admin: {out}");
-    assert!(
-        out.contains("module Utils"),
-        "should list Utils: {out}"
-    );
+    assert!(out.contains("module Utils"), "should list Utils: {out}");
 }
 
 #[test]
 fn test_search_ruby_raw_finds_classes() {
     let output = run_cq_project(
         &ruby_project(),
-        &[
-            "--raw",
-            "search",
-            "(class name: (constant) @name)",
-        ],
+        &["--raw", "search", "(class name: (constant) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
@@ -1229,14 +1147,8 @@ fn test_symbols_zig_lists_all_project_symbols() {
     let output = run_cq_project(&zig_project(), &["symbols"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(
-        out.contains("function greet"),
-        "should list greet: {out}"
-    );
-    assert!(
-        out.contains("function helper"),
-        "should list helper: {out}"
-    );
+    assert!(out.contains("function greet"), "should list greet: {out}");
+    assert!(out.contains("function helper"), "should list helper: {out}");
     assert!(
         out.contains("const MAX_SIZE"),
         "should list MAX_SIZE: {out}"
@@ -1247,10 +1159,7 @@ fn test_symbols_zig_lists_all_project_symbols() {
         out.contains("test basic greet"),
         "should list test decl: {out}"
     );
-    assert!(
-        out.contains("function main"),
-        "should list main: {out}"
-    );
+    assert!(out.contains("function main"), "should list main: {out}");
 }
 
 #[test]
@@ -1292,14 +1201,8 @@ fn test_json_output_csharp_symbols() {
     assert!(!arr.is_empty(), "should have symbols");
     // Verify structure of first symbol
     let first = &arr[0];
-    assert!(
-        first.get("name").is_some(),
-        "symbol should have name field"
-    );
-    assert!(
-        first.get("kind").is_some(),
-        "symbol should have kind field"
-    );
+    assert!(first.get("name").is_some(), "symbol should have name field");
+    assert!(first.get("kind").is_some(), "symbol should have kind field");
 }
 
 #[test]
@@ -1316,10 +1219,7 @@ fn test_json_output_swift_def() {
     let arr = definitions.as_array().unwrap();
     assert!(!arr.is_empty(), "should find greet");
     let text = stdout(&output);
-    assert!(
-        text.contains("greet"),
-        "JSON should contain greet: {text}"
-    );
+    assert!(text.contains("greet"), "JSON should contain greet: {text}");
 }
 
 #[test]
@@ -1366,10 +1266,7 @@ fn test_json_output_kotlin_body() {
 fn test_json_output_lua_outline() {
     let project = lua_project();
     let file = project.join("main.lua");
-    let output = run_cq_project(
-        &project,
-        &["--json", "outline", file.to_str().unwrap()],
-    );
+    let output = run_cq_project(&project, &["--json", "outline", file.to_str().unwrap()]);
     assert_exit_code(&output, 0);
     let json = parse_json(&output);
     assert!(json.is_object(), "JSON output should be an object");
@@ -1393,8 +1290,5 @@ fn test_json_output_bash_refs() {
         text.contains("greet"),
         "JSON refs should contain greet: {text}"
     );
-    assert!(
-        json.is_object() || json.is_array(),
-        "should be valid JSON"
-    );
+    assert!(json.is_object() || json.is_array(), "should be valid JSON");
 }

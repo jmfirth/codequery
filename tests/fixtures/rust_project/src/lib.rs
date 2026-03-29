@@ -10,6 +10,12 @@ pub fn greet(name: &str) -> String {
     format!("Hello, {name}!")
 }
 
+/// Entry point for testing same-file resolution.
+pub fn run() {
+    let msg = greet("world");
+    println!("{msg}");
+}
+
 /// Configuration constant.
 pub const MAX_RETRIES: u32 = 3;
 

@@ -313,12 +313,7 @@ fn read_file_source(path: &Path) -> Result<String> {
 /// the declaration line for the identifier and returns its column.
 ///
 /// Falls back to the original column if the identifier isn't found.
-fn find_identifier_column(
-    source: &str,
-    line: usize,
-    original_column: usize,
-    name: &str,
-) -> usize {
+fn find_identifier_column(source: &str, line: usize, original_column: usize, name: &str) -> usize {
     let Some(line_text) = source.lines().nth(line.saturating_sub(1)) else {
         return original_column;
     };
@@ -328,8 +323,7 @@ fn find_identifier_column(
         let pos = original_column + offset;
         let end = pos + name.len();
         let before_ok = pos == 0 || !line_text.as_bytes()[pos - 1].is_ascii_alphanumeric();
-        let after_ok =
-            end >= line_text.len() || !line_text.as_bytes()[end].is_ascii_alphanumeric();
+        let after_ok = end >= line_text.len() || !line_text.as_bytes()[end].is_ascii_alphanumeric();
         if before_ok && after_ok {
             return pos;
         }

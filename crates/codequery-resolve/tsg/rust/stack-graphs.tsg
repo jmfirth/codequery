@@ -121,6 +121,12 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   node @dl.lexical_scope
 }
 
+;; Use list nodes (e.g. `{a, b, c}` in `use path::{a, b, c};`)
+(use_list) @list {
+  node @list.defs
+  node @list.lexical_scope
+}
+
 ;; Identifier nodes
 (identifier) @id {
   node @id.ref
@@ -203,8 +209,29 @@ inherit .mod_scope
   let @src.mod_scope = @src.defs
 }
 
-;; Wire child items in source_file to the file's definition scope
-(source_file (_) @child) @src {
+;; Wire child items in source_file to the file's definition scope.
+;; We list handled node types explicitly so that unhandled nodes (comments,
+;; attributes, inner attributes, etc.) don't cause "Undefined scoped variable"
+;; errors at graph construction time.
+(source_file
+  [
+    (use_declaration)
+    (mod_item)
+    (function_item)
+    (struct_item)
+    (enum_item)
+    (trait_item)
+    (impl_item)
+    (const_item)
+    (static_item)
+    (type_item)
+    (let_declaration)
+    (expression_statement)
+    (extern_crate_declaration)
+    (macro_invocation)
+    (macro_definition)
+  ] @child
+) @src {
   edge @src.defs -> @child.defs
   edge @child.lexical_scope -> @src.lexical_scope
 }
@@ -253,8 +280,27 @@ inherit .mod_scope
   let @body.mod_scope = @body.defs
 }
 
-;; Items inside a declaration_list (inline mod body, impl body, trait body)
-(declaration_list (_) @child) @dl {
+;; Items inside a declaration_list (inline mod body, impl body, trait body).
+;; Explicit node types to avoid matching comments, attributes, etc.
+(declaration_list
+  [
+    (use_declaration)
+    (mod_item)
+    (function_item)
+    (struct_item)
+    (enum_item)
+    (trait_item)
+    (impl_item)
+    (const_item)
+    (static_item)
+    (type_item)
+    (let_declaration)
+    (expression_statement)
+    (extern_crate_declaration)
+    (macro_invocation)
+    (macro_definition)
+  ] @child
+) @dl {
   edge @dl.defs -> @child.defs
   edge @child.lexical_scope -> @dl.lexical_scope
 }
@@ -353,13 +399,22 @@ inherit .mod_scope
 }
 
 ;; Use lists: `use path::{a, b, c};`
+;; Wire identifier items in the list through the path for resolution.
 (scoped_use_list
-  path: (_) @path
+  path: (identifier) @path
   list: (use_list
-    (_) @item)
+    (identifier) @item)
 ) {
-  ;; Each item in the list resolves through the path
   edge @item.lexical_scope -> @path.ref
+}
+
+;; Use lists with scoped path: `use path::to::{a, b, c};`
+(scoped_use_list
+  path: (scoped_identifier name: (identifier) @path_name)
+  list: (use_list
+    (identifier) @item)
+) {
+  edge @item.lexical_scope -> @path_name.ref
 }
 
 ;; Items inside use_list that are identifiers
@@ -398,10 +453,12 @@ inherit .mod_scope
   edge @use_decl.defs -> @last_seg.ref
 }
 
-;; Connect use_declaration identifiers to lexical scope for resolution
+;; Connect use_declaration identifiers to lexical scope for resolution.
+;; The first segment of the path is an identifier (crate/self/super are
+;; handled by their own dedicated stanzas above).
 (use_declaration
   argument: (scoped_identifier
-    . (_) @first)
+    . (identifier) @first)
 ) @use_decl {
   edge @first.ref -> @use_decl.lexical_scope
 }
@@ -524,10 +581,10 @@ inherit .mod_scope
 ;; Impl Blocks
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Inherent impl: `impl Type { ... }`
+;; Inherent impl: `impl Type { ... }` where Type is a simple type_identifier
 ;; Methods are accessible through the type name
 (impl_item
-  type: (_) @impl_type
+  type: (type_identifier) @impl_type
   !trait
   body: (declaration_list) @body
 ) @impl_def {
@@ -543,10 +600,37 @@ inherit .mod_scope
   edge dot -> @body.defs
 }
 
-;; Trait impl: `impl Trait for Type { ... }`
+;; Inherent impl with generic type: `impl Foo<T> { ... }`
+;; We still wire the body scope but skip method-through-type resolution
+;; since generic_type doesn't have .ref
+(impl_item
+  type: (generic_type) @_impl_type
+  !trait
+  body: (declaration_list) @body
+) @impl_def {
+  edge @body.lexical_scope -> @body.defs
+  edge @body.lexical_scope -> @impl_def.lexical_scope
+}
+
+;; Inherent impl with scoped type: `impl path::Type { ... }`
+(impl_item
+  type: (scoped_type_identifier name: (type_identifier) @impl_type_name) @_impl_type
+  !trait
+  body: (declaration_list) @body
+) @impl_def {
+  edge @body.lexical_scope -> @body.defs
+  edge @body.lexical_scope -> @impl_def.lexical_scope
+
+  node dot
+  attr (dot) pop_symbol = "::"
+  edge @impl_type_name.ref -> dot
+  edge dot -> @body.defs
+}
+
+;; Trait impl: `impl Trait for Type { ... }` with simple type_identifier
 (impl_item
   trait: (_) @_impl_trait
-  type: (_) @impl_type
+  type: (type_identifier) @impl_type
   body: (declaration_list) @body
 ) @impl_def {
   edge @body.lexical_scope -> @body.defs
@@ -556,6 +640,31 @@ inherit .mod_scope
   node dot
   attr (dot) pop_symbol = "::"
   edge @impl_type.ref -> dot
+  edge dot -> @body.defs
+}
+
+;; Trait impl with generic type: `impl Trait for Foo<T> { ... }`
+(impl_item
+  trait: (_) @_impl_trait
+  type: (generic_type) @_impl_type
+  body: (declaration_list) @body
+) @impl_def {
+  edge @body.lexical_scope -> @body.defs
+  edge @body.lexical_scope -> @impl_def.lexical_scope
+}
+
+;; Trait impl with scoped type: `impl Trait for path::Type { ... }`
+(impl_item
+  trait: (_) @_impl_trait
+  type: (scoped_type_identifier name: (type_identifier) @impl_type_name) @_impl_type
+  body: (declaration_list) @body
+) @impl_def {
+  edge @body.lexical_scope -> @body.defs
+  edge @body.lexical_scope -> @impl_def.lexical_scope
+
+  node dot
+  attr (dot) pop_symbol = "::"
+  edge @impl_type_name.ref -> dot
   edge dot -> @body.defs
 }
 
@@ -613,8 +722,60 @@ inherit .mod_scope
 
 ;; Statements inside blocks create sequential scope chains.
 ;; Each statement's definitions are visible to subsequent statements.
+;; Explicit node types to avoid matching comments, attributes, etc.
 
-(block (_) @child) @blk {
+(block
+  [
+    ;; Statement / item types
+    (use_declaration)
+    (mod_item)
+    (function_item)
+    (struct_item)
+    (enum_item)
+    (trait_item)
+    (impl_item)
+    (const_item)
+    (static_item)
+    (type_item)
+    (let_declaration)
+    (expression_statement)
+    (extern_crate_declaration)
+    (macro_invocation)
+    (macro_definition)
+    ;; Expression types (tail expressions, control flow, etc.)
+    (call_expression)
+    (field_expression)
+    (return_expression)
+    (binary_expression)
+    (unary_expression)
+    (reference_expression)
+    (try_expression)
+    (assignment_expression)
+    (compound_assignment_expr)
+    (if_expression)
+    (match_expression)
+    (while_expression)
+    (loop_expression)
+    (for_expression)
+    (closure_expression)
+    (tuple_expression)
+    (array_expression)
+    (struct_expression)
+    (index_expression)
+    (range_expression)
+    (await_expression)
+    (type_cast_expression)
+    (parenthesized_expression)
+    (arguments)
+    (string_literal)
+    (integer_literal)
+    (float_literal)
+    (boolean_literal)
+    (char_literal)
+    ;; Block itself (nested blocks)
+    (block)
+  ] @child
+) @blk {
   edge @blk.defs -> @child.defs
   edge @child.lexical_scope -> @blk.lexical_scope
 }

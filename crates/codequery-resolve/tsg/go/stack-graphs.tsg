@@ -91,6 +91,12 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   node @import_decl.lexical_scope
 }
 
+;; import_spec_list groups multiple import specs in parenthesized imports.
+(import_spec_list) @isl {
+  node @isl.defs
+  node @isl.lexical_scope
+}
+
 ;; An import_spec has a path field (the string literal) and optional name field (alias).
 ;; import "fmt" — the last segment of the path becomes the local name.
 ;; import alias "path" — the alias becomes the local name.
@@ -363,17 +369,23 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   node @params.lexical_scope
 }
 
-;; parameter_declaration has fields: name (identifier, multiple), type (_type).
+;; Wire parameter_declaration children into the parameter_list scope.
 (parameter_list (parameter_declaration) @param) @params {
   edge @params.defs -> @param.defs
   edge @param.lexical_scope -> @params.lexical_scope
 }
 
-(parameter_declaration
-  name: (identifier) @name) @param {
+;; Stub for parameter_declaration: declare .defs and .lexical_scope once per node.
+;; This is separate from the name-matching stanza below to avoid duplicates
+;; when a parameter_declaration has multiple names (e.g., func(a, b int)).
+(parameter_declaration) @param {
   node @param.defs
   node @param.lexical_scope
+}
 
+;; Named parameters create definitions for each name.
+(parameter_declaration
+  name: (identifier) @name) @param {
   node def
   attr (def) node_definition = @name
   edge @param.defs -> def
@@ -442,6 +454,10 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   (send_statement)
   (defer_statement)
   (go_statement)
+  (empty_statement)
+  (fallthrough_statement)
+  (goto_statement)
+  (labeled_statement)
 ] @stmt {
   node @stmt.before_scope
   node @stmt.after_scope
@@ -452,18 +468,22 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 }
 
 ;; Short variable declaration (:=) introduces names into the block scope.
-(short_var_declaration
-  left: (expression_list (identifier) @name)) @svd {
+;; The stub (.before_scope, .after_scope, .defs, .lexical_scope) is declared
+;; once, and a separate stanza wires each name.
+(short_var_declaration) @svd {
   node @svd.before_scope
   node @svd.after_scope
   node @svd.defs
   node @svd.lexical_scope
+  edge @svd.lexical_scope -> @svd.before_scope
+}
 
+(short_var_declaration
+  left: (expression_list (identifier) @name)) @svd {
   node def
   attr (def) node_definition = @name
   edge @svd.after_scope -> def
   edge def -> @svd.before_scope
-  edge @svd.lexical_scope -> @svd.before_scope
 }
 
 ;; =========================
@@ -510,6 +530,16 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
   node @switch_stmt.lexical_scope
   edge @switch_stmt.after_scope -> @switch_stmt.before_scope
   edge @switch_stmt.lexical_scope -> @switch_stmt.before_scope
+}
+
+;; type_switch_statement
+(type_switch_statement) @tsw_stmt {
+  node @tsw_stmt.before_scope
+  node @tsw_stmt.after_scope
+  node @tsw_stmt.defs
+  node @tsw_stmt.lexical_scope
+  edge @tsw_stmt.after_scope -> @tsw_stmt.before_scope
+  edge @tsw_stmt.lexical_scope -> @tsw_stmt.before_scope
 }
 
 ;; select_statement
@@ -613,6 +643,52 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 }
 
 ;; =========================
+;;  Expression Types (stubs)
+;; =========================
+
+;; Expression types that can appear as children of expression_list,
+;; argument_list, return_statement, expression_statement, etc. need
+;; .lexical_scope stubs so wildcard child wiring rules can reference them.
+
+[
+  (int_literal)
+  (float_literal)
+  (rune_literal)
+  (imaginary_literal)
+  (binary_expression)
+  (unary_expression)
+  (parenthesized_expression)
+  (index_expression)
+  (slice_expression)
+  (type_assertion_expression)
+  (type_conversion_expression)
+  (func_literal)
+  (nil)
+  (true)
+  (false)
+  (iota)
+] @expr {
+  node @expr.lexical_scope
+  node @expr.defs
+}
+
+;; Binary expression: wire left and right operands to the expression scope.
+(binary_expression left: (_) @left right: (_) @right) @binexpr {
+  edge @left.lexical_scope -> @binexpr.lexical_scope
+  edge @right.lexical_scope -> @binexpr.lexical_scope
+}
+
+;; Unary expression: wire operand to the expression scope.
+(unary_expression operand: (_) @operand) @unexpr {
+  edge @operand.lexical_scope -> @unexpr.lexical_scope
+}
+
+;; Parenthesized expression: wire child to the expression scope.
+(parenthesized_expression (_) @inner) @paren {
+  edge @inner.lexical_scope -> @paren.lexical_scope
+}
+
+;; =========================
 ;;  Misc Nodes
 ;; =========================
 
@@ -629,29 +705,36 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 
 (composite_literal) @comp {
   node @comp.lexical_scope
+  node @comp.defs
 }
 
 (literal_value) @lit {
   node @lit.lexical_scope
+  node @lit.defs
 }
 
 (keyed_element) @ke {
   node @ke.lexical_scope
+  node @ke.defs
 }
 
 (interpreted_string_literal) @str {
   node @str.ref
   node @str.lexical_scope
+  node @str.defs
   attr (@str.ref) push_symbol = (source-text @str)
 }
 
-(raw_string_literal) @str {
-  node @str.ref
-  node @str.lexical_scope
-  attr (@str.ref) push_symbol = (source-text @str)
+(raw_string_literal) @rstr {
+  node @rstr.ref
+  node @rstr.lexical_scope
+  node @rstr.defs
+  attr (@rstr.ref) push_symbol = (source-text @rstr)
 }
 
 ;; comment nodes need stubs so they don't cause missing-node errors.
+;; Comments can appear as children of source_file (needs .defs, .lexical_scope)
+;; and inside blocks (needs .before_scope, .after_scope).
 (comment) @comment {
   node @comment.defs
   node @comment.lexical_scope
@@ -668,4 +751,54 @@ attribute node_symbol = node            => symbol = (source-text node), source_n
 
   edge @pkg.lexical_scope -> @qt.lexical_scope
   edge @name.lexical_scope -> @pkg.ref
+}
+
+;; =========================
+;;  Type expression stubs
+;; =========================
+
+;; Type nodes that appear as children in various contexts need stubs.
+[
+  (pointer_type)
+  (slice_type)
+  (array_type)
+  (map_type)
+  (channel_type)
+  (struct_type)
+  (interface_type)
+  (function_type)
+] @type_expr {
+  node @type_expr.lexical_scope
+  node @type_expr.defs
+}
+
+;; =========================
+;;  Control flow sub-nodes
+;; =========================
+
+;; for_clause and range_clause appear inside for_statement and need stubs
+;; so block child wiring doesn't fail.
+[
+  (for_clause)
+  (range_clause)
+] @clause {
+  node @clause.lexical_scope
+  node @clause.defs
+  node @clause.before_scope
+  node @clause.after_scope
+  edge @clause.after_scope -> @clause.before_scope
+}
+
+;; Expression and type case clauses inside switch statements.
+[
+  (expression_case)
+  (default_case)
+  (type_case)
+  (communication_case)
+] @case_clause {
+  node @case_clause.lexical_scope
+  node @case_clause.defs
+  node @case_clause.before_scope
+  node @case_clause.after_scope
+  edge @case_clause.after_scope -> @case_clause.before_scope
 }

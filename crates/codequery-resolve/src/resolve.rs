@@ -635,6 +635,101 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_go_tsg_no_warnings_on_real_world_patterns() {
+        // This exercises the specific patterns that were failing:
+        // - int_literal in const (const MaxRetries = 3)
+        // - binary_expression (first + " " + last)
+        // - comments at top level and inside blocks
+        // - multi-name parameter_declaration (a, b int)
+        // - multi-name short_var_declaration (x, y := 1, 2)
+        // - various expression types in arguments and return
+        let source = r#"package main
+
+// Package-level comment
+import "fmt"
+
+const MaxRetries = 3
+const Timeout = 30 * 60
+
+var GlobalCount = 0
+
+func add(a, b int) int {
+	// Function body comment
+	return a + b
+}
+
+func greet(first, last string) string {
+	return first + " " + last
+}
+
+func main() {
+	x, y := 1, 2
+	result := add(x, y)
+	name := greet("hello", "world")
+	fmt.Println(result, name)
+}
+"#;
+        let (_total, refs, defs, warnings) = count_ref_def_nodes(source, "main.go", Language::Go);
+        assert!(
+            warnings.is_empty(),
+            "Go TSG rules should produce no warnings on real-world patterns: {warnings:?}"
+        );
+        assert!(
+            refs > 0,
+            "Go TSG rules should produce reference nodes, got 0"
+        );
+        assert!(
+            defs > 0,
+            "Go TSG rules should produce definition nodes, got 0"
+        );
+    }
+
+    #[test]
+    fn test_go_tsg_no_warnings_on_control_flow_patterns() {
+        // Exercises additional patterns: for-range, switch with cases,
+        // type assertions, nil/true/false, empty statements, etc.
+        let source = r#"package main
+
+type Stringer interface {
+	String() string
+}
+
+func process(items []int) int {
+	sum := 0
+	for _, v := range items {
+		sum = sum + v
+	}
+	if sum > 100 {
+		return -1
+	} else {
+		return sum
+	}
+}
+
+func check(val interface{}) string {
+	switch v := val.(type) {
+	case int:
+		return "int"
+	case string:
+		return v
+	default:
+		return "unknown"
+	}
+}
+
+func nilCheck(p *int) bool {
+	return p != nil
+}
+"#;
+        let (_total, _refs, defs, warnings) = count_ref_def_nodes(source, "types.go", Language::Go);
+        assert!(
+            warnings.is_empty(),
+            "Go TSG rules should produce no warnings on control-flow patterns: {warnings:?}"
+        );
+        assert!(defs > 0, "Go TSG should produce defs, got 0");
+    }
+
     // -----------------------------------------------------------------------
     // C — TSG produces reference nodes
     // -----------------------------------------------------------------------

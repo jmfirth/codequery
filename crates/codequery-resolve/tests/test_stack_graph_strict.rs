@@ -317,6 +317,137 @@ fn c_same_file_resolved() {
 }
 
 // ===========================================================================
+// C: regression -- files with comments, include guards, literals must not fail
+// ===========================================================================
+
+#[test]
+fn c_file_with_comments_and_ifdef_resolved() {
+    // Real-world C files have comments, include guards, and preprocessor
+    // directives. Previously, a wildcard `(_)` in child-wiring stanzas
+    // matched comment extras and identifier nodes inside preproc_ifdef,
+    // causing "Undefined scoped variable" errors that prevented resolution.
+    let source = concat!(
+        "/* Multi-line\n",
+        "   comment */\n",
+        "#ifndef MAIN_H\n",
+        "#define MAIN_H\n",
+        "\n",
+        "// Single-line comment\n",
+        "#include <stdio.h>\n",
+        "\n",
+        "void greet() {\n",
+        "    // comment inside function body\n",
+        "    int x = 42;\n",
+        "}\n",
+        "\n",
+        "int main() {\n",
+        "    greet(); /* inline comment */\n",
+        "    return 0;\n",
+        "}\n",
+        "\n",
+        "#endif\n",
+    );
+    let fs = make_file_symbols("main.c", source, Language::C);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "greet");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "C with comments/ifdef: expected >= 1 reference for 'greet', got 0. \
+         Warnings: {:?}",
+        result.warnings
+    );
+    for r in refs {
+        assert_eq!(r.symbol, "greet");
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "C with comments/ifdef: references MUST be Resolved, got {:?}. \
+             This likely means the wildcard fix regressed.",
+            r.resolution
+        );
+    }
+}
+
+// ===========================================================================
+// Rust: regression -- files with comments, attributes, macros must not fail
+// ===========================================================================
+
+#[test]
+fn rust_file_with_comments_and_attributes_resolved() {
+    // Real-world Rust files start with doc comments, attributes, and macro
+    // invocations. Previously, a wildcard `(_)` in the source_file children
+    // stanza matched these unhandled node types and caused "Undefined scoped
+    // variable" errors, preventing ALL resolution in that file.
+    let source = concat!(
+        "//! Module-level doc comment\n",
+        "//! Another doc line\n",
+        "\n",
+        "// Regular line comment\n",
+        "#![allow(unused)]\n",
+        "#[derive(Debug)]\n",
+        "struct Config { value: i32 }\n",
+        "\n",
+        "fn greet() -> String { String::from(\"hello\") }\n",
+        "fn main() { greet(); }\n",
+    );
+    let fs = make_file_symbols("main.rs", source, Language::Rust);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "greet");
+
+    let refs = &result.references;
+    assert!(
+        !refs.is_empty(),
+        "Rust with comments/attrs: expected >= 1 reference for 'greet', got 0. \
+         Warnings: {:?}",
+        result.warnings
+    );
+    for r in refs {
+        assert_eq!(r.symbol, "greet");
+        assert_eq!(
+            r.resolution,
+            Resolution::Resolved,
+            "Rust with comments/attrs: references MUST be Resolved, got {:?}. \
+             This likely means the wildcard fix regressed.",
+            r.resolution
+        );
+    }
+}
+
+#[test]
+fn rust_impl_block_with_generic_type_resolved() {
+    // impl blocks with generic types (e.g. `impl<T> Foo<T>`) should not fail
+    // even though generic_type doesn't have .ref
+    let source = concat!(
+        "struct Wrapper<T> { inner: T }\n",
+        "impl<T> Wrapper<T> {\n",
+        "    fn get(&self) -> &T { &self.inner }\n",
+        "}\n",
+        "fn main() {\n",
+        "    let w = Wrapper { inner: 42 };\n",
+        "}\n",
+    );
+    let fs = make_file_symbols("main.rs", source, Language::Rust);
+
+    let mut resolver = StackGraphResolver::new();
+    let result = resolver.resolve_refs(&[fs], "Wrapper");
+
+    // We just need it to not error out. Any references found are a bonus.
+    // The key assertion is that warnings don't contain "Undefined scoped variable".
+    for w in &result.warnings {
+        let msg = format!("{w:?}");
+        assert!(
+            !msg.contains("Undefined scoped variable"),
+            "Rust generic impl: should not produce 'Undefined scoped variable' errors, \
+             got warning: {msg}"
+        );
+    }
+}
+
+// ===========================================================================
 // Completeness: exact reference count
 // ===========================================================================
 
