@@ -1,0 +1,15 @@
+[language]
+name = "python-plugin"
+extensions = [".py"]
+
+[[symbols]]
+kind = "function"
+query = '(function_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+[[symbols]]
+kind = "class"
+query = '(class_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
