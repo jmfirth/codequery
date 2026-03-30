@@ -7,6 +7,7 @@
 #![warn(clippy::pedantic)]
 
 pub mod config;
+pub mod dirs;
 pub mod discovery;
 pub mod error;
 pub mod path_utils;

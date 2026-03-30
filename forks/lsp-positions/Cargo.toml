@@ -1,0 +1,22 @@
+[package]
+edition = "2018"
+name = "lsp-positions"
+version = "0.3.4"
+description = "LSP-compatible character positions (codequery fork for tree-sitter 0.26)"
+license = "MIT OR Apache-2.0"
+autobins = false
+autotests = false
+autobenches = false
+
+[lib]
+name = "lsp_positions"
+path = "src/lib.rs"
+
+[dependencies]
+memchr = "2.4"
+unicode-segmentation = "1.8"
+serde = { version = "1", features = ["derive"], optional = true }
+tree-sitter = { version = "0.26", optional = true }
+
+[features]
+tree-sitter = ["dep:tree-sitter"]

@@ -29,4 +29,4 @@ codequery-resolve = { path = "../codequery-resolve" }
 [dev-dependencies]
 tempfile = { workspace = true }
 serde_json = "1"
-tree-sitter = "0.24"
+tree-sitter = "0.26"

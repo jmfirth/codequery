@@ -129,7 +129,8 @@ fn walk_rust_node(
     // Recurse into children
     let child_count = node.child_count();
     for i in 0..child_count {
-        if let Some(child) = node.child(i) {
+        #[allow(clippy::cast_possible_truncation)]
+        if let Some(child) = node.child(i as u32) {
             if child.is_error() || child.is_missing() {
                 continue;
             }
@@ -182,7 +183,8 @@ fn walk_use_tree(
 
     let child_count = node.child_count();
     for i in 0..child_count {
-        if let Some(child) = node.child(i) {
+        #[allow(clippy::cast_possible_truncation)]
+        if let Some(child) = node.child(i as u32) {
             walk_use_tree(child, source, file, lines, refs, enclosing);
         }
     }
@@ -273,7 +275,8 @@ fn extract_token_tree_calls(
 ) {
     let child_count = node.child_count();
     for i in 0..child_count {
-        let Some(child) = node.child(i) else {
+        #[allow(clippy::cast_possible_truncation)]
+        let Some(child) = node.child(i as u32) else {
             continue;
         };
         if child.is_error() || child.is_missing() {
@@ -287,8 +290,9 @@ fn extract_token_tree_calls(
                 if !is_common_keyword(text) && !is_rust_macro_name(text) {
                     // Check if the next non-whitespace sibling is `(` or a token_tree
                     // which indicates this identifier is being called.
+                    #[allow(clippy::cast_possible_truncation)]
                     let is_call = (i + 1 < child_count)
-                        .then(|| node.child(i + 1))
+                        .then(|| node.child((i + 1) as u32))
                         .flatten()
                         .is_some_and(|next| next.kind() == "token_tree" || next.kind() == "(");
 
@@ -456,7 +460,8 @@ fn walk_generic_node(
 
     let child_count = node.child_count();
     for i in 0..child_count {
-        if let Some(child) = node.child(i) {
+        #[allow(clippy::cast_possible_truncation)]
+        if let Some(child) = node.child(i as u32) {
             if child.is_error() || child.is_missing() {
                 continue;
             }

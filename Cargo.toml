@@ -1,7 +1,15 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "forks/*"]
 exclude = ["tests/fixtures/rust_project", "tests/fixtures/python_project", "tests/fixtures/java_project", "tests/fixtures/typescript_project", "tests/fixtures/c_project", "tests/fixtures/cpp_project", "tests/fixtures/mixed_project"]
 resolver = "2"
 
 [workspace.dependencies]
 tempfile = "3"
+
+[patch.crates-io]
+# Replace upstream lsp-positions with our fork so stack-graphs uses the same types.
+lsp-positions = { path = "forks/lsp-positions" }
+# Replace upstream tree-sitter-graph with our fork for consistent tree-sitter 0.26.
+tree-sitter-graph = { path = "forks/tree-sitter-graph" }
+# Replace upstream tree-sitter-stack-graphs with our fork.
+tree-sitter-stack-graphs = { path = "forks/tree-sitter-stack-graphs" }
