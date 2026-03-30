@@ -67,20 +67,30 @@ The output format is identical. Only the `resolution` metadata field changes. An
 
 ## Installation
 
-From crates.io (once published):
+**npm** (no Rust toolchain needed):
+```
+npx -y @codequery/cli
+```
 
+**pip**:
+```
+uvx codequery-cli
+```
+
+**Cargo**:
 ```
 cargo install codequery-cli
 ```
 
-From source:
-
+**From source**:
 ```
 git clone https://github.com/jmfirth/codequery.git
 cd codequery
 cargo build --release
-# binary at target/release/cq
+# binaries at target/release/cq and target/release/cq-mcp
 ```
+
+**GitHub releases**: Pre-built binaries for Linux (x86_64, aarch64), macOS (x86_64, aarch64), and Windows (x86_64) at [github.com/jmfirth/codequery/releases](https://github.com/jmfirth/codequery/releases).
 
 Homebrew formula coming soon.
 
