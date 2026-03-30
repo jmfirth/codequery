@@ -18,9 +18,9 @@ pub enum OutputMode {
     name = "cq",
     version,
     about,
-    long_about = "Tree-sitter powered structural code navigation for AI agents and humans.\n\
-                   Searches, extracts, and navigates code by structure rather than text.\n\
-                   Supports 21 languages from a single binary with no runtime dependencies.",
+    long_about = "Semantic code query tool for AI agents and humans.\n\
+                   75 languages. Three-tier precision: tree-sitter, stack graphs, and LSP.\n\
+                   Languages auto-install on first use. Works on broken code.",
     after_help = "\x1b[1mExamples:\x1b[0m\n  \
                    cq def handle_request          Find where handle_request is defined\n  \
                    cq body Router::add_route       Extract the full source of a method\n  \

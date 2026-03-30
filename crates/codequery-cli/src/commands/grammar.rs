@@ -179,7 +179,7 @@ pub fn run_install(language: &str) -> anyhow::Result<ExitCode> {
     }
 
     let registry = load_registry()?;
-    let Some(pkg) = registry.languages.iter().find(|l| l.name == language) else {
+    let Some(_pkg) = registry.languages.iter().find(|l| l.name == language) else {
         eprintln!("unknown language: {language}");
         eprintln!(
             "available: {}",
@@ -203,35 +203,83 @@ pub fn run_install(language: &str) -> anyhow::Result<ExitCode> {
     }
 
     let version = env!("CARGO_PKG_VERSION");
+    let base_url = format!(
+        "https://github.com/jmfirth/codequery/releases/download/v{version}"
+    );
+    let archive_url = format!("{base_url}/lang-{language}.tar.gz");
+
     eprintln!("Downloading {language} language package for cq v{version}...");
+    eprintln!("  from: {archive_url}");
 
-    // Create the package directory structure (placeholder until real assets exist)
-    std::fs::create_dir_all(&pkg_dir)
-        .map_err(|e| anyhow::anyhow!("failed to create directory {}: {e}", pkg_dir.display()))?;
+    // Try to download via curl (available on macOS/Linux, most CI)
+    let output = std::process::Command::new("curl")
+        .args(["-fsSL", "--max-time", "30", &archive_url, "-o", "-"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output();
 
-    // Write placeholder files based on capabilities
-    for cap in &pkg.capabilities {
-        let filename = match cap.as_str() {
-            "grammar" => "grammar.wasm",
-            "extract" => "extract.toml",
-            "lsp" => "lsp.toml",
-            _ => continue,
-        };
-        let filepath = pkg_dir.join(filename);
-        // Write a placeholder marker
-        let content = format!(
-            "# placeholder: {language} {cap}\n# download from: https://github.com/jmfirth/codequery/releases/download/v{version}/lang-{language}.tar.gz\n"
-        );
-        std::fs::write(&filepath, content)
-            .map_err(|e| anyhow::anyhow!("failed to write {}: {e}", filepath.display()))?;
+    match output {
+        Ok(result) if result.status.success() => {
+            // Create directory and extract tarball
+            std::fs::create_dir_all(&pkg_dir)
+                .map_err(|e| anyhow::anyhow!("failed to create directory: {e}"))?;
 
-        // Use Unicode checkmark only for the progress display
-        let check = '\u{2713}';
-        eprintln!("  {filename:<16}{check}");
+            let tar_output = std::process::Command::new("tar")
+                .args(["xzf", "-", "-C"])
+                .arg(&pkg_dir)
+                .stdin(std::process::Stdio::piped())
+                .spawn()
+                .and_then(|mut child| {
+                    use std::io::Write;
+                    if let Some(ref mut stdin) = child.stdin {
+                        stdin.write_all(&result.stdout)?;
+                    }
+                    child.wait()
+                });
+
+            match tar_output {
+                Ok(status) if status.success() => {
+                    // Verify we got a real grammar
+                    let grammar_path = pkg_dir.join("grammar.wasm");
+                    if grammar_path.exists()
+                        && std::fs::metadata(&grammar_path)
+                            .map(|m| m.len() > 100)
+                            .unwrap_or(false)
+                    {
+                        eprintln!("  grammar.wasm    \u{2713}");
+                    }
+                    if pkg_dir.join("extract.toml").exists() {
+                        eprintln!("  extract.toml    \u{2713}");
+                    }
+                    if pkg_dir.join("lsp.toml").exists() {
+                        eprintln!("  lsp.toml        \u{2713}");
+                    }
+                    eprintln!("Installed to {}/", pkg_dir.display());
+                    Ok(ExitCode::Success)
+                }
+                _ => {
+                    // Clean up failed extraction
+                    let _ = std::fs::remove_dir_all(&pkg_dir);
+                    eprintln!("error: failed to extract language package for {language}");
+                    Ok(ExitCode::ProjectError)
+                }
+            }
+        }
+        _ => {
+            eprintln!(
+                "error: failed to download {language} language package.\n\
+                 Release v{version} may not be published yet.\n\
+                 \n\
+                 The 15 built-in languages work without installation:\n\
+                 Python, TypeScript, JavaScript, Rust, Go, C, C++, Java,\n\
+                 Ruby, PHP, HTML, CSS, JSON, YAML, TOML\n\
+                 \n\
+                 If you have a language server installed, use --semantic\n\
+                 for {language} support without a grammar package."
+            );
+            Ok(ExitCode::ProjectError)
+        }
     }
-
-    eprintln!("Installed to {}/", pkg_dir.display());
-    Ok(ExitCode::Success)
 }
 
 /// `cq grammar install --all` — install all available packages from the registry.
