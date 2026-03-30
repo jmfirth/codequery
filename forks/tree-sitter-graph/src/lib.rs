@@ -1,3 +1,4 @@
+#![allow(clippy::all, mismatched_lifetime_syntaxes)]
 // -*- coding: utf-8 -*-
 // ------------------------------------------------------------------------------------------------
 // Copyright © 2021, tree-sitter authors.

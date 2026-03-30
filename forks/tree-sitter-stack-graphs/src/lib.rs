@@ -1,3 +1,4 @@
+#![allow(clippy::all, mismatched_lifetime_syntaxes, unexpected_cfgs)]
 // -*- coding: utf-8 -*-
 // ------------------------------------------------------------------------------------------------
 // Copyright © 2021, stack-graphs authors.
