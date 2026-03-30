@@ -1,6 +1,7 @@
 # cq -- semantic code query tool
-# tree-sitter-powered structural navigation. jq for source code.
-# stateless by default, works on broken code, cross-language from one binary.
+# 75 languages. One binary. Zero setup.
+# tree-sitter parsing, stack graph resolution, optional LSP precision.
+# Languages auto-install on first use. Works on broken code.
 
 ## Commands (all accept --json, --raw, --project, --in, --lang, --kind)
 def <symbol>          Find where a symbol is defined
@@ -15,10 +16,16 @@ imports <file>        Imports/dependencies of a file
 context <file>:<line> Enclosing symbol for a line number
 tree [path]           Hierarchical symbol tree
 search <pattern>      Structural pattern matching (ast-grep syntax)
+grammar list          Show installed and available languages
+grammar install <L>   Install a language (or --all for everything)
+
+## For agents: use --json
+All commands support --json for structured output with metadata.
+Prefer --json over default framed output for programmatic use.
 
 ## Output modes
 Default: framed text with @@ file:line:column kind name @@ headers
---json: structured with resolution/completeness metadata
+--json: structured with resolution/completeness metadata (recommended for agents)
 --raw: content only, no framing (pipe-friendly)
 
 ## Symbol resolution
@@ -37,18 +44,24 @@ pub fn authenticate(req: &Request) -> Result<Auth> {
 }
 
 JSON (--json):
-{"resolution":"resolved","completeness":"exhaustive",
- "definitions":[{"name":"authenticate","kind":"function",
- "file":"src/auth.rs","line":23,"visibility":"pub",
- "body":"pub fn authenticate(req: &Request) -> ...","signature":"pub fn authenticate(req: &Request) -> Result<Auth>"}],
- "total":1}
+{
+  "resolution": "resolved",
+  "completeness": "exhaustive",
+  "definitions": [
+    {"name": "authenticate", "kind": "function", "file": "src/auth.rs",
+     "line": 23, "visibility": "pub"}
+  ],
+  "total": 1
+}
 
 ## Precision metadata (JSON output)
 resolution: "syntactic" | "resolved" | "semantic"
 completeness: "exhaustive" | "best_effort"
 - def/body/sig/outline/imports/context/tree/symbols/search: exhaustive
-- refs/callers/deps: best_effort (may miss indirect refs or include false positives)
+- refs/callers/deps: best_effort (may miss indirect refs)
 - best_effort results include a "note" field explaining the limitation
+- resolved > syntactic: follows imports and qualified names across files
+- semantic > resolved: full type system (generics, traits, macros)
 
 ## Pattern syntax (search command)
 $NAME matches any single AST node
@@ -65,36 +78,35 @@ Pattern is parsed as source code with wildcards
 --context <N>     Lines of context around matches (for refs, callers)
 --depth <N>       Limit nesting depth (for tree, context)
 --cache           Enable disk caching for repeated queries
+--no-cache        Disable caching (use when files are changing)
 --semantic        Use language server for type-resolved precision
+--no-semantic     Disable LSP even if daemon is running
+
+## Precision cascade (automatic, no configuration needed)
+1. Daemon running?      --> semantic (sub-second, compiler-level)
+2. --semantic flag?     --> oneshot LSP (start server, query, stop)
+3. Stack graph rules?   --> resolved (follows imports, qualified names)
+4. Fallback             --> syntactic (tree-sitter name matching)
 
 ## Daemon (optional, for fast semantic queries)
 cq daemon start   Keep language servers warm
 cq daemon stop    Shut down
 cq daemon status  Show running servers
 Auto-detected when running; no extra flags needed.
-Falls back gracefully: daemon -> oneshot LSP -> stack graph -> syntactic.
 
 ## Languages
-75 languages supported. 15 compiled-in, 60 installable via `cq grammar install`.
+75 languages supported. All auto-install on first use.
+cq grammar list -- see all available languages.
+cq grammar install --all -- pre-download everything.
 
-Built-in (always available): Python, TypeScript, JavaScript, Rust, Go, C, C++, Java,
-Ruby, PHP, HTML, CSS, JSON, YAML, TOML
-
-Installable: `cq grammar list` shows all available languages.
-Common installable: C#, Swift, Kotlin, Scala, Zig, Lua, Bash, Elixir, Haskell, Dart,
-SQL, Dockerfile, Terraform, Markdown, XML, Protobuf, GraphQL, Vue, Svelte, and 40+ more.
-
-Install any language: `cq grammar install <name>`
-Install everything: `cq grammar install --all`
-Auto-install: cq downloads grammars on first encounter if not installed.
-
-Stack graphs (scope-resolved): Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, Ruby, C#
-LSP semantic precision: available for any language with a language server installed.
-
-## MCP server (cq-mcp)
-Exposes all 12 cq commands as MCP tools over JSON-RPC stdio.
-Auto-starts cq daemon for fast semantic queries. No cache (files change during agent editing).
-Configure as an MCP server in Claude, Cursor, or any MCP-compatible AI tool.
+Scope-resolved (10): Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, Ruby, C#
+LSP configs (40+): available for most languages when server is installed.
+All 75: Python, TypeScript, JavaScript, Rust, Go, C, C++, Java, Ruby, PHP,
+  C#, Swift, Kotlin, HTML, CSS, JSON, YAML, TOML, Elixir, Haskell, Dart,
+  SQL, Scala, Zig, Lua, Bash, Dockerfile, Terraform, Markdown, XML,
+  Protobuf, GraphQL, Vue, Svelte, F#, Groovy, Objective-C, Nix, CMake,
+  SCSS, Elm, Solidity, Verilog, CUDA, Fortran, Ada, Pascal, LaTeX,
+  Prisma, Bicep, and more.
 
 ## Exit codes
 0 = results found
@@ -104,13 +116,14 @@ Configure as an MCP server in Claude, Cursor, or any MCP-compatible AI tool.
 4 = parse error (reported in warnings, does not block other results)
 
 ## Efficient agent usage
+- Use --json for all programmatic access. Parse resolution/completeness to calibrate trust.
 - cq body > reading files. One function, zero noise, minimal tokens.
 - cq context file:line for navigating from errors/stack traces to functions.
 - cq def + cq refs for impact analysis before changes.
 - cq outline to orient in unfamiliar files; cq tree for directory-level orientation.
 - cq sig for API contracts without reading implementations.
 - cq deps to understand a function's dependency footprint before refactoring.
-- Check "resolution" and "completeness" in --json output to calibrate trust.
-- Use qualified names to disambiguate: cq body Router::add_route, cq def api::routes::handler.
+- Use qualified names to disambiguate: cq body Router::add_route.
 - Use --in to scope searches and avoid noise in large codebases.
 - Pipe --raw output directly into other tools (wc, diff, etc.).
+- Any language works -- if not installed, cq downloads the grammar automatically.
