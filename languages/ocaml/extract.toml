@@ -1,0 +1,47 @@
+# OCaml symbol extraction rules for cq.
+#
+# Covers let bindings (functions and values), type definitions,
+# and module definitions. Uses tree-sitter-ocaml grammar.
+
+[language]
+name = "ocaml"
+extensions = [".ml", ".mli"]
+
+# Let bindings (functions and values): let foo x = ...
+[[symbols]]
+kind = "function"
+query = '(value_definition (let_binding pattern: (value_name) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Type definitions: type foo = ...
+[[symbols]]
+kind = "type"
+query = '(type_definition (type_binding name: (type_constructor) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Module definitions: module Foo = ...
+[[symbols]]
+kind = "module"
+query = '(module_definition (module_binding name: (module_name) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Module type definitions: module type Foo = ...
+[[symbols]]
+kind = "module_type"
+query = '(module_type_definition (module_type_name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Exception definitions: exception Foo of ...
+[[symbols]]
+kind = "exception"
+query = '(exception_definition (constructor_name) @name) @def'
+name = "@name"
+body = "@def"

@@ -1,0 +1,8 @@
+# Julia LSP configuration for cq.
+#
+# LanguageServer.jl is the standard language server for Julia.
+# Install via Pkg: ] add LanguageServer
+
+[server]
+binary = "julia"
+args = ["--project=@.", "-e", "using LanguageServer; runserver()"]

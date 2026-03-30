@@ -1,0 +1,8 @@
+# Haskell LSP configuration for cq.
+#
+# haskell-language-server (HLS) is the standard language server for Haskell.
+# Install via ghcup: https://haskell-language-server.readthedocs.io/
+
+[server]
+binary = "haskell-language-server-wrapper"
+args = ["--lsp"]

@@ -1,0 +1,8 @@
+# OCaml LSP configuration for cq.
+#
+# ocamllsp (ocaml-lsp-server) is the standard language server for OCaml.
+# Install via opam: opam install ocaml-lsp-server
+
+[server]
+binary = "ocamllsp"
+args = []

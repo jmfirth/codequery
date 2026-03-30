@@ -1,0 +1,44 @@
+# Erlang symbol extraction rules for cq.
+#
+# Covers function clauses, module attributes, type definitions,
+# and record definitions. Uses tree-sitter-erlang grammar.
+
+[language]
+name = "erlang"
+extensions = [".erl", ".hrl"]
+
+# Function definitions (clause-based)
+[[symbols]]
+kind = "function"
+query = '(function_clause name: (atom) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Module attribute: -module(foo).
+[[symbols]]
+kind = "module"
+query = '(module_attribute name: (atom) @name) @def'
+name = "@name"
+body = "@def"
+
+# Type definitions: -type foo() :: ...
+[[symbols]]
+kind = "type"
+query = '(type_attribute name: (atom) @name) @def'
+name = "@name"
+body = "@def"
+
+# Record definitions: -record(foo, { ... }).
+[[symbols]]
+kind = "record"
+query = '(record_attribute name: (atom) @name) @def'
+name = "@name"
+body = "@def"
+
+# Export attribute: -export([foo/1, ...]).
+[[symbols]]
+kind = "export"
+query = '(export_attribute) @def'
+name = "@def"
+body = "@def"

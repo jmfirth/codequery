@@ -1,0 +1,44 @@
+# SQL symbol extraction rules for cq.
+#
+# Covers CREATE TABLE, CREATE VIEW, CREATE FUNCTION, and CREATE PROCEDURE.
+# Uses tree-sitter-sql grammar. SQL grammars vary; these patterns target
+# the most common node types.
+
+[language]
+name = "sql"
+extensions = [".sql"]
+
+# CREATE TABLE statements
+[[symbols]]
+kind = "table"
+query = '(create_table name: (object_reference name: (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+
+# CREATE VIEW statements
+[[symbols]]
+kind = "view"
+query = '(create_view name: (object_reference name: (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+
+# CREATE FUNCTION statements
+[[symbols]]
+kind = "function"
+query = '(create_function name: (object_reference name: (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+
+# CREATE PROCEDURE statements
+[[symbols]]
+kind = "procedure"
+query = '(create_procedure name: (object_reference name: (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+
+# CREATE INDEX statements
+[[symbols]]
+kind = "index"
+query = '(create_index name: (object_reference name: (identifier) @name)) @def'
+name = "@name"
+body = "@def"

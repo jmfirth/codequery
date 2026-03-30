@@ -1,0 +1,31 @@
+# R symbol extraction rules for cq.
+#
+# R functions are defined via assignment: foo <- function(...) { ... }
+# Uses tree-sitter-r grammar.
+
+[language]
+name = "r"
+extensions = [".r", ".R"]
+
+# Function definitions via left assignment: foo <- function(...) { ... }
+[[symbols]]
+kind = "function"
+query = '(left_assignment name: (identifier) @name value: (function_definition)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Function definitions via equals assignment: foo = function(...) { ... }
+[[symbols]]
+kind = "function"
+query = '(equals_assignment name: (identifier) @name value: (function_definition)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Function definitions via right assignment: function(...) { ... } -> foo
+[[symbols]]
+kind = "function"
+query = '(right_assignment value: (function_definition) name: (identifier) @name) @def'
+name = "@name"
+body = "@def"

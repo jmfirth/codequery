@@ -1,0 +1,55 @@
+# Haskell symbol extraction rules for cq.
+#
+# Covers top-level function definitions, data types, type synonyms,
+# newtypes, and type classes.
+
+[language]
+name = "haskell"
+extensions = [".hs"]
+
+# Top-level function definitions: foo x y = ...
+[[symbols]]
+kind = "function"
+query = '(function name: (variable) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Data type declarations: data Foo = ...
+[[symbols]]
+kind = "type"
+query = '(adt name: (type) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Newtype declarations: newtype Foo = ...
+[[symbols]]
+kind = "type"
+query = '(newtype name: (type) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Type synonyms: type Foo = ...
+[[symbols]]
+kind = "type"
+query = '(type_alias name: (type) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Type classes: class Foo where ...
+[[symbols]]
+kind = "class"
+query = '(class name: (type) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Type signatures: foo :: Type -> Type
+[[symbols]]
+kind = "signature"
+query = '(signature name: (variable) @name) @def'
+name = "@name"
+body = "@def"

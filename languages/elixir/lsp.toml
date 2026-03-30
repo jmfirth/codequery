@@ -1,0 +1,8 @@
+# Elixir LSP configuration for cq.
+#
+# elixir-ls (ElixirLS) is the standard language server for Elixir.
+# Install via: https://github.com/elixir-lsp/elixir-ls
+
+[server]
+binary = "elixir-ls"
+args = []

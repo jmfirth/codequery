@@ -1,0 +1,49 @@
+# Clojure symbol extraction rules for cq.
+#
+# Covers defn, defn-, defmacro, def, and ns forms.
+# Uses tree-sitter-clojure grammar. Clojure's grammar represents
+# forms as lists; we match the specific def-family forms.
+
+[language]
+name = "clojure"
+extensions = [".clj", ".cljs", ".cljc"]
+
+# Public functions: (defn foo [...] ...)
+[[symbols]]
+kind = "function"
+query = '(list_lit (sym_lit) @_head (#eq? @_head "defn") (sym_lit) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Private functions: (defn- foo [...] ...)
+[[symbols]]
+kind = "function"
+query = '(list_lit (sym_lit) @_head (#eq? @_head "defn-") (sym_lit) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+visibility = "private"
+
+# Macros: (defmacro foo [...] ...)
+[[symbols]]
+kind = "macro"
+query = '(list_lit (sym_lit) @_head (#eq? @_head "defmacro") (sym_lit) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Vars: (def foo ...)
+[[symbols]]
+kind = "variable"
+query = '(list_lit (sym_lit) @_head (#eq? @_head "def") (sym_lit) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Namespace: (ns foo.bar)
+[[symbols]]
+kind = "namespace"
+query = '(list_lit (sym_lit) @_head (#eq? @_head "ns") (sym_lit) @name) @def'
+name = "@name"
+body = "@def"

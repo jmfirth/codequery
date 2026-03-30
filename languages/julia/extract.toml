@@ -1,0 +1,56 @@
+# Julia symbol extraction rules for cq.
+#
+# Covers function definitions (long and short form), struct definitions,
+# module definitions, and macro definitions. Uses tree-sitter-julia grammar.
+
+[language]
+name = "julia"
+extensions = [".jl"]
+
+# Long-form function definitions: function foo(...) ... end
+[[symbols]]
+kind = "function"
+query = '(function_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Short-form function definitions: foo(x) = x + 1
+[[symbols]]
+kind = "function"
+query = '(short_function_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Struct definitions: struct Foo ... end / mutable struct Foo ... end
+[[symbols]]
+kind = "struct"
+query = '(struct_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Module definitions: module Foo ... end
+[[symbols]]
+kind = "module"
+query = '(module_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Macro definitions: macro foo(...) ... end
+[[symbols]]
+kind = "macro"
+query = '(macro_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Abstract type definitions: abstract type Foo end
+[[symbols]]
+kind = "type"
+query = '(abstract_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

@@ -1,0 +1,56 @@
+# Dart symbol extraction rules for cq.
+#
+# Covers function declarations, class definitions, method declarations,
+# and enum declarations. Uses the tree-sitter-dart grammar.
+
+[language]
+name = "dart"
+extensions = [".dart"]
+
+# Top-level function declarations: void foo() { ... }
+[[symbols]]
+kind = "function"
+query = '(function_signature name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Class definitions: class Foo { ... }
+[[symbols]]
+kind = "class"
+query = '(class_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Method declarations inside classes
+[[symbols]]
+kind = "method"
+query = '(method_signature name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Enum declarations: enum Foo { ... }
+[[symbols]]
+kind = "enum"
+query = '(enum_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Mixin declarations: mixin Foo { ... }
+[[symbols]]
+kind = "mixin"
+query = '(mixin_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Extension declarations: extension Foo on Bar { ... }
+[[symbols]]
+kind = "extension"
+query = '(extension_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

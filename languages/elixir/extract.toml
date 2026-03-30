@@ -1,0 +1,49 @@
+# Elixir symbol extraction rules for cq.
+#
+# Covers def/defp functions, defmodule, defmacro, and defstruct.
+# Elixir's tree-sitter grammar represents these as (call) nodes with
+# the macro name (def, defmodule, etc.) as the target.
+
+[language]
+name = "elixir"
+extensions = [".ex", ".exs"]
+
+# Public functions: def foo(...) do ... end
+[[symbols]]
+kind = "function"
+query = '(call target: (identifier) @_macro (#eq? @_macro "def") (arguments (call target: (identifier) @name))) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Private functions: defp foo(...) do ... end
+[[symbols]]
+kind = "function"
+query = '(call target: (identifier) @_macro (#eq? @_macro "defp") (arguments (call target: (identifier) @name))) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+visibility = "private"
+
+# Modules: defmodule Foo do ... end
+[[symbols]]
+kind = "module"
+query = '(call target: (identifier) @_macro (#eq? @_macro "defmodule") (arguments (alias) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Macros: defmacro foo(...) do ... end
+[[symbols]]
+kind = "macro"
+query = '(call target: (identifier) @_macro (#eq? @_macro "defmacro") (arguments (call target: (identifier) @name))) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Structs: defstruct [...]
+[[symbols]]
+kind = "struct"
+query = '(call target: (identifier) @_macro (#eq? @_macro "defstruct")) @def'
+name = "@_macro"
+body = "@def"

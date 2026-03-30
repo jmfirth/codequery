@@ -1,0 +1,24 @@
+# Perl symbol extraction rules for cq.
+#
+# Covers subroutine definitions and package declarations.
+# Uses tree-sitter-perl grammar.
+
+[language]
+name = "perl"
+extensions = [".pl", ".pm"]
+
+# Subroutine definitions: sub foo { ... }
+[[symbols]]
+kind = "function"
+query = '(subroutine_declaration_statement name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Package declarations: package Foo;
+[[symbols]]
+kind = "package"
+query = '(package_statement name: (package_name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

@@ -1,0 +1,8 @@
+# Dart LSP configuration for cq.
+#
+# The Dart SDK includes a built-in language server via `dart language-server`.
+# Requires the Dart SDK to be installed.
+
+[server]
+binary = "dart"
+args = ["language-server"]
