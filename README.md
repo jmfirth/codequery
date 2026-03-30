@@ -14,11 +14,6 @@ There is a gap between `grep` and language servers. Grep is fast but semanticall
 
 The same command produces the same output format at every tier. Only the `resolution` metadata field changes — from `syntactic` to `resolved` to `semantic`. The cascade runs automatically: you get the best precision available without configuring anything.
 
-**Built for AI agents.** `cq body handle_request` returns 5 lines instead of reading a 500-line file. Every response includes precision metadata so agents know how much to trust results. Integrate via two paths:
-
-- **CLI + llms.txt** -- any agent with shell access can call `cq` directly. The included [`llms.txt`](llms.txt) teaches agents the full command surface, output formats, and efficient usage patterns.
-- **MCP server** -- `cq-mcp` exposes all 12 commands as native tools for Claude, Cursor, and any MCP-compatible AI tool. Auto-starts a language server daemon for compiler-level precision.
-
 ---
 
 ## Quick Demo
@@ -88,6 +83,37 @@ cargo build --release
 ```
 
 Homebrew formula coming soon.
+
+---
+
+## Agent Integration
+
+`cq` is built for AI agents. `cq body handle_request` returns 5 lines instead of reading a 500-line file. Every response includes precision metadata so agents know how much to trust results.
+
+Two ways to give your agent `cq`:
+
+### Option 1: CLI + llms.txt (works with any agent framework)
+
+Install `cq` on the agent's PATH, then paste the contents of [`llms.txt`](llms.txt) into the agent's system prompt. The agent can immediately use `cq` via shell commands — `llms.txt` teaches it the full command surface, output formats, flags, and efficient usage patterns. No pretraining required.
+
+```python
+# Example: adding cq to an agent's system prompt
+system_prompt = open("path/to/cq/llms.txt").read() + "\n\n" + your_instructions
+```
+
+### Option 2: MCP server (native tool integration)
+
+Run `cq-mcp` as an MCP tool server. All 12 commands become native tool calls for Claude, Cursor, and any MCP-compatible harness. The server auto-starts a language server daemon for compiler-level precision.
+
+```json
+{
+  "mcpServers": {
+    "cq": { "command": "cq-mcp" }
+  }
+}
+```
+
+Both options give access to the same 12 commands, 75 languages, and three-tier precision cascade.
 
 ---
 
@@ -212,21 +238,14 @@ Stack graph rules hardened against ~1,800 source files from 24 open-source proje
 
 ---
 
-## For AI Agents
+## Why Agents Love cq
 
-`cq` is designed as a primitive for agentic code navigation.
-
-**Token efficiency.** `cq body handle_request` returns 5 lines instead of reading a 500-line file. An agent using `cq` reads 10-50x fewer tokens per navigation step.
-
-**Structured output.** `--json` produces machine-readable output with symbol kind, location, scope, and precision metadata. Compose with `jq` for complex queries.
-
-**Precision metadata.** Every response includes `resolution` (how results were found) and `completeness` (whether the result set is exhaustive or best-effort). An agent can adjust its confidence automatically -- no guessing about result quality.
-
-**Qualified names.** `cq body Router::add_route` disambiguates without reading multiple files. `cq body api::routes::handle_request` for module-qualified lookup.
-
-**Context from errors.** `cq context src/api/routes.rs:47` maps a compiler error or stack trace line directly to the enclosing function. One command replaces the three-step workflow of outline, find, read.
-
-**Stateless.** No setup, no daemon, no warm-up. Works in ephemeral environments, containers, CI, and WASM runtimes.
+- **10-50x fewer tokens** -- `cq body handle_request` returns 5 lines, not a 500-line file
+- **Structured output** -- `--json` gives symbol kind, location, precision metadata. Compose with `jq`
+- **Self-calibrating** -- `resolution` and `completeness` fields let agents gauge trust automatically
+- **Qualified names** -- `cq body Router::add_route` disambiguates without reading multiple files
+- **Error navigation** -- `cq context src/api/routes.rs:47` maps a stack trace line to its enclosing function
+- **Stateless** -- no setup, no daemon, no warm-up. Works in ephemeral environments, containers, CI
 
 ---
 
