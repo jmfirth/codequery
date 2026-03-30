@@ -1,7 +1,7 @@
 [project]
 name = "codequery-cli"
 version = "1.0.0"
-description = "MCP server for cq — semantic code query tool"
+description = "cq — semantic code query tool. 75 languages, three-tier precision."
 license = {text = "Apache-2.0"}
 requires-python = ">=3.8"
 

@@ -1,7 +1,7 @@
 {
   "name": "@codequery/cli",
   "version": "1.0.0",
-  "description": "cq CLI — semantic code query tool — semantic code query tool. 75 languages, three-tier precision cascade.",
+  "description": "cq \u2014 semantic code query tool. 75 languages, three-tier precision.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

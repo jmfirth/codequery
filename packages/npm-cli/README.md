@@ -1,32 +1,37 @@
-# cq-mcp
+# @codequery/cli
 
-MCP (Model Context Protocol) server for [cq](https://github.com/jmfirth/codequery) -- a semantic code query tool.
+Pre-built binary distribution of [cq](https://github.com/jmfirth/codequery) — semantic code query tool for the command line.
 
-Tree-sitter-powered structural navigation across 75 languages with a three-tier precision cascade: stack graphs, LSP, and structural search.
+75 languages. Three-tier precision: tree-sitter, stack graphs, and LSP.
 
-## Installation
-
-```sh
-npm install -g cq-mcp
-```
-
-This downloads a pre-built binary for your platform from GitHub releases.
-
-## Usage
+## Install
 
 ```sh
-cq-mcp
+npx -y @codequery/cli outline main.py    # run without installing
+npm install -g @codequery/cli             # or install globally
 ```
 
-The MCP server communicates over stdio. Configure it in your MCP client (e.g., Claude Desktop) as a stdio transport.
+Downloads a pre-built binary for your platform from GitHub releases.
+
+## What is cq?
+
+`cq` answers structural questions about code: where is a symbol defined, what does it look like, who calls it. One binary, 75 languages, zero setup.
+
+```
+$ cq def handle_request
+@@ src/api/routes.rs:42:4 function handle_request @@
+
+$ cq body handle_request --raw
+pub async fn handle_request(req: Request) -> Response {
+    let auth = authenticate(&req).await?;
+    process(auth).await
+}
+```
+
+See the [main README](https://github.com/jmfirth/codequery#readme) for full documentation.
 
 ## Supported Platforms
 
 - macOS (Apple Silicon, Intel)
 - Linux (x64, ARM64)
 - Windows (x64)
-
-## Links
-
-- [cq repository](https://github.com/jmfirth/codequery)
-- [Releases](https://github.com/jmfirth/codequery/releases)

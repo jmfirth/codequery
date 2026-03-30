@@ -1,32 +1,16 @@
-# cq-mcp
+# codequery-cli
 
-MCP (Model Context Protocol) server for [cq](https://github.com/jmfirth/codequery) -- a semantic code query tool.
+Pre-built binary distribution of [cq](https://github.com/jmfirth/codequery) — semantic code query tool.
 
-Tree-sitter-powered structural navigation across 75 languages with a three-tier precision cascade: stack graphs, LSP, and structural search.
+75 languages. Three-tier precision: tree-sitter, stack graphs, and LSP.
 
-## Installation
-
-```sh
-pip install cq-mcp
-```
-
-On first run, the binary for your platform is downloaded from GitHub releases and cached locally.
-
-## Usage
+## Install
 
 ```sh
-cq-mcp
+uvx codequery-cli outline main.py    # run without installing
+pip install codequery-cli             # or install
 ```
 
-The MCP server communicates over stdio. Configure it in your MCP client (e.g., Claude Desktop) as a stdio transport.
+Downloads a pre-built binary on first run.
 
-## Supported Platforms
-
-- macOS (Apple Silicon, Intel)
-- Linux (x64, ARM64)
-- Windows (x64)
-
-## Links
-
-- [cq repository](https://github.com/jmfirth/codequery)
-- [Releases](https://github.com/jmfirth/codequery/releases)
+See the [main README](https://github.com/jmfirth/codequery#readme) for full documentation.

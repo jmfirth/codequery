@@ -1,32 +1,35 @@
-# cq-mcp
+# @codequery/mcp
 
-MCP (Model Context Protocol) server for [cq](https://github.com/jmfirth/codequery) -- a semantic code query tool.
+MCP server for [cq](https://github.com/jmfirth/codequery) — semantic code query tool.
 
-Tree-sitter-powered structural navigation across 75 languages with a three-tier precision cascade: stack graphs, LSP, and structural search.
+Exposes all 12 cq commands as AI-callable tools. 75 languages. Three-tier precision cascade.
 
-## Installation
+## Setup
 
-```sh
-npm install -g cq-mcp
+```json
+{
+  "mcpServers": {
+    "cq": { "command": "npx", "args": ["-y", "@codequery/mcp"] }
+  }
+}
 ```
 
-This downloads a pre-built binary for your platform from GitHub releases.
+Downloads a pre-built binary for your platform from GitHub releases. No Rust toolchain needed.
 
-## Usage
+Also available via: `npm install -g @codequery/mcp`
 
-```sh
-cq-mcp
-```
+## Available Tools
 
-The MCP server communicates over stdio. Configure it in your MCP client (e.g., Claude Desktop) as a stdio transport.
+`cq_def`, `cq_body`, `cq_sig`, `cq_refs`, `cq_callers`, `cq_deps`, `cq_outline`, `cq_symbols`, `cq_imports`, `cq_search`, `cq_context`, `cq_tree`
+
+## How it works
+
+Auto-starts a cq language server daemon for compiler-level precision. Uses `--semantic --no-cache` on every call — results are always fresh, always the best precision available.
+
+See the [cq-mcp README](https://github.com/jmfirth/codequery/tree/main/crates/codequery-mcp#readme) for tool details, and the [main README](https://github.com/jmfirth/codequery#readme) for full cq documentation.
 
 ## Supported Platforms
 
 - macOS (Apple Silicon, Intel)
 - Linux (x64, ARM64)
 - Windows (x64)
-
-## Links
-
-- [cq repository](https://github.com/jmfirth/codequery)
-- [Releases](https://github.com/jmfirth/codequery/releases)
