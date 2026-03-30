@@ -80,18 +80,15 @@ fn tools_list_returns_all_twelve_tools() {
 
 #[test]
 fn notification_produces_no_response() {
-    let responses = run_mcp(&[
-        r#"{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}"#,
-    ]);
+    let responses =
+        run_mcp(&[r#"{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}"#]);
 
     assert!(responses.is_empty());
 }
 
 #[test]
 fn unknown_method_returns_error() {
-    let responses = run_mcp(&[
-        r#"{"jsonrpc":"2.0","id":1,"method":"bogus/method","params":{}}"#,
-    ]);
+    let responses = run_mcp(&[r#"{"jsonrpc":"2.0","id":1,"method":"bogus/method","params":{}}"#]);
 
     assert_eq!(responses.len(), 1);
     let resp = &responses[0];
@@ -130,9 +127,7 @@ fn tools_call_with_missing_required_arg_returns_tool_error() {
 
 #[test]
 fn ping_returns_empty_result() {
-    let responses = run_mcp(&[
-        r#"{"jsonrpc":"2.0","id":42,"method":"ping","params":{}}"#,
-    ]);
+    let responses = run_mcp(&[r#"{"jsonrpc":"2.0","id":42,"method":"ping","params":{}}"#]);
 
     assert_eq!(responses.len(), 1);
     let resp = &responses[0];

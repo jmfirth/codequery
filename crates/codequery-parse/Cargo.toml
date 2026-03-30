@@ -6,6 +6,10 @@ description = "Tree-sitter parsing and symbol extraction for 16 languages"
 repository = "https://github.com/jmfirth/codequery"
 edition = "2021"
 
+[features]
+default = []
+wasm = ["tree-sitter/wasm"]
+
 [dependencies]
 codequery-core = { path = "../codequery-core" }
 libloading = "0.8"

@@ -626,14 +626,16 @@ impl<'a> Builder<'a> {
             parser.set_language(&self.sgl.language)?;
             let source_bytes = self.source.as_bytes();
             let source_len = source_bytes.len();
-            let mut progress_callback = |_state: &tree_sitter::ParseState| -> std::ops::ControlFlow<()> {
-                if cancellation_flag.check("parsing").is_err() {
-                    std::ops::ControlFlow::Break(())
-                } else {
-                    std::ops::ControlFlow::Continue(())
-                }
-            };
-            let options = tree_sitter::ParseOptions::new().progress_callback(&mut progress_callback);
+            let mut progress_callback =
+                |_state: &tree_sitter::ParseState| -> std::ops::ControlFlow<()> {
+                    if cancellation_flag.check("parsing").is_err() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                };
+            let options =
+                tree_sitter::ParseOptions::new().progress_callback(&mut progress_callback);
             parser
                 .parse_with_options(
                     &mut |offset, _| {

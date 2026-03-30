@@ -1,0 +1,80 @@
+{
+  "version": "1",
+  "languages": [
+    {
+      "name": "elixir",
+      "display_name": "Elixir",
+      "description": "Elixir/Phoenix",
+      "extensions": [".ex", ".exs"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "elixir-ls"
+    },
+    {
+      "name": "haskell",
+      "display_name": "Haskell",
+      "description": "Haskell",
+      "extensions": [".hs"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "haskell-language-server"
+    },
+    {
+      "name": "dart",
+      "display_name": "Dart",
+      "description": "Dart/Flutter",
+      "extensions": [".dart"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "dart language-server"
+    },
+    {
+      "name": "sql",
+      "display_name": "SQL",
+      "description": "SQL",
+      "extensions": [".sql"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "ocaml",
+      "display_name": "OCaml",
+      "description": "OCaml",
+      "extensions": [".ml", ".mli"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "ocamllsp"
+    },
+    {
+      "name": "r",
+      "display_name": "R",
+      "description": "R",
+      "extensions": [".r", ".R"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "perl",
+      "display_name": "Perl",
+      "description": "Perl",
+      "extensions": [".pl", ".pm"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "clojure",
+      "display_name": "Clojure",
+      "description": "Clojure",
+      "extensions": [".clj", ".cljs", ".cljc"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "erlang",
+      "display_name": "Erlang",
+      "description": "Erlang/OTP",
+      "extensions": [".erl", ".hrl"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "julia",
+      "display_name": "Julia",
+      "description": "Julia",
+      "extensions": [".jl"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "julia --project=@. -e 'using LanguageServer; runserver()'"
+    }
+  ]
+}

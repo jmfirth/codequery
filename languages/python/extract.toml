@@ -1,0 +1,27 @@
+# Python symbol extraction rules for cq.
+#
+# This file demonstrates the extract.toml format using Python's tree-sitter
+# grammar. It can be used as a template for adding new languages and as a
+# test fixture for validating the extraction engine against compiled-in output.
+
+[language]
+name = "python"
+extensions = [".py"]
+
+# Top-level function definitions: def foo(...):
+[[symbols]]
+kind = "function"
+query = '(function_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "docstring"
+visibility = "underscore_prefix"
+
+# Class definitions: class Foo:
+[[symbols]]
+kind = "class"
+query = '(class_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "docstring"
+visibility = "underscore_prefix"

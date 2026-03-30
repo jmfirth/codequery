@@ -1,0 +1,85 @@
+# Rust symbol extraction rules for cq.
+#
+# This file demonstrates the extract.toml format using Rust's tree-sitter
+# grammar. It can be used as a template for adding new languages and as a
+# test fixture for validating the extraction engine against compiled-in output.
+
+[language]
+name = "rust"
+extensions = [".rs"]
+
+# Free functions: fn foo() {}
+[[symbols]]
+kind = "function"
+query = '(function_item name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+visibility = "pub_keyword"
+
+# Struct definitions: struct Foo {}
+[[symbols]]
+kind = "struct"
+query = '(struct_item name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+visibility = "pub_keyword"
+
+# Enum definitions: enum Bar {}
+[[symbols]]
+kind = "enum"
+query = '(enum_item name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+visibility = "pub_keyword"
+
+# Trait definitions: trait Baz {}
+[[symbols]]
+kind = "trait"
+query = '(trait_item name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+visibility = "pub_keyword"
+
+# Impl blocks: impl Foo {}
+[[symbols]]
+kind = "impl"
+query = '(impl_item type: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+# Module declarations: mod foo {}
+[[symbols]]
+kind = "module"
+query = '(mod_item name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+visibility = "pub_keyword"
+
+# Const items: const FOO: Type = value;
+[[symbols]]
+kind = "const"
+query = '(const_item name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+visibility = "pub_keyword"
+
+# Static items: static BAR: Type = value;
+[[symbols]]
+kind = "static"
+query = '(static_item name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+visibility = "pub_keyword"
+
+# Type aliases: type Alias = OtherType;
+[[symbols]]
+kind = "type"
+query = '(type_item name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+visibility = "pub_keyword"

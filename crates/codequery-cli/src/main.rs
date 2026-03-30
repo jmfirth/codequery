@@ -4,7 +4,7 @@ mod args;
 mod commands;
 mod output;
 
-use args::{CacheAction, Command, CqArgs, DaemonAction, ExitCode};
+use args::{CacheAction, Command, CqArgs, DaemonAction, ExitCode, GrammarAction};
 use clap::Parser;
 use codequery_core::Language;
 
@@ -20,10 +20,19 @@ fn main() -> std::process::ExitCode {
 }
 
 /// Parse the `--lang` flag into a `Language`, returning a usage error on invalid values.
+///
+/// When the language is not built-in but exists in the installable registry,
+/// suggests `cq grammar install <lang>`.
 fn parse_lang_filter(lang: Option<&String>) -> anyhow::Result<Option<Language>> {
     match lang {
         None => Ok(None),
         Some(s) => Language::from_name(s).map(Some).ok_or_else(|| {
+            // Check if it's an installable language from the registry
+            if let Some(pkg) = commands::grammar::find_package_for_extension_or_name(s) {
+                return anyhow::anyhow!(
+                    "'{s}' requires the {pkg} package. Install with: cq grammar install {pkg}"
+                );
+            }
             anyhow::anyhow!(
                 "unknown language: {s}. valid languages: rust, typescript, ts, javascript, js, \
                  python, py, go, c, cpp, c++, java, ruby, rb, php, csharp, c#, cs, swift, \
@@ -152,5 +161,13 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             DaemonAction::Status => commands::daemon::run_status(),
         },
         Command::DaemonRun => commands::daemon::run_foreground(),
+        Command::Grammar { action } => match action {
+            GrammarAction::List => commands::grammar::run_list(),
+            GrammarAction::Install { language } => commands::grammar::run_install(&language),
+            GrammarAction::Update => commands::grammar::run_update(),
+            GrammarAction::Remove { language } => commands::grammar::run_remove(&language),
+            GrammarAction::Info { language } => commands::grammar::run_info(&language),
+        },
+        Command::Upgrade => commands::upgrade::run(),
     }
 }

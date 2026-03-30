@@ -22,6 +22,10 @@ pub enum ParseError {
     /// A search pattern could not be parsed as valid source code.
     #[error("pattern failed to parse: {0}")]
     PatternError(String),
+
+    /// A WASM grammar failed to load.
+    #[error("wasm grammar error: {0}")]
+    WasmError(String),
 }
 
 /// Convenience result type for parse operations.

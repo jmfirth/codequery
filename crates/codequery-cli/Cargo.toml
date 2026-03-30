@@ -6,6 +6,10 @@ description = "Semantic code query tool for the command line"
 repository = "https://github.com/jmfirth/codequery"
 edition = "2021"
 
+[features]
+default = ["wasm"]
+wasm = ["codequery-parse/wasm"]
+
 [[bin]]
 name = "cq"
 path = "src/main.rs"

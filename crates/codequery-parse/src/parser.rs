@@ -10,6 +10,7 @@ use codequery_core::Language;
 
 use crate::error::{ParseError, Result};
 use crate::runtime_grammar;
+use crate::wasm_loader;
 
 /// A tree-sitter parser configured for a specific source language.
 ///
@@ -40,38 +41,60 @@ impl Parser {
 
     /// Create a parser for a language identified by name.
     ///
-    /// First tries to resolve `name` to a builtin language (Tier 1/2).
-    /// If that fails, attempts to load a runtime grammar from the
-    /// user's grammar directory (Tier 3).
+    /// Resolution order:
+    /// 1. Builtin language (Tier 1/2 compiled grammars)
+    /// 2. Native runtime grammar (`.so`/`.dylib` from `~/.local/share/cq/grammars/`)
+    /// 3. WASM grammar (`.wasm` from `~/.local/share/cq/languages/<name>/grammar.wasm`)
     ///
     /// # Errors
     ///
     /// Returns `ParseError::LanguageError` if the name does not match
-    /// any builtin language and no runtime grammar is available.
+    /// any builtin language and no runtime or WASM grammar is available.
     pub fn for_name(name: &str) -> Result<Self> {
         // Try builtin languages first
         if let Some(lang) = Language::from_name(name) {
             return Self::for_language(lang);
         }
 
-        // Fall back to runtime grammar loading
-        let grammar = runtime_grammar::load_runtime_grammar(name)?;
-        let mut parser = tree_sitter::Parser::new();
-        parser
-            .set_language(&grammar)
-            .map_err(|e| ParseError::LanguageError(e.to_string()))?;
+        // Fall back to native runtime grammar loading (.so/.dylib)
+        match runtime_grammar::load_runtime_grammar(name) {
+            Ok(grammar) => {
+                let mut parser = tree_sitter::Parser::new();
+                parser
+                    .set_language(&grammar)
+                    .map_err(|e| ParseError::LanguageError(e.to_string()))?;
 
-        // Runtime grammars don't have a Language variant; use Rust as a
-        // placeholder — callers using for_name should not rely on
-        // language() for runtime grammars. A future refactor could make
-        // this an Option or introduce a RuntimeLanguage type.
-        //
-        // NOTE: This is a known limitation. The language() accessor is
-        // not meaningful for runtime-loaded grammars.
-        Ok(Self {
-            parser,
-            language: Language::Rust, // placeholder for runtime grammars
-        })
+                // Runtime grammars don't have a Language variant; use Rust as a
+                // placeholder -- callers using for_name should not rely on
+                // language() for runtime grammars.
+                return Ok(Self {
+                    parser,
+                    language: Language::Rust, // placeholder for runtime grammars
+                });
+            }
+            Err(_native_err) => {
+                // Native grammar not found, try WASM next
+            }
+        }
+
+        // Fall back to WASM grammar loading
+        if let Some(info) = wasm_loader::find_wasm_grammar(name) {
+            let mut parser = tree_sitter::Parser::new();
+            wasm_loader::load_wasm_language_cached(&info.wasm_path, &mut parser)?;
+
+            // WASM grammars don't have a Language variant; use Rust as a
+            // placeholder -- same limitation as native runtime grammars.
+            return Ok(Self {
+                parser,
+                language: Language::Rust, // placeholder for WASM grammars
+            });
+        }
+
+        Err(ParseError::LanguageError(format!(
+            "no grammar available for language '{name}': \
+             not a builtin language, no native runtime grammar, \
+             and no WASM grammar installed"
+        )))
     }
 
     /// The language this parser is configured for.

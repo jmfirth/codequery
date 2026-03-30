@@ -107,7 +107,8 @@ pub fn all_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "cq_search".to_string(),
-            description: "Structural search using AST patterns (e.g. 'fn $NAME() -> Result')".to_string(),
+            description: "Structural search using AST patterns (e.g. 'fn $NAME() -> Result')"
+                .to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -354,7 +355,11 @@ mod tests {
     #[test]
     fn all_tools_have_descriptions() {
         for tool in all_tools() {
-            assert!(!tool.description.is_empty(), "tool {} has empty description", tool.name);
+            assert!(
+                !tool.description.is_empty(),
+                "tool {} has empty description",
+                tool.name
+            );
         }
     }
 
@@ -389,7 +394,14 @@ mod tests {
 
     #[test]
     fn symbol_tools_require_symbol_param() {
-        let symbol_tools = ["cq_def", "cq_body", "cq_sig", "cq_refs", "cq_callers", "cq_deps"];
+        let symbol_tools = [
+            "cq_def",
+            "cq_body",
+            "cq_sig",
+            "cq_refs",
+            "cq_callers",
+            "cq_deps",
+        ];
         let tools = all_tools();
         for name in &symbol_tools {
             let tool = tools.iter().find(|t| t.name == *name).unwrap();
@@ -430,27 +442,35 @@ mod tests {
     fn missing_symbol_returns_error() {
         let result = execute_tool("cq_def", &json!({}));
         assert_eq!(result.is_error, Some(true));
-        assert!(result.content[0].text.contains("Missing required argument: symbol"));
+        assert!(result.content[0]
+            .text
+            .contains("Missing required argument: symbol"));
     }
 
     #[test]
     fn missing_file_returns_error() {
         let result = execute_tool("cq_outline", &json!({}));
         assert_eq!(result.is_error, Some(true));
-        assert!(result.content[0].text.contains("Missing required argument: file"));
+        assert!(result.content[0]
+            .text
+            .contains("Missing required argument: file"));
     }
 
     #[test]
     fn missing_pattern_returns_error() {
         let result = execute_tool("cq_search", &json!({}));
         assert_eq!(result.is_error, Some(true));
-        assert!(result.content[0].text.contains("Missing required argument: pattern"));
+        assert!(result.content[0]
+            .text
+            .contains("Missing required argument: pattern"));
     }
 
     #[test]
     fn missing_location_returns_error() {
         let result = execute_tool("cq_context", &json!({}));
         assert_eq!(result.is_error, Some(true));
-        assert!(result.content[0].text.contains("Missing required argument: location"));
+        assert!(result.content[0]
+            .text
+            .contains("Missing required argument: location"));
     }
 }

@@ -10,6 +10,7 @@ pub mod config;
 pub mod dirs;
 pub mod discovery;
 pub mod error;
+pub mod extract_config;
 pub mod path_utils;
 pub mod project;
 pub mod query;
@@ -22,6 +23,7 @@ pub use discovery::{
     language_for_file_with_overrides, Language,
 };
 pub use error::{CoreError, Result};
+pub use extract_config::{load_extract_config, parse_symbol_kind, ExtractConfig, SymbolRule};
 pub use path_utils::resolve_display_path;
 pub use project::{detect_project_root, detect_project_root_or};
 pub use query::{Completeness, QueryResult, Resolution};

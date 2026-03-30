@@ -140,10 +140,7 @@ fn handle_tools_list(id: Option<serde_json::Value>) -> JsonRpcResponse {
 }
 
 /// Handle the `tools/call` method.
-fn handle_tools_call(
-    id: Option<serde_json::Value>,
-    params: &serde_json::Value,
-) -> JsonRpcResponse {
+fn handle_tools_call(id: Option<serde_json::Value>, params: &serde_json::Value) -> JsonRpcResponse {
     let call_params: ToolCallParams = match serde_json::from_value(params.clone()) {
         Ok(p) => p,
         Err(e) => {
@@ -196,10 +193,7 @@ mod tests {
         let resp = handle_message(msg).expect("should return response");
         let result = resp.result.expect("should be success");
         let tools = result["tools"].as_array().unwrap();
-        let names: Vec<&str> = tools
-            .iter()
-            .filter_map(|t| t["name"].as_str())
-            .collect();
+        let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
         assert!(names.contains(&"cq_def"));
         assert!(names.contains(&"cq_body"));
         assert!(names.contains(&"cq_refs"));
@@ -265,5 +259,4 @@ mod tests {
             .unwrap()
             .contains("Missing required argument"));
     }
-
 }

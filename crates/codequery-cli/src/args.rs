@@ -394,6 +394,23 @@ pub enum Command {
     /// Internal: run the daemon in the foreground (used by `daemon start`)
     #[command(name = "_daemon-run", hide = true)]
     DaemonRun,
+    /// Manage language grammar packages
+    #[command(
+        long_about = "Install, remove, and inspect language grammar packages.\n\
+                      cq ships with 16 built-in languages. Additional languages can be\n\
+                      installed as grammar packages stored in ~/.local/share/cq/languages/.",
+        after_help = "Examples:\n  cq grammar list\n  cq grammar install elixir\n  cq grammar info haskell"
+    )]
+    Grammar {
+        #[command(subcommand)]
+        action: GrammarAction,
+    },
+    /// Check for and install a newer version of cq
+    #[command(
+        long_about = "Check the GitHub releases API for a newer version of cq and print\n\
+                      upgrade instructions. Does not perform the upgrade automatically."
+    )]
+    Upgrade,
 }
 
 /// Cache management sub-subcommands.
@@ -412,6 +429,30 @@ pub enum DaemonAction {
     Stop,
     /// Show daemon status
     Status,
+}
+
+/// Grammar package management sub-subcommands.
+#[derive(Debug, Subcommand)]
+pub enum GrammarAction {
+    /// List installed and available language packages
+    List,
+    /// Install a language package
+    Install {
+        /// Language name (e.g., elixir, haskell, dart)
+        language: String,
+    },
+    /// Update all installed language packages to current version
+    Update,
+    /// Remove an installed language package
+    Remove {
+        /// Language name to remove
+        language: String,
+    },
+    /// Show details about a language package
+    Info {
+        /// Language name
+        language: String,
+    },
 }
 
 /// Process exit codes following SPECIFICATION.md section 12.
@@ -882,5 +923,83 @@ mod tests {
     fn test_daemon_run_hidden_subcommand_parsed() {
         let args = CqArgs::parse_from(["cq", "_daemon-run"]);
         assert!(matches!(args.command, Command::DaemonRun));
+    }
+
+    // -----------------------------------------------------------------------
+    // Grammar subcommand
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_grammar_list_subcommand_parsed() {
+        let args = CqArgs::parse_from(["cq", "grammar", "list"]);
+        match args.command {
+            Command::Grammar { action } => {
+                assert!(matches!(action, GrammarAction::List));
+            }
+            _ => panic!("expected Grammar command"),
+        }
+    }
+
+    #[test]
+    fn test_grammar_install_subcommand_parsed() {
+        let args = CqArgs::parse_from(["cq", "grammar", "install", "elixir"]);
+        match args.command {
+            Command::Grammar { action } => match action {
+                GrammarAction::Install { language } => assert_eq!(language, "elixir"),
+                _ => panic!("expected Install action"),
+            },
+            _ => panic!("expected Grammar command"),
+        }
+    }
+
+    #[test]
+    fn test_grammar_update_subcommand_parsed() {
+        let args = CqArgs::parse_from(["cq", "grammar", "update"]);
+        match args.command {
+            Command::Grammar { action } => {
+                assert!(matches!(action, GrammarAction::Update));
+            }
+            _ => panic!("expected Grammar command"),
+        }
+    }
+
+    #[test]
+    fn test_grammar_remove_subcommand_parsed() {
+        let args = CqArgs::parse_from(["cq", "grammar", "remove", "elixir"]);
+        match args.command {
+            Command::Grammar { action } => match action {
+                GrammarAction::Remove { language } => assert_eq!(language, "elixir"),
+                _ => panic!("expected Remove action"),
+            },
+            _ => panic!("expected Grammar command"),
+        }
+    }
+
+    #[test]
+    fn test_grammar_info_subcommand_parsed() {
+        let args = CqArgs::parse_from(["cq", "grammar", "info", "haskell"]);
+        match args.command {
+            Command::Grammar { action } => match action {
+                GrammarAction::Info { language } => assert_eq!(language, "haskell"),
+                _ => panic!("expected Info action"),
+            },
+            _ => panic!("expected Grammar command"),
+        }
+    }
+
+    #[test]
+    fn test_grammar_subcommand_without_action_fails() {
+        let result = CqArgs::try_parse_from(["cq", "grammar"]);
+        assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // Upgrade subcommand
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_upgrade_subcommand_parsed() {
+        let args = CqArgs::parse_from(["cq", "upgrade"]);
+        assert!(matches!(args.command, Command::Upgrade));
     }
 }
