@@ -1,0 +1,14 @@
+[language]
+name = "zig"
+extensions = [".zig"]
+
+[[symbols]]
+kind = "function"
+query = '(FnProto fn_name: (IDENTIFIER) @name) @def'
+name = "@name"
+body = "@def"
+
+[[symbols]]
+kind = "variable"
+query = '(VarDecl var_name: (IDENTIFIER) @name) @def'
+name = "@name"

@@ -1,0 +1,3 @@
+[server]
+binary = "OmniSharp"
+args = ["--languageserver"]

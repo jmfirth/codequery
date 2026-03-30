@@ -1,0 +1,21 @@
+[language]
+name = "csharp"
+extensions = [".cs"]
+
+[[symbols]]
+kind = "class"
+query = '(class_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+[[symbols]]
+kind = "method"
+query = '(method_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+[[symbols]]
+kind = "interface"
+query = '(interface_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"

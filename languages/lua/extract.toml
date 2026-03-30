@@ -1,0 +1,15 @@
+[language]
+name = "lua"
+extensions = [".lua"]
+
+[[symbols]]
+kind = "function"
+query = '(function_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+[[symbols]]
+kind = "function"
+query = '(function_declaration name: (dot_index_expression) @name) @def'
+name = "@name"
+body = "@def"

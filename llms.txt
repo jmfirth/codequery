@@ -75,10 +75,21 @@ Auto-detected when running; no extra flags needed.
 Falls back gracefully: daemon -> oneshot LSP -> stack graph -> syntactic.
 
 ## Languages
-Scope-resolved (stack graphs): Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, Ruby, C#
-Syntactic (extraction only): PHP, Swift, Kotlin, Scala, Zig, Lua, Bash
-Runtime-loadable: drop .so/.dylib grammars in ~/.local/share/cq/grammars/
-LSP semantic precision available for all 16 languages when language server is installed.
+75 languages supported. 15 compiled-in, 60 installable via `cq grammar install`.
+
+Built-in (always available): Python, TypeScript, JavaScript, Rust, Go, C, C++, Java,
+Ruby, PHP, HTML, CSS, JSON, YAML, TOML
+
+Installable: `cq grammar list` shows all available languages.
+Common installable: C#, Swift, Kotlin, Scala, Zig, Lua, Bash, Elixir, Haskell, Dart,
+SQL, Dockerfile, Terraform, Markdown, XML, Protobuf, GraphQL, Vue, Svelte, and 40+ more.
+
+Install any language: `cq grammar install <name>`
+Install everything: `cq grammar install --all`
+Auto-install: cq downloads grammars on first encounter if not installed.
+
+Stack graphs (scope-resolved): Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, Ruby, C#
+LSP semantic precision: available for any language with a language server installed.
 
 ## MCP server (cq-mcp)
 Exposes all 12 cq commands as MCP tools over JSON-RPC stdio.

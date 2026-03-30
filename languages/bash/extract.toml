@@ -1,0 +1,9 @@
+[language]
+name = "bash"
+extensions = [".sh", ".bash"]
+
+[[symbols]]
+kind = "function"
+query = '(function_definition name: (word) @name) @def'
+name = "@name"
+body = "@def"

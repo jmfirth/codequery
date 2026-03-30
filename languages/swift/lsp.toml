@@ -1,0 +1,3 @@
+[server]
+binary = "sourcekit-lsp"
+args = []

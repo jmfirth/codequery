@@ -1,0 +1,21 @@
+[language]
+name = "swift"
+extensions = [".swift"]
+
+[[symbols]]
+kind = "function"
+query = '(function_declaration name: (simple_identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+[[symbols]]
+kind = "class"
+query = '(class_declaration name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+[[symbols]]
+kind = "struct"
+query = '(struct_declaration name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"

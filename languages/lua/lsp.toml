@@ -1,0 +1,3 @@
+[server]
+binary = "lua-language-server"
+args = []

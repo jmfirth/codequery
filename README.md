@@ -93,27 +93,47 @@ Homebrew formula coming soon.
 
 ## Language Support
 
-| Language | Tier | Precision | Notes |
-|----------|------|-----------|-------|
-| Rust | 1 | Resolved | Stack graph + LSP (rust-analyzer) |
-| TypeScript | 1 | Resolved | Stack graph + LSP (typescript-language-server) |
-| JavaScript | 1 | Resolved | Stack graph, includes JSX/TSX |
-| Python | 1 | Resolved | Stack graph + LSP (pyright) |
-| Go | 1 | Resolved | Stack graph + LSP (gopls) |
-| C | 1 | Resolved | Stack graph + LSP (clangd) |
-| C++ | 1 | Resolved | Stack graph + LSP (clangd) |
-| Java | 1 | Resolved | Stack graph |
-| Ruby | 1 | Resolved | Custom stack graph rules |
-| C# | 1 | Resolved | Custom stack graph rules |
-| PHP | 2 | Syntactic | Full extraction, name-based refs |
-| Swift | 2 | Syntactic | Full extraction, name-based refs |
-| Kotlin | 2 | Syntactic | Full extraction, name-based refs |
-| Scala | 2 | Syntactic | Full extraction, name-based refs |
-| Zig | 2 | Syntactic | Full extraction, name-based refs |
-| Lua | 2 | Syntactic | Full extraction, name-based refs |
-| Bash | 2 | Syntactic | Full extraction, name-based refs |
+**75 languages supported.** 15 compiled-in, 60 installable via `cq grammar install`.
 
-**Tier 1** languages have tree-sitter grammars compiled into the binary and stack graph rules for scope-resolved cross-references. **Tier 2** languages have full extraction (def, body, sig, outline, imports) but use syntactic name matching for cross-reference commands. **Tier 3** (not listed) supports runtime-loadable grammars via `.so`/`.dylib` files in `~/.local/share/cq/grammars/`.
+### Built-in (always available)
+
+| Language | Precision | Notes |
+|----------|-----------|-------|
+| Python | Resolved | Stack graph + LSP (pyright) |
+| TypeScript | Resolved | Stack graph + LSP (tsserver) |
+| JavaScript | Resolved | Stack graph, includes JSX |
+| Rust | Resolved | Stack graph + LSP (rust-analyzer) |
+| Go | Resolved | Stack graph + LSP (gopls) |
+| C | Resolved | Stack graph + LSP (clangd) |
+| C++ | Resolved | Stack graph + LSP (clangd) |
+| Java | Resolved | Stack graph + LSP (jdtls) |
+| Ruby | Resolved | Stack graph + LSP (solargraph) |
+| PHP | Syntactic | LSP (intelephense) |
+| HTML | Syntactic | Structural tag extraction |
+| CSS | Syntactic | Selectors, variables, media queries |
+| JSON | Syntactic | Top-level key extraction |
+| YAML | Syntactic | Key and anchor extraction |
+| TOML | Syntactic | Table and key extraction |
+
+### Installable (60+ languages)
+
+```
+$ cq grammar install elixir    # install one language
+$ cq grammar install --all     # install everything
+$ cq grammar list              # see what's available
+```
+
+Languages auto-download on first encounter — `cq outline app.ex` installs Elixir support automatically.
+
+Available languages include: C#, Swift, Kotlin, Scala, Zig, Lua, Bash, Elixir, Haskell, Dart, SQL, Dockerfile, Terraform, Markdown, XML, Protobuf, GraphQL, Vue, Svelte, F#, Groovy, Objective-C, Nix, CMake, SCSS, Elm, Solidity, Verilog, CUDA, Fortran, COBOL, Ada, Pascal, LaTeX, Prisma, Bicep, Starlark, and more. Run `cq grammar list` for the full list.
+
+### Stack graph resolution
+
+10 languages have scope-resolved cross-references (follows imports, qualified names, resolves across files): Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, Ruby, C#.
+
+### LSP semantic precision
+
+Available for any language with a language server installed. Built-in LSP configs for 40+ languages. The precision cascade runs automatically — no configuration needed.
 
 ---
 

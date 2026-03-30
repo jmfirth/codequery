@@ -1,0 +1,15 @@
+[language]
+name = "kotlin"
+extensions = [".kt", ".kts"]
+
+[[symbols]]
+kind = "function"
+query = '(function_declaration (simple_identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+[[symbols]]
+kind = "class"
+query = '(class_declaration (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
