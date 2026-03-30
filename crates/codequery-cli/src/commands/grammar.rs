@@ -11,7 +11,11 @@ use serde::Deserialize;
 /// The baked-in language registry, compiled into the binary.
 const REGISTRY_JSON: &str = include_str!("../../../../languages/registry.json");
 
-/// The built-in languages that ship with the cq binary.
+/// Languages compiled into the binary with the `common` feature preset.
+///
+/// This list reflects the default `common` feature. Languages outside this set
+/// (C#, Swift, Kotlin, Scala, Zig, Lua, Bash) can be enabled at compile time
+/// via individual `lang-*` features, or installed as WASM plugins at runtime.
 const BUILTIN_LANGUAGES: &[&str] = &[
     "rust",
     "typescript",
@@ -23,13 +27,11 @@ const BUILTIN_LANGUAGES: &[&str] = &[
     "java",
     "ruby",
     "php",
-    "csharp",
-    "swift",
-    "kotlin",
-    "scala",
-    "zig",
-    "lua",
-    "bash",
+    "html",
+    "css",
+    "json",
+    "yaml",
+    "toml",
 ];
 
 /// Top-level registry structure.
@@ -232,6 +234,38 @@ pub fn run_install(language: &str) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::Success)
 }
 
+/// `cq grammar install --all` — install all available packages from the registry.
+///
+/// # Errors
+///
+/// Returns an error if installation of any package fails.
+pub fn run_install_all() -> anyhow::Result<ExitCode> {
+    let registry = load_registry()?;
+    let languages_dir = codequery_core::dirs::languages_dir()
+        .ok_or_else(|| anyhow::anyhow!("cannot determine languages directory"))?;
+
+    let mut installed_count = 0;
+    for pkg in &registry.languages {
+        // Skip built-in languages and already-installed packages
+        if BUILTIN_LANGUAGES.contains(&pkg.name.as_str()) {
+            continue;
+        }
+        let pkg_dir = languages_dir.join(&pkg.name);
+        if pkg_dir.exists() {
+            continue;
+        }
+        run_install(&pkg.name)?;
+        installed_count += 1;
+    }
+
+    if installed_count == 0 {
+        eprintln!("all available packages are already installed");
+    } else {
+        eprintln!("Installed {installed_count} package(s)");
+    }
+    Ok(ExitCode::Success)
+}
+
 /// `cq grammar update` — re-download all installed packages for the current version.
 ///
 /// # Errors
@@ -402,6 +436,11 @@ mod tests {
     fn test_registry_contains_all_expected_languages() {
         let registry = load_registry().unwrap();
         let names: Vec<&str> = registry.languages.iter().map(|l| l.name.as_str()).collect();
+        // Non-common compiled languages (now installable)
+        for expected in &["csharp", "swift", "kotlin", "scala", "zig", "lua", "bash"] {
+            assert!(names.contains(expected), "missing language: {expected}");
+        }
+        // WASM-only languages
         for expected in &[
             "elixir", "haskell", "dart", "sql", "ocaml", "r", "perl", "clojure", "erlang", "julia",
         ] {
@@ -479,6 +518,19 @@ mod tests {
         assert!(BUILTIN_LANGUAGES.contains(&"rust"));
         assert!(BUILTIN_LANGUAGES.contains(&"python"));
         assert!(BUILTIN_LANGUAGES.contains(&"typescript"));
+        assert!(BUILTIN_LANGUAGES.contains(&"html"));
+        assert!(BUILTIN_LANGUAGES.contains(&"css"));
+        assert!(BUILTIN_LANGUAGES.contains(&"json"));
+        assert!(BUILTIN_LANGUAGES.contains(&"yaml"));
+        assert!(BUILTIN_LANGUAGES.contains(&"toml"));
+        // Non-common languages should not be in the builtin list
+        assert!(!BUILTIN_LANGUAGES.contains(&"csharp"));
+        assert!(!BUILTIN_LANGUAGES.contains(&"swift"));
+        assert!(!BUILTIN_LANGUAGES.contains(&"kotlin"));
+        assert!(!BUILTIN_LANGUAGES.contains(&"scala"));
+        assert!(!BUILTIN_LANGUAGES.contains(&"zig"));
+        assert!(!BUILTIN_LANGUAGES.contains(&"lua"));
+        assert!(!BUILTIN_LANGUAGES.contains(&"bash"));
         assert!(!BUILTIN_LANGUAGES.contains(&"elixir"));
     }
 

@@ -37,8 +37,7 @@ mod wasm_e2e {
         // 1. Load the WASM grammar
         let mut parser = tree_sitter::Parser::new();
         let engine = tree_sitter::wasmtime::Engine::default();
-        let mut store =
-            tree_sitter::WasmStore::new(&engine).expect("failed to create WasmStore");
+        let mut store = tree_sitter::WasmStore::new(&engine).expect("failed to create WasmStore");
         let wasm_bytes = std::fs::read(&wasm_path).expect("failed to read grammar.wasm");
         let language = store
             .load_language("python", &wasm_bytes)

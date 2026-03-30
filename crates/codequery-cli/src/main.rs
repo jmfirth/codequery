@@ -163,7 +163,16 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
         Command::DaemonRun => commands::daemon::run_foreground(),
         Command::Grammar { action } => match action {
             GrammarAction::List => commands::grammar::run_list(),
-            GrammarAction::Install { language } => commands::grammar::run_install(&language),
+            GrammarAction::Install { language, all } => {
+                if all {
+                    commands::grammar::run_install_all()
+                } else if let Some(lang) = &language {
+                    commands::grammar::run_install(lang)
+                } else {
+                    eprintln!("error: provide a language name or use --all");
+                    Ok(args::ExitCode::UsageError)
+                }
+            }
             GrammarAction::Update => commands::grammar::run_update(),
             GrammarAction::Remove { language } => commands::grammar::run_remove(&language),
             GrammarAction::Info { language } => commands::grammar::run_info(&language),

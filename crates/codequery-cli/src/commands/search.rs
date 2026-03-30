@@ -41,6 +41,8 @@ pub fn run(
     // 3. Run pattern against each file, collecting matches
     let is_raw = mode == OutputMode::Raw;
     let mut all_matches: Vec<SearchMatch> = Vec::new();
+    let mut files_searched = 0usize;
+    let mut last_query_error: Option<String> = None;
 
     for file_entry in &scan {
         let absolute = project_root.join(&file_entry.file);
@@ -65,11 +67,35 @@ pub fn run(
         };
 
         match matches_result {
-            Ok(matches) => all_matches.extend(matches),
+            Ok(matches) => {
+                files_searched += 1;
+                all_matches.extend(matches);
+            }
+            Err(
+                codequery_parse::ParseError::PatternError(ref msg)
+                | codequery_parse::ParseError::QueryError(ref msg),
+            ) => {
+                // Pattern or query is invalid for this language's grammar.
+                // Expected when searching a multi-language project — a Rust
+                // pattern/query won't compile against TOML/JSON/YAML grammars.
+                // Track the error in case it fails on ALL files.
+                last_query_error = Some(msg.clone());
+            }
+            Err(codequery_parse::ParseError::LanguageError(_)) => {
+                // Language grammar not available (feature not compiled in, no WASM).
+                // Skip the file — don't prevent results from other files.
+            }
             Err(e) => {
-                // Pattern errors are fatal — report and bail
+                // Other errors (I/O, parse failures) are fatal
                 return Err(anyhow::anyhow!("{e}"));
             }
+        }
+    }
+
+    // If the pattern/query failed for every file, it's likely invalid — report as error
+    if files_searched == 0 {
+        if let Some(err) = last_query_error {
+            return Err(anyhow::anyhow!("pattern error: {err}"));
         }
     }
 

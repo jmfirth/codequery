@@ -48,6 +48,10 @@ pub fn extract_imports(
         Language::Zig => extract_zig_imports(source, tree),
         Language::Lua => extract_lua_imports(source, tree),
         Language::Bash => extract_bash_imports(source, tree),
+        // Structured data formats have no import system
+        Language::Html | Language::Css | Language::Json | Language::Yaml | Language::Toml => {
+            Vec::new()
+        }
     }
 }
 

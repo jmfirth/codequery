@@ -399,6 +399,11 @@ mod tests {
             (Language::Zig, "zig"),
             (Language::Lua, "lua"),
             (Language::Bash, "bash"),
+            (Language::Html, "html"),
+            (Language::Css, "css"),
+            (Language::Json, "json"),
+            (Language::Yaml, "yaml"),
+            (Language::Toml, "toml"),
         ];
 
         for (lang, expected) in languages {

@@ -20,7 +20,7 @@ pub enum OutputMode {
     about,
     long_about = "Tree-sitter powered structural code navigation for AI agents and humans.\n\
                    Searches, extracts, and navigates code by structure rather than text.\n\
-                   Supports 16 languages from a single binary with no runtime dependencies.",
+                   Supports 21 languages from a single binary with no runtime dependencies.",
     after_help = "\x1b[1mExamples:\x1b[0m\n  \
                    cq def handle_request          Find where handle_request is defined\n  \
                    cq body Router::add_route       Extract the full source of a method\n  \
@@ -438,8 +438,11 @@ pub enum GrammarAction {
     List,
     /// Install a language package
     Install {
-        /// Language name (e.g., elixir, haskell, dart)
-        language: String,
+        /// Language name (e.g., elixir, haskell, dart). Ignored when --all is set.
+        language: Option<String>,
+        /// Install all available packages from the registry
+        #[arg(long)]
+        all: bool,
     },
     /// Update all installed language packages to current version
     Update,
@@ -945,7 +948,25 @@ mod tests {
         let args = CqArgs::parse_from(["cq", "grammar", "install", "elixir"]);
         match args.command {
             Command::Grammar { action } => match action {
-                GrammarAction::Install { language } => assert_eq!(language, "elixir"),
+                GrammarAction::Install { language, all } => {
+                    assert_eq!(language, Some("elixir".to_string()));
+                    assert!(!all);
+                }
+                _ => panic!("expected Install action"),
+            },
+            _ => panic!("expected Grammar command"),
+        }
+    }
+
+    #[test]
+    fn test_grammar_install_all_subcommand_parsed() {
+        let args = CqArgs::parse_from(["cq", "grammar", "install", "--all"]);
+        match args.command {
+            Command::Grammar { action } => match action {
+                GrammarAction::Install { language, all } => {
+                    assert!(all);
+                    assert!(language.is_none());
+                }
                 _ => panic!("expected Install action"),
             },
             _ => panic!("expected Grammar command"),

@@ -295,6 +295,11 @@ fn lsp_language_id(language: Language) -> &'static str {
         Language::Zig => "zig",
         Language::Lua => "lua",
         Language::Bash => "shellscript",
+        Language::Html => "html",
+        Language::Css => "css",
+        Language::Json => "json",
+        Language::Yaml => "yaml",
+        Language::Toml => "toml",
     }
 }
 
@@ -717,6 +722,11 @@ mod tests {
         assert_eq!(lsp_language_id(Language::Scala), "scala");
         assert_eq!(lsp_language_id(Language::Zig), "zig");
         assert_eq!(lsp_language_id(Language::Lua), "lua");
+        assert_eq!(lsp_language_id(Language::Html), "html");
+        assert_eq!(lsp_language_id(Language::Css), "css");
+        assert_eq!(lsp_language_id(Language::Json), "json");
+        assert_eq!(lsp_language_id(Language::Yaml), "yaml");
+        assert_eq!(lsp_language_id(Language::Toml), "toml");
     }
 
     #[test]

@@ -66,7 +66,12 @@ pub fn language_config(lang: Language) -> Option<error::Result<StackGraphLanguag
         | Language::Scala
         | Language::Zig
         | Language::Lua
-        | Language::Bash => None,
+        | Language::Bash
+        | Language::Html
+        | Language::Css
+        | Language::Json
+        | Language::Yaml
+        | Language::Toml => None,
     }
 }
 

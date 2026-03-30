@@ -12,8 +12,11 @@ use crate::languages::bash::BashExtractor;
 use crate::languages::c::CExtractor;
 use crate::languages::cpp::CppExtractor;
 use crate::languages::csharp::CSharpExtractor;
+use crate::languages::css::CssExtractor;
 use crate::languages::go::GoExtractor;
+use crate::languages::html::HtmlExtractor;
 use crate::languages::java::JavaExtractor;
+use crate::languages::json::JsonExtractor;
 use crate::languages::kotlin::KotlinExtractor;
 use crate::languages::lua::LuaExtractor;
 use crate::languages::php::PhpExtractor;
@@ -22,7 +25,9 @@ use crate::languages::ruby::RubyExtractor;
 use crate::languages::rust::RustExtractor;
 use crate::languages::scala::ScalaExtractor;
 use crate::languages::swift::SwiftExtractor;
+use crate::languages::toml::TomlExtractor;
 use crate::languages::typescript::TypeScriptExtractor;
+use crate::languages::yaml::YamlExtractor;
 use crate::languages::zig::ZigExtractor;
 use crate::languages::LanguageExtractor;
 
@@ -62,6 +67,11 @@ pub fn extract_symbols(
         Language::Zig => ZigExtractor::extract_symbols(source, tree, file),
         Language::Lua => LuaExtractor::extract_symbols(source, tree, file),
         Language::Bash => BashExtractor::extract_symbols(source, tree, file),
+        Language::Html => HtmlExtractor::extract_symbols(source, tree, file),
+        Language::Css => CssExtractor::extract_symbols(source, tree, file),
+        Language::Json => JsonExtractor::extract_symbols(source, tree, file),
+        Language::Yaml => YamlExtractor::extract_symbols(source, tree, file),
+        Language::Toml => TomlExtractor::extract_symbols(source, tree, file),
     }
 }
 

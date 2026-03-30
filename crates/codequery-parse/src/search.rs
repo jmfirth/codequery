@@ -57,7 +57,7 @@ pub fn search_file(
 ) -> Result<Vec<SearchMatch>> {
     let (rewritten, metavar_map) = rewrite_metavars(pattern);
 
-    let grammar = grammar_for_language(language);
+    let grammar = grammar_for_language(language)?;
     let mut parser = tree_sitter::Parser::new();
     parser
         .set_language(&grammar)

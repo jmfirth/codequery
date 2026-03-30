@@ -48,12 +48,54 @@ pub enum Language {
     Lua,
     /// Bash (`.sh`, `.bash`).
     Bash,
+    // --- Structured data ---
+    /// HTML (`.html`, `.htm`).
+    Html,
+    /// CSS (`.css`).
+    Css,
+    /// JSON (`.json`).
+    Json,
+    /// YAML (`.yaml`, `.yml`).
+    Yaml,
+    /// TOML (`.toml`).
+    Toml,
 }
 
 impl Language {
+    /// The canonical machine name for this language.
+    ///
+    /// Used for feature flag names, grammar lookups, and display.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Rust => "rust",
+            Self::TypeScript => "typescript",
+            Self::JavaScript => "javascript",
+            Self::Python => "python",
+            Self::Go => "go",
+            Self::C => "c",
+            Self::Cpp => "cpp",
+            Self::Java => "java",
+            Self::Ruby => "ruby",
+            Self::Php => "php",
+            Self::CSharp => "csharp",
+            Self::Swift => "swift",
+            Self::Kotlin => "kotlin",
+            Self::Scala => "scala",
+            Self::Zig => "zig",
+            Self::Lua => "lua",
+            Self::Bash => "bash",
+            Self::Html => "html",
+            Self::Css => "css",
+            Self::Json => "json",
+            Self::Yaml => "yaml",
+            Self::Toml => "toml",
+        }
+    }
+
     /// Parse a language name from a user-provided string (case-insensitive).
     ///
-    /// Accepts common names and aliases for all Tier 1 and Tier 2 languages.
+    /// Accepts common names and aliases for all supported languages.
     ///
     /// Returns `None` if the string doesn't match any known language.
     #[must_use]
@@ -76,6 +118,11 @@ impl Language {
             "zig" => Some(Self::Zig),
             "lua" => Some(Self::Lua),
             "bash" | "sh" => Some(Self::Bash),
+            "html" => Some(Self::Html),
+            "css" => Some(Self::Css),
+            "json" => Some(Self::Json),
+            "yaml" | "yml" => Some(Self::Yaml),
+            "toml" => Some(Self::Toml),
             _ => None,
         }
     }
@@ -125,6 +172,11 @@ pub fn language_for_file_with_overrides<S: std::hash::BuildHasher>(
         "zig" => Some(Language::Zig),
         "lua" => Some(Language::Lua),
         "sh" | "bash" => Some(Language::Bash),
+        "html" | "htm" => Some(Language::Html),
+        "css" => Some(Language::Css),
+        "json" => Some(Language::Json),
+        "yaml" | "yml" => Some(Language::Yaml),
+        "toml" => Some(Language::Toml),
         _ => None,
     }
 }
@@ -378,8 +430,8 @@ mod tests {
     fn test_language_for_file_returns_none_for_unrecognized_extensions() {
         assert_eq!(language_for_file(Path::new("readme.txt")), None);
         assert_eq!(language_for_file(Path::new("no_extension")), None);
-        assert_eq!(language_for_file(Path::new("data.json")), None);
-        assert_eq!(language_for_file(Path::new("style.css")), None);
+        assert_eq!(language_for_file(Path::new("image.png")), None);
+        assert_eq!(language_for_file(Path::new("archive.tar.gz")), None);
     }
 
     #[test]
@@ -493,6 +545,12 @@ mod tests {
             ("lua", Language::Lua),
             ("bash", Language::Bash),
             ("sh", Language::Bash),
+            ("html", Language::Html),
+            ("css", Language::Css),
+            ("json", Language::Json),
+            ("yaml", Language::Yaml),
+            ("yml", Language::Yaml),
+            ("toml", Language::Toml),
         ];
         for (input, expected) in cases {
             assert_eq!(

@@ -2,6 +2,62 @@
   "version": "1",
   "languages": [
     {
+      "name": "csharp",
+      "display_name": "C#",
+      "description": "C# / .NET",
+      "extensions": [".cs"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "OmniSharp"
+    },
+    {
+      "name": "swift",
+      "display_name": "Swift",
+      "description": "Swift / Apple platforms",
+      "extensions": [".swift"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "sourcekit-lsp"
+    },
+    {
+      "name": "kotlin",
+      "display_name": "Kotlin",
+      "description": "Kotlin / JVM",
+      "extensions": [".kt"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "kotlin-language-server"
+    },
+    {
+      "name": "scala",
+      "display_name": "Scala",
+      "description": "Scala / JVM",
+      "extensions": [".scala"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "metals"
+    },
+    {
+      "name": "zig",
+      "display_name": "Zig",
+      "description": "Zig systems language",
+      "extensions": [".zig"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "zls"
+    },
+    {
+      "name": "lua",
+      "display_name": "Lua",
+      "description": "Lua scripting language",
+      "extensions": [".lua"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "lua-language-server"
+    },
+    {
+      "name": "bash",
+      "display_name": "Bash",
+      "description": "Bash / shell scripting",
+      "extensions": [".sh", ".bash"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "bash-language-server"
+    },
+    {
       "name": "elixir",
       "display_name": "Elixir",
       "description": "Elixir/Phoenix",

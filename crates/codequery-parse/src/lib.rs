@@ -23,8 +23,9 @@ pub use extract_engine::{
     extract_with_config, extract_with_config_uncached, validate_config, CompiledExtractor,
 };
 pub use imports::{extract_imports, ImportInfo};
+#[cfg(feature = "lang-rust")]
 pub use languages::rust::{extract_body, extract_signature};
-pub use parser::{grammar_for_language, Parser, RustParser};
+pub use parser::{compiled_grammar, grammar_for_language, Parser, RustParser};
 pub use runtime_grammar::{list_runtime_grammars, load_runtime_grammar};
 pub use search::{search_file, search_file_raw, SearchMatch};
 pub use wasm_loader::{discover_wasm_grammars, find_wasm_grammar, WasmGrammarInfo};
