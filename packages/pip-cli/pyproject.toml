@@ -1,5 +1,5 @@
 [project]
-name = "codequery-mcp"
+name = "codequery-cli"
 version = "1.0.0"
 description = "MCP server for cq — semantic code query tool"
 license = {text = "Apache-2.0"}
@@ -10,7 +10,7 @@ Homepage = "https://github.com/jmfirth/codequery"
 Repository = "https://github.com/jmfirth/codequery"
 
 [project.scripts]
-cq-mcp = "cq_mcp:main"
+cq = "cq_cli:main"
 
 [build-system]
 requires = ["setuptools>=64"]

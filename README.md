@@ -103,15 +103,17 @@ system_prompt = open("path/to/cq/llms.txt").read() + "\n\n" + your_instructions
 
 ### Option 2: MCP server (native tool integration)
 
-Run `cq-mcp` as an MCP tool server. All 12 commands become native tool calls for Claude, Cursor, and any MCP-compatible harness. The server auto-starts a language server daemon for compiler-level precision.
+Add `cq` as an MCP tool server. All 12 commands become native tool calls for Claude, Cursor, and any MCP-compatible harness. No Rust toolchain needed — `npx` downloads the binary automatically.
 
 ```json
 {
   "mcpServers": {
-    "cq": { "command": "cq-mcp" }
+    "cq": { "command": "npx", "args": ["-y", "@codequery/mcp"] }
   }
 }
 ```
+
+Also available via pip (`uvx codequery-mcp`) or direct binary (`cq-mcp`).
 
 Both options give access to the same 12 commands, 75 languages, and three-tier precision cascade.
 
