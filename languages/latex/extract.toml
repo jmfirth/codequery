@@ -1,0 +1,42 @@
+# LaTeX symbol extraction rules for cq.
+#
+# Covers sections, subsections, labels, and environment definitions.
+
+[language]
+name = "latex"
+extensions = [".tex", ".sty", ".cls"]
+
+# Sections: \section{Title}
+[[symbols]]
+kind = "section"
+query = '(section (curly_group (text) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Subsections: \subsection{Title}
+[[symbols]]
+kind = "section"
+query = '(subsection (curly_group (text) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Labels: \label{fig:example}
+[[symbols]]
+kind = "label"
+query = '(label_definition (curly_group_text (text) @name)) @def'
+name = "@name"
+body = "@def"
+
+# New command definitions: \newcommand{\foo}{...}
+[[symbols]]
+kind = "macro"
+query = '(new_command_definition command: (curly_group_command_name (command_name) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Environment blocks: \begin{environment}
+[[symbols]]
+kind = "environment"
+query = '(generic_environment (begin (curly_group_text (text) @name))) @def'
+name = "@name"
+body = "@def"

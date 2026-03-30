@@ -1,0 +1,32 @@
+# CUDA symbol extraction rules for cq.
+#
+# CUDA uses C/C++ grammar with kernel-specific extensions.
+# Covers function definitions, struct definitions, and kernel launches.
+
+[language]
+name = "cuda"
+extensions = [".cu", ".cuh"]
+
+# Function definitions: __global__ void kernel(...) { ... }
+[[symbols]]
+kind = "function"
+query = '(function_definition declarator: (function_declarator declarator: (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Struct definitions: struct Foo { ... }
+[[symbols]]
+kind = "struct"
+query = '(struct_specifier name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Class definitions: class Foo { ... }
+[[symbols]]
+kind = "class"
+query = '(class_specifier name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

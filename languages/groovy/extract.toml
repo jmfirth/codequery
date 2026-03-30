@@ -1,0 +1,40 @@
+# Groovy symbol extraction rules for cq.
+#
+# Covers method definitions, class definitions, and variable declarations.
+# Also useful for Gradle build files (.gradle).
+
+[language]
+name = "groovy"
+extensions = [".groovy", ".gradle"]
+
+# Method definitions: def foo() { ... }
+[[symbols]]
+kind = "function"
+query = '(method_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Class definitions: class Foo { ... }
+[[symbols]]
+kind = "class"
+query = '(class_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Interface definitions: interface Foo { ... }
+[[symbols]]
+kind = "interface"
+query = '(interface_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Enum declarations: enum Foo { ... }
+[[symbols]]
+kind = "enum"
+query = '(enum_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

@@ -1,0 +1,8 @@
+# LaTeX LSP configuration for cq.
+#
+# texlab provides IDE features for LaTeX documents.
+# Install via: brew install texlab
+
+[server]
+binary = "texlab"
+args = []

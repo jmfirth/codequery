@@ -1,0 +1,47 @@
+# Elm symbol extraction rules for cq.
+#
+# Covers function declarations, type aliases, custom type definitions,
+# and port declarations.
+
+[language]
+name = "elm"
+extensions = [".elm"]
+
+# Function declarations: foo : Type\nfoo x = ...
+[[symbols]]
+kind = "function"
+query = '(value_declaration (function_declaration_left (lower_case_identifier) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Type alias declarations: type alias Foo = ...
+[[symbols]]
+kind = "type"
+query = '(type_alias_declaration name: (upper_case_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Custom type declarations: type Foo = Bar | Baz
+[[symbols]]
+kind = "type"
+query = '(type_declaration name: (upper_case_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Port declarations: port foo : Type
+[[symbols]]
+kind = "port"
+query = '(port_annotation name: (lower_case_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Module declarations: module Foo exposing (..)
+[[symbols]]
+kind = "module"
+query = '(module_declaration (upper_case_qid) @name) @def'
+name = "@name"
+body = "@def"

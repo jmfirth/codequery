@@ -1,0 +1,29 @@
+# Scheme symbol extraction rules for cq.
+#
+# Covers define, define-syntax, and library/module forms.
+# Uses tree-sitter-scheme grammar.
+
+[language]
+name = "scheme"
+extensions = [".scm", ".ss"]
+
+# Function definitions: (define (foo x y) ...)
+[[symbols]]
+kind = "function"
+query = '(list (symbol) @_head (#eq? @_head "define") (list (symbol) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Variable definitions: (define foo value)
+[[symbols]]
+kind = "variable"
+query = '(list (symbol) @_head (#eq? @_head "define") (symbol) @name) @def'
+name = "@name"
+body = "@def"
+
+# Syntax definitions: (define-syntax foo ...)
+[[symbols]]
+kind = "macro"
+query = '(list (symbol) @_head (#eq? @_head "define-syntax") (symbol) @name) @def'
+name = "@name"
+body = "@def"

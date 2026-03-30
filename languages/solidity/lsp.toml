@@ -1,0 +1,9 @@
+# Solidity LSP configuration for cq.
+#
+# solc provides LSP features for Solidity smart contracts.
+# Alternatively, use nomicfoundation-solidity-language-server.
+# Install via: npm install -g @nomicfoundation/solidity-language-server
+
+[server]
+binary = "nomicfoundation-solidity-language-server"
+args = ["--stdio"]

@@ -1,0 +1,55 @@
+# PureScript symbol extraction rules for cq.
+#
+# Covers value declarations, data type definitions, type class definitions,
+# and module declarations. Grammar similar to Haskell.
+
+[language]
+name = "purescript"
+extensions = [".purs"]
+
+# Value/function declarations: foo :: Type\nfoo x = ...
+[[symbols]]
+kind = "function"
+query = '(value_declaration (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Data type definitions: data Foo = ...
+[[symbols]]
+kind = "type"
+query = '(data_declaration name: (proper_name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Type class definitions: class Foo where ...
+[[symbols]]
+kind = "class"
+query = '(class_declaration name: (proper_name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Newtype definitions: newtype Foo = ...
+[[symbols]]
+kind = "type"
+query = '(newtype_declaration name: (proper_name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Type synonym: type Foo = ...
+[[symbols]]
+kind = "type"
+query = '(type_synonym_declaration name: (proper_name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Module declarations: module Foo where
+[[symbols]]
+kind = "module"
+query = '(module_declaration name: (module_name) @name) @def'
+name = "@name"
+body = "@def"

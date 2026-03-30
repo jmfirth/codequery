@@ -1,0 +1,8 @@
+# Fortran LSP configuration for cq.
+#
+# fortls (Fortran Language Server) provides IDE features for Fortran.
+# Install via: pip install fortls
+
+[server]
+binary = "fortls"
+args = []

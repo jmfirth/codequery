@@ -1,0 +1,8 @@
+# F# LSP configuration for cq.
+#
+# FsAutoComplete is the standard F# language server.
+# Install via: dotnet tool install fsautocomplete
+
+[server]
+binary = "fsautocomplete"
+args = ["--adaptive-lsp-server-enabled"]

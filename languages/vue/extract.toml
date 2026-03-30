@@ -1,0 +1,29 @@
+# Vue symbol extraction rules for cq.
+#
+# Vue SFC files contain template, script, and style blocks.
+# Extracts script-level symbols and component structure.
+
+[language]
+name = "vue"
+extensions = [".vue"]
+
+# Script blocks: <script> or <script setup>
+[[symbols]]
+kind = "section"
+query = '(script_element (start_tag (tag_name) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Template blocks: <template>
+[[symbols]]
+kind = "section"
+query = '(template_element (start_tag (tag_name) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Style blocks: <style>
+[[symbols]]
+kind = "section"
+query = '(style_element (start_tag (tag_name) @name)) @def'
+name = "@name"
+body = "@def"

@@ -1,0 +1,8 @@
+# Verilog/SystemVerilog LSP configuration for cq.
+#
+# Verible provides a language server for Verilog/SystemVerilog.
+# Install from: https://github.com/chipsalliance/verible
+
+[server]
+binary = "verible-verilog-ls"
+args = []

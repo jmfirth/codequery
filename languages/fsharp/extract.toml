@@ -1,0 +1,32 @@
+# F# symbol extraction rules for cq.
+#
+# Covers let bindings, type definitions, module declarations,
+# and member definitions.
+
+[language]
+name = "fsharp"
+extensions = [".fs", ".fsi"]
+
+# Let bindings: let foo x = ...
+[[symbols]]
+kind = "function"
+query = '(value_declaration (function_or_value_defn (value_declaration_left (identifier_pattern) @name))) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Type definitions: type Foo = ...
+[[symbols]]
+kind = "type"
+query = '(type_definition (type_name (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Module declarations: module Foo
+[[symbols]]
+kind = "module"
+query = '(module_defn (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

@@ -1,0 +1,8 @@
+# Protobuf LSP configuration for cq.
+#
+# buf provides a language server for Protocol Buffers.
+# Install via: brew install bufbuild/buf/buf
+
+[server]
+binary = "buf"
+args = ["beta", "lsp"]

@@ -1,0 +1,42 @@
+# Terraform/HCL symbol extraction rules for cq.
+#
+# Covers resource, data, variable, output, module, and locals blocks.
+
+[language]
+name = "terraform"
+extensions = [".tf", ".hcl"]
+
+# Resource blocks: resource "aws_s3_bucket" "my_bucket" { ... }
+[[symbols]]
+kind = "resource"
+query = '(block (identifier) @_type (#eq? @_type "resource") (string_lit) @_rtype (string_lit) @name) @def'
+name = "@name"
+body = "@def"
+
+# Data blocks: data "aws_ami" "latest" { ... }
+[[symbols]]
+kind = "data"
+query = '(block (identifier) @_type (#eq? @_type "data") (string_lit) @_dtype (string_lit) @name) @def'
+name = "@name"
+body = "@def"
+
+# Variable blocks: variable "region" { ... }
+[[symbols]]
+kind = "variable"
+query = '(block (identifier) @_type (#eq? @_type "variable") (string_lit) @name) @def'
+name = "@name"
+body = "@def"
+
+# Output blocks: output "bucket_arn" { ... }
+[[symbols]]
+kind = "output"
+query = '(block (identifier) @_type (#eq? @_type "output") (string_lit) @name) @def'
+name = "@name"
+body = "@def"
+
+# Module blocks: module "vpc" { ... }
+[[symbols]]
+kind = "module"
+query = '(block (identifier) @_type (#eq? @_type "module") (string_lit) @name) @def'
+name = "@name"
+body = "@def"

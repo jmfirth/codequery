@@ -1,0 +1,64 @@
+# Solidity symbol extraction rules for cq.
+#
+# Covers contract, interface, library, function, event,
+# modifier, struct, and enum definitions.
+
+[language]
+name = "solidity"
+extensions = [".sol"]
+
+# Contract definitions: contract Foo { ... }
+[[symbols]]
+kind = "class"
+query = '(contract_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Interface definitions: interface Foo { ... }
+[[symbols]]
+kind = "interface"
+query = '(interface_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Library definitions: library Foo { ... }
+[[symbols]]
+kind = "module"
+query = '(library_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Function definitions: function foo() public { ... }
+[[symbols]]
+kind = "function"
+query = '(function_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Event definitions: event Transfer(...)
+[[symbols]]
+kind = "event"
+query = '(event_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Struct definitions: struct Foo { ... }
+[[symbols]]
+kind = "struct"
+query = '(struct_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Enum definitions: enum Foo { ... }
+[[symbols]]
+kind = "enum"
+query = '(enum_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

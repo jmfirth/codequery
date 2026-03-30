@@ -1,0 +1,8 @@
+# Racket LSP configuration for cq.
+#
+# racket-langserver provides IDE features for Racket.
+# Install via: raco pkg install racket-langserver
+
+[server]
+binary = "racket"
+args = ["-l", "racket-langserver"]

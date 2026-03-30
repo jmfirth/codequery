@@ -1,0 +1,21 @@
+# reStructuredText symbol extraction rules for cq.
+#
+# Extracts section headings and directive labels.
+
+[language]
+name = "restructuredtext"
+extensions = [".rst"]
+
+# Section headings (underlined text)
+[[symbols]]
+kind = "section"
+query = '(section (title) @name) @def'
+name = "@name"
+body = "@def"
+
+# Directives: .. directive:: argument
+[[symbols]]
+kind = "directive"
+query = '(directive name: (type) @name) @def'
+name = "@name"
+body = "@def"

@@ -1,0 +1,46 @@
+# Cairo symbol extraction rules for cq.
+#
+# Covers function definitions, struct definitions, trait definitions,
+# and module declarations. Cairo syntax resembles Rust.
+
+[language]
+name = "cairo"
+extensions = [".cairo"]
+
+# Function definitions: fn foo() { ... }
+[[symbols]]
+kind = "function"
+query = '(function_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Struct definitions: struct Foo { ... }
+[[symbols]]
+kind = "struct"
+query = '(struct_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Trait definitions: trait Foo { ... }
+[[symbols]]
+kind = "trait"
+query = '(trait_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Impl blocks: impl FooImpl of FooTrait { ... }
+[[symbols]]
+kind = "impl"
+query = '(impl_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+# Module declarations: mod foo { ... }
+[[symbols]]
+kind = "module"
+query = '(module_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"

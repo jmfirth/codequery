@@ -1,0 +1,8 @@
+# Nix LSP configuration for cq.
+#
+# nil is a Nix language server written in Rust.
+# Install via: nix profile install nixpkgs#nil
+
+[server]
+binary = "nil"
+args = []

@@ -1,0 +1,8 @@
+# D LSP configuration for cq.
+#
+# serve-d is the D language server.
+# Install via: dub fetch serve-d
+
+[server]
+binary = "serve-d"
+args = []

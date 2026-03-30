@@ -1,0 +1,54 @@
+# D symbol extraction rules for cq.
+#
+# Covers function, class, struct, interface, enum, and module definitions.
+
+[language]
+name = "d"
+extensions = [".d"]
+
+# Function definitions: void foo() { ... }
+[[symbols]]
+kind = "function"
+query = '(function_declaration (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Class definitions: class Foo { ... }
+[[symbols]]
+kind = "class"
+query = '(class_declaration (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Struct definitions: struct Foo { ... }
+[[symbols]]
+kind = "struct"
+query = '(struct_declaration (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Interface definitions: interface Foo { ... }
+[[symbols]]
+kind = "interface"
+query = '(interface_declaration (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Enum definitions: enum Foo { ... }
+[[symbols]]
+kind = "enum"
+query = '(enum_declaration (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Module declarations: module foo.bar;
+[[symbols]]
+kind = "module"
+query = '(module_declaration) @def'
+name = "@def"
+body = "@def"

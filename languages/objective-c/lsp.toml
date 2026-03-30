@@ -1,0 +1,8 @@
+# Objective-C LSP configuration for cq.
+#
+# clangd supports Objective-C via compile_commands.json.
+# Install via LLVM or system package manager.
+
+[server]
+binary = "clangd"
+args = []

@@ -1,0 +1,8 @@
+# Prisma LSP configuration for cq.
+#
+# Prisma Language Server provides IDE features for Prisma schema files.
+# Install via: npm install -g @prisma/language-server
+
+[server]
+binary = "prisma-language-server"
+args = ["--stdio"]

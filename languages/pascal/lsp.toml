@@ -1,0 +1,8 @@
+# Pascal LSP configuration for cq.
+#
+# pasls (Pascal Language Server) works with Free Pascal.
+# Install from: https://github.com/castle-engine/pascal-language-server
+
+[server]
+binary = "pasls"
+args = []

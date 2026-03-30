@@ -1,0 +1,23 @@
+# Makefile symbol extraction rules for cq.
+#
+# Extracts make targets as functions and variable assignments.
+
+[language]
+name = "makefile"
+extensions = [".mk"]
+filenames = ["Makefile", "GNUmakefile", "makefile"]
+
+# Targets: foo: bar baz
+[[symbols]]
+kind = "function"
+query = '(rule (targets (word) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Variable assignments: FOO = bar
+[[symbols]]
+kind = "variable"
+query = '(variable_assignment name: (word) @name) @def'
+name = "@name"
+body = "@def"

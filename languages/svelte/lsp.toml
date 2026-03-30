@@ -1,0 +1,8 @@
+# Svelte LSP configuration for cq.
+#
+# svelte-language-server provides IDE features for Svelte components.
+# Install via: npm install -g svelte-language-server
+
+[server]
+binary = "svelteserver"
+args = ["--stdio"]

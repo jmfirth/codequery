@@ -1,0 +1,8 @@
+# CUDA LSP configuration for cq.
+#
+# clangd supports CUDA with --cuda-gpu-arch flags.
+# Install via LLVM or system package manager.
+
+[server]
+binary = "clangd"
+args = []

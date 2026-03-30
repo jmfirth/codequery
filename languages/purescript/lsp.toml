@@ -1,0 +1,8 @@
+# PureScript LSP configuration for cq.
+#
+# purescript-language-server provides IDE features for PureScript.
+# Install via: npm install -g purescript-language-server
+
+[server]
+binary = "purescript-language-server"
+args = ["--stdio"]

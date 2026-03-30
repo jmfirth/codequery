@@ -1,0 +1,21 @@
+# XML symbol extraction rules for cq.
+#
+# Extracts top-level element names and attributes as navigable symbols.
+
+[language]
+name = "xml"
+extensions = [".xml", ".xsl", ".xsd", ".svg", ".plist"]
+
+# Elements: <tagname ...>
+[[symbols]]
+kind = "element"
+query = '(element (STag (Name) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Self-closing elements: <tagname ... />
+[[symbols]]
+kind = "element"
+query = '(element (EmptyElemTag (Name) @name)) @def'
+name = "@name"
+body = "@def"

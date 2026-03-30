@@ -1,0 +1,8 @@
+# GraphQL LSP configuration for cq.
+#
+# graphql-language-service-cli provides the GraphQL language server.
+# Install via: npm install -g graphql-language-service-cli
+
+[server]
+binary = "graphql-lsp"
+args = ["server", "-m", "stream"]

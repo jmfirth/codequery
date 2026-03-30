@@ -1,0 +1,55 @@
+# Common Lisp symbol extraction rules for cq.
+#
+# Covers defun, defmacro, defclass, defvar, defparameter,
+# and defpackage forms.
+
+[language]
+name = "common-lisp"
+extensions = [".lisp", ".cl", ".lsp", ".asd"]
+
+# Function definitions: (defun foo (args) ...)
+[[symbols]]
+kind = "function"
+query = '(list_lit (sym_lit) @_head (#eq? @_head "defun") (sym_lit) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Macro definitions: (defmacro foo (args) ...)
+[[symbols]]
+kind = "macro"
+query = '(list_lit (sym_lit) @_head (#eq? @_head "defmacro") (sym_lit) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Class definitions: (defclass foo (...) ...)
+[[symbols]]
+kind = "class"
+query = '(list_lit (sym_lit) @_head (#eq? @_head "defclass") (sym_lit) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Variable definitions: (defvar *foo* ...)
+[[symbols]]
+kind = "variable"
+query = '(list_lit (sym_lit) @_head (#eq? @_head "defvar") (sym_lit) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Parameter definitions: (defparameter *foo* ...)
+[[symbols]]
+kind = "variable"
+query = '(list_lit (sym_lit) @_head (#eq? @_head "defparameter") (sym_lit) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Package definitions: (defpackage :foo ...)
+[[symbols]]
+kind = "namespace"
+query = '(list_lit (sym_lit) @_head (#eq? @_head "defpackage") (kwd_lit) @name) @def'
+name = "@name"
+body = "@def"

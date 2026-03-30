@@ -1,0 +1,39 @@
+# Protobuf symbol extraction rules for cq.
+#
+# Covers message, enum, service, and rpc definitions.
+
+[language]
+name = "protobuf"
+extensions = [".proto"]
+
+# Message definitions: message Foo { ... }
+[[symbols]]
+kind = "message"
+query = '(message name: (message_name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Enum definitions: enum Foo { ... }
+[[symbols]]
+kind = "enum"
+query = '(enum name: (enum_name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Service definitions: service Foo { ... }
+[[symbols]]
+kind = "service"
+query = '(service name: (service_name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# RPC definitions: rpc Foo(Request) returns (Response)
+[[symbols]]
+kind = "function"
+query = '(rpc name: (rpc_name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

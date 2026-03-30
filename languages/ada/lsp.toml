@@ -1,0 +1,8 @@
+# Ada LSP configuration for cq.
+#
+# Ada Language Server (ALS) is maintained by AdaCore.
+# Install via: https://github.com/AdaCore/ada_language_server
+
+[server]
+binary = "ada_language_server"
+args = []

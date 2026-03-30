@@ -1,0 +1,8 @@
+# Bicep LSP configuration for cq.
+#
+# Bicep Language Server provides IDE features for Azure Bicep files.
+# Install via: az bicep install
+
+[server]
+binary = "bicep-langserver"
+args = ["--stdio"]

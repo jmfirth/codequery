@@ -1,0 +1,8 @@
+# Groovy LSP configuration for cq.
+#
+# groovy-language-server provides IDE features for Groovy and Gradle files.
+# Install from: https://github.com/GroovyLanguageServer/groovy-language-server
+
+[server]
+binary = "groovy-language-server"
+args = []

@@ -1,0 +1,8 @@
+# Markdown LSP configuration for cq.
+#
+# Marksman provides navigation and completion for Markdown files.
+# Install via: brew install marksman
+
+[server]
+binary = "marksman"
+args = ["server"]

@@ -1,0 +1,21 @@
+# Org-mode symbol extraction rules for cq.
+#
+# Extracts headlines and property drawers.
+
+[language]
+name = "org"
+extensions = [".org"]
+
+# Headlines: * Heading, ** Subheading, etc.
+[[symbols]]
+kind = "section"
+query = '(headline (item) @name) @def'
+name = "@name"
+body = "@def"
+
+# Property drawers
+[[symbols]]
+kind = "property"
+query = '(property (name) @name) @def'
+name = "@name"
+body = "@def"

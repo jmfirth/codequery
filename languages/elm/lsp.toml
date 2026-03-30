@@ -1,0 +1,8 @@
+# Elm LSP configuration for cq.
+#
+# elm-language-server provides IDE features for Elm.
+# Install via: npm install -g @elm-tooling/elm-language-server
+
+[server]
+binary = "elm-language-server"
+args = []

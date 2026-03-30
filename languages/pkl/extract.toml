@@ -1,0 +1,30 @@
+# PKL symbol extraction rules for cq.
+#
+# PKL is Apple's configuration language. Covers class definitions,
+# property declarations, and function definitions.
+
+[language]
+name = "pkl"
+extensions = [".pkl"]
+
+# Class definitions: class Foo { ... }
+[[symbols]]
+kind = "class"
+query = '(classProperty (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Module declarations
+[[symbols]]
+kind = "module"
+query = '(moduleClause (qualifiedIdentifier) @name) @def'
+name = "@name"
+body = "@def"
+
+# Property definitions: foo = expr
+[[symbols]]
+kind = "variable"
+query = '(classProperty (identifier) @name) @def'
+name = "@name"
+body = "@def"

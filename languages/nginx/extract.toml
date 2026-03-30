@@ -1,0 +1,22 @@
+# Nginx configuration symbol extraction rules for cq.
+#
+# Extracts server blocks, location blocks, and upstream definitions.
+
+[language]
+name = "nginx"
+extensions = [".nginx"]
+filenames = ["nginx.conf"]
+
+# Directive blocks: server { ... }, http { ... }, etc.
+[[symbols]]
+kind = "block"
+query = '(block (directive (keyword) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Location blocks: location /path { ... }
+[[symbols]]
+kind = "route"
+query = '(block (directive (keyword) @_kw (#eq? @_kw "location") (value) @name)) @def'
+name = "@name"
+body = "@def"

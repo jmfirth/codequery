@@ -1,0 +1,8 @@
+# Terraform LSP configuration for cq.
+#
+# terraform-ls is HashiCorp's official language server for Terraform.
+# Install via: brew install hashicorp/tap/terraform-ls
+
+[server]
+binary = "terraform-ls"
+args = ["serve"]

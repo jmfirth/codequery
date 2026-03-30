@@ -131,6 +131,338 @@
       "extensions": [".jl"],
       "capabilities": ["grammar", "extract", "lsp"],
       "lsp_server": "julia --project=@. -e 'using LanguageServer; runserver()'"
+    },
+    {
+      "name": "objective-c",
+      "display_name": "Objective-C",
+      "description": "Objective-C / iOS legacy",
+      "extensions": [".m", ".h"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "clangd"
+    },
+    {
+      "name": "fsharp",
+      "display_name": "F#",
+      "description": "F# / .NET functional",
+      "extensions": [".fs", ".fsi"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "fsautocomplete"
+    },
+    {
+      "name": "groovy",
+      "display_name": "Groovy",
+      "description": "Groovy / Gradle",
+      "extensions": [".groovy", ".gradle"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "groovy-language-server"
+    },
+    {
+      "name": "dockerfile",
+      "display_name": "Dockerfile",
+      "description": "Dockerfile",
+      "extensions": [".dockerfile"],
+      "filenames": ["Dockerfile"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "terraform",
+      "display_name": "Terraform/HCL",
+      "description": "Terraform/HCL",
+      "extensions": [".tf", ".hcl"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "terraform-ls"
+    },
+    {
+      "name": "xml",
+      "display_name": "XML",
+      "description": "XML / XSL / XSD / SVG",
+      "extensions": [".xml", ".xsl", ".xsd", ".svg", ".plist"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "markdown",
+      "display_name": "Markdown",
+      "description": "Markdown",
+      "extensions": [".md", ".markdown"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "marksman"
+    },
+    {
+      "name": "protobuf",
+      "display_name": "Protobuf",
+      "description": "Protocol Buffers",
+      "extensions": [".proto"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "buf"
+    },
+    {
+      "name": "graphql",
+      "display_name": "GraphQL",
+      "description": "GraphQL",
+      "extensions": [".graphql", ".gql"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "graphql-lsp"
+    },
+    {
+      "name": "scss",
+      "display_name": "SCSS",
+      "description": "SCSS / Sass",
+      "extensions": [".scss"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "makefile",
+      "display_name": "Makefile",
+      "description": "Make build files",
+      "extensions": [".mk"],
+      "filenames": ["Makefile", "GNUmakefile"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "cmake",
+      "display_name": "CMake",
+      "description": "CMake build system",
+      "extensions": [".cmake"],
+      "filenames": ["CMakeLists.txt"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "cmake-language-server"
+    },
+    {
+      "name": "nix",
+      "display_name": "Nix",
+      "description": "Nix package manager",
+      "extensions": [".nix"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "nil"
+    },
+    {
+      "name": "vue",
+      "display_name": "Vue",
+      "description": "Vue.js single-file components",
+      "extensions": [".vue"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "vue-language-server"
+    },
+    {
+      "name": "svelte",
+      "display_name": "Svelte",
+      "description": "Svelte components",
+      "extensions": [".svelte"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "svelteserver"
+    },
+    {
+      "name": "elm",
+      "display_name": "Elm",
+      "description": "Elm functional frontend",
+      "extensions": [".elm"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "elm-language-server"
+    },
+    {
+      "name": "solidity",
+      "display_name": "Solidity",
+      "description": "Solidity / EVM smart contracts",
+      "extensions": [".sol"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "nomicfoundation-solidity-language-server"
+    },
+    {
+      "name": "verilog",
+      "display_name": "Verilog/SystemVerilog",
+      "description": "Verilog / SystemVerilog HDL",
+      "extensions": [".v", ".sv"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "verible-verilog-ls"
+    },
+    {
+      "name": "glsl",
+      "display_name": "GLSL",
+      "description": "OpenGL Shading Language",
+      "extensions": [".glsl", ".vert", ".frag", ".geom", ".comp", ".tesc", ".tese"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "cuda",
+      "display_name": "CUDA",
+      "description": "CUDA / GPU computing",
+      "extensions": [".cu", ".cuh"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "clangd"
+    },
+    {
+      "name": "fortran",
+      "display_name": "Fortran",
+      "description": "Fortran scientific computing",
+      "extensions": [".f90", ".f95", ".f03", ".f08", ".F90"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "fortls"
+    },
+    {
+      "name": "cobol",
+      "display_name": "COBOL",
+      "description": "COBOL",
+      "extensions": [".cob", ".cbl", ".CBL", ".COB"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "ada",
+      "display_name": "Ada",
+      "description": "Ada",
+      "extensions": [".adb", ".ads"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "ada_language_server"
+    },
+    {
+      "name": "pascal",
+      "display_name": "Pascal",
+      "description": "Pascal / Object Pascal",
+      "extensions": [".pas", ".pp", ".lpr"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "pasls"
+    },
+    {
+      "name": "d",
+      "display_name": "D",
+      "description": "D programming language",
+      "extensions": [".d"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "serve-d"
+    },
+    {
+      "name": "ini",
+      "display_name": "INI",
+      "description": "INI configuration files",
+      "extensions": [".ini", ".cfg", ".conf"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "csv",
+      "display_name": "CSV",
+      "description": "CSV / TSV data files",
+      "extensions": [".csv", ".tsv"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "latex",
+      "display_name": "LaTeX",
+      "description": "LaTeX typesetting",
+      "extensions": [".tex", ".sty", ".cls"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "texlab"
+    },
+    {
+      "name": "restructuredtext",
+      "display_name": "reStructuredText",
+      "description": "reStructuredText documentation",
+      "extensions": [".rst"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "org",
+      "display_name": "Org",
+      "description": "Emacs Org-mode",
+      "extensions": [".org"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "diff",
+      "display_name": "Diff",
+      "description": "Unified diff / patch files",
+      "extensions": [".diff", ".patch"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "llvm-ir",
+      "display_name": "LLVM IR",
+      "description": "LLVM intermediate representation",
+      "extensions": [".ll"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "starlark",
+      "display_name": "Starlark",
+      "description": "Starlark / Bazel BUILD files",
+      "extensions": [".bzl", ".star"],
+      "filenames": ["BUILD", "BUILD.bazel", "WORKSPACE"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "just",
+      "display_name": "Just",
+      "description": "Just command runner",
+      "extensions": [".just"],
+      "filenames": ["justfile", "Justfile"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "nginx",
+      "display_name": "Nginx",
+      "description": "Nginx configuration",
+      "extensions": [".nginx"],
+      "filenames": ["nginx.conf"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "bicep",
+      "display_name": "Bicep",
+      "description": "Azure Bicep IaC",
+      "extensions": [".bicep"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "bicep-langserver"
+    },
+    {
+      "name": "prisma",
+      "display_name": "Prisma",
+      "description": "Prisma ORM schema",
+      "extensions": [".prisma"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "prisma-language-server"
+    },
+    {
+      "name": "pkl",
+      "display_name": "PKL",
+      "description": "Apple PKL configuration language",
+      "extensions": [".pkl"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "cairo",
+      "display_name": "Cairo",
+      "description": "Cairo / Starknet smart contracts",
+      "extensions": [".cairo"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "cairo-language-server"
+    },
+    {
+      "name": "purescript",
+      "display_name": "PureScript",
+      "description": "PureScript functional language",
+      "extensions": [".purs"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "purescript-language-server"
+    },
+    {
+      "name": "scheme",
+      "display_name": "Scheme",
+      "description": "Scheme Lisp dialect",
+      "extensions": [".scm", ".ss"],
+      "capabilities": ["grammar", "extract"]
+    },
+    {
+      "name": "racket",
+      "display_name": "Racket",
+      "description": "Racket programming language",
+      "extensions": [".rkt"],
+      "capabilities": ["grammar", "extract", "lsp"],
+      "lsp_server": "racket-langserver"
+    },
+    {
+      "name": "common-lisp",
+      "display_name": "Common Lisp",
+      "description": "Common Lisp",
+      "extensions": [".lisp", ".cl", ".lsp", ".asd"],
+      "capabilities": ["grammar", "extract"]
     }
   ]
 }

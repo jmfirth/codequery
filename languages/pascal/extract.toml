@@ -1,0 +1,45 @@
+# Pascal symbol extraction rules for cq.
+#
+# Covers program, unit, procedure, function, type, and class definitions.
+
+[language]
+name = "pascal"
+extensions = [".pas", ".pp", ".lpr"]
+
+# Program declaration: program Foo;
+[[symbols]]
+kind = "module"
+query = '(program (programHeading (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Unit declaration: unit Foo;
+[[symbols]]
+kind = "module"
+query = '(unit (unitHeading (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Procedure definitions: procedure Foo(...);
+[[symbols]]
+kind = "function"
+query = '(procedureDeclaration (procedureHeader (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Function definitions: function Foo(...): Type;
+[[symbols]]
+kind = "function"
+query = '(functionDeclaration (functionHeader (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Type definitions: type Foo = ...
+[[symbols]]
+kind = "type"
+query = '(typeDeclaration (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

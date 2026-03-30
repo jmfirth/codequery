@@ -1,0 +1,24 @@
+# GLSL symbol extraction rules for cq.
+#
+# Covers function definitions, struct definitions, and uniform/varying
+# declarations in GLSL shader files.
+
+[language]
+name = "glsl"
+extensions = [".glsl", ".vert", ".frag", ".geom", ".comp", ".tesc", ".tese"]
+
+# Function definitions: void main() { ... }
+[[symbols]]
+kind = "function"
+query = '(function_definition declarator: (function_declarator declarator: (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Struct definitions: struct Foo { ... }
+[[symbols]]
+kind = "struct"
+query = '(struct_specifier name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

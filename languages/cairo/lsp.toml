@@ -1,0 +1,8 @@
+# Cairo LSP configuration for cq.
+#
+# cairo-language-server provides IDE features for Cairo/Starknet.
+# Install via: scarb install
+
+[server]
+binary = "cairo-language-server"
+args = []

@@ -1,0 +1,47 @@
+# Bicep symbol extraction rules for cq.
+#
+# Covers resource, param, var, output, and module declarations.
+
+[language]
+name = "bicep"
+extensions = [".bicep"]
+
+# Resource declarations: resource foo 'type@version' = { ... }
+[[symbols]]
+kind = "resource"
+query = '(resource_declaration (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Parameter declarations: param foo string
+[[symbols]]
+kind = "variable"
+query = '(parameter_declaration (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Variable declarations: var foo = ...
+[[symbols]]
+kind = "variable"
+query = '(variable_declaration (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Output declarations: output foo string = ...
+[[symbols]]
+kind = "output"
+query = '(output_declaration (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Module declarations: module foo 'path' = { ... }
+[[symbols]]
+kind = "module"
+query = '(module_declaration (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

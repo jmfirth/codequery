@@ -1,0 +1,47 @@
+# Fortran symbol extraction rules for cq.
+#
+# Covers program, module, subroutine, function, and type definitions.
+# Uses tree-sitter-fortran grammar.
+
+[language]
+name = "fortran"
+extensions = [".f90", ".f95", ".f03", ".f08", ".F90"]
+
+# Program definitions: program foo ... end program
+[[symbols]]
+kind = "module"
+query = '(program (program_statement name: (name) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Module definitions: module foo ... end module
+[[symbols]]
+kind = "module"
+query = '(module (module_statement name: (name) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Subroutine definitions: subroutine foo(...) ... end subroutine
+[[symbols]]
+kind = "function"
+query = '(subroutine (subroutine_statement name: (name) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Function definitions: function foo(...) ... end function
+[[symbols]]
+kind = "function"
+query = '(function (function_statement name: (name) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Derived type definitions: type :: foo ... end type
+[[symbols]]
+kind = "type"
+query = '(derived_type_definition (derived_type_statement name: (name) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

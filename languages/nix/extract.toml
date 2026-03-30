@@ -1,0 +1,21 @@
+# Nix symbol extraction rules for cq.
+#
+# Covers let bindings, attribute set bindings, and function parameters.
+
+[language]
+name = "nix"
+extensions = [".nix"]
+
+# Attribute bindings: foo = expr;
+[[symbols]]
+kind = "variable"
+query = '(binding attrpath: (attrpath (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Inherit bindings: inherit foo bar;
+[[symbols]]
+kind = "variable"
+query = '(inherit_from attrs: (identifier) @name) @def'
+name = "@name"
+body = "@def"

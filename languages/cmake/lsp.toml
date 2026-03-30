@@ -1,0 +1,8 @@
+# CMake LSP configuration for cq.
+#
+# cmake-language-server provides IDE features for CMake files.
+# Install via: pip install cmake-language-server
+
+[server]
+binary = "cmake-language-server"
+args = []

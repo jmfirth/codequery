@@ -1,0 +1,21 @@
+# INI symbol extraction rules for cq.
+#
+# Extracts section headers and key-value settings.
+
+[language]
+name = "ini"
+extensions = [".ini", ".cfg", ".conf"]
+
+# Section headers: [section_name]
+[[symbols]]
+kind = "section"
+query = '(section (section_name) @name) @def'
+name = "@name"
+body = "@def"
+
+# Settings: key = value
+[[symbols]]
+kind = "variable"
+query = '(setting name: (setting_name) @name) @def'
+name = "@name"
+body = "@def"

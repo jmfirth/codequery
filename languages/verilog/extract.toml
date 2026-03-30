@@ -1,0 +1,32 @@
+# Verilog/SystemVerilog symbol extraction rules for cq.
+#
+# Covers module declarations, always blocks, task definitions,
+# and function definitions.
+
+[language]
+name = "verilog"
+extensions = [".v", ".sv"]
+
+# Module declarations: module foo(...); ... endmodule
+[[symbols]]
+kind = "module"
+query = '(module_declaration (module_header (module_identifier (simple_identifier) @name))) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Task definitions: task foo; ... endtask
+[[symbols]]
+kind = "function"
+query = '(task_declaration (task_identifier (task_identifier (simple_identifier) @name))) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Function definitions: function foo; ... endfunction
+[[symbols]]
+kind = "function"
+query = '(function_declaration (function_identifier (function_identifier (simple_identifier) @name))) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

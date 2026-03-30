@@ -1,0 +1,24 @@
+# CMake symbol extraction rules for cq.
+#
+# Covers function definitions, macro definitions, and variable settings.
+
+[language]
+name = "cmake"
+extensions = [".cmake"]
+filenames = ["CMakeLists.txt"]
+
+# Function definitions: function(foo ...) ... endfunction()
+[[symbols]]
+kind = "function"
+query = '(function_def (function_command (argument) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Macro definitions: macro(foo ...) ... endmacro()
+[[symbols]]
+kind = "macro"
+query = '(macro_def (macro_command (argument) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

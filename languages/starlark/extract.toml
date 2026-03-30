@@ -1,0 +1,31 @@
+# Starlark symbol extraction rules for cq.
+#
+# Starlark (Bazel BUILD files, .bzl files) uses Python-like syntax.
+# Covers function definitions, rule invocations, and variable assignments.
+
+[language]
+name = "starlark"
+extensions = [".bzl", ".star"]
+filenames = ["BUILD", "BUILD.bazel", "WORKSPACE"]
+
+# Function definitions: def foo(...):
+[[symbols]]
+kind = "function"
+query = '(function_definition name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "docstring"
+
+# Top-level rule invocations: cc_library(name = "foo", ...)
+[[symbols]]
+kind = "rule"
+query = '(expression_statement (call function: (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Variable assignments: FOO = "bar"
+[[symbols]]
+kind = "variable"
+query = '(expression_statement (assignment left: (identifier) @name)) @def'
+name = "@name"
+body = "@def"

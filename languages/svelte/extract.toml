@@ -1,0 +1,28 @@
+# Svelte symbol extraction rules for cq.
+#
+# Svelte component files contain script, markup, and style sections.
+
+[language]
+name = "svelte"
+extensions = [".svelte"]
+
+# Script elements: <script>
+[[symbols]]
+kind = "section"
+query = '(script_element (start_tag (tag_name) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Style elements: <style>
+[[symbols]]
+kind = "section"
+query = '(style_element (start_tag (tag_name) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Top-level elements in the template
+[[symbols]]
+kind = "element"
+query = '(element (start_tag (tag_name) @name)) @def'
+name = "@name"
+body = "@def"

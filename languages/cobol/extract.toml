@@ -1,0 +1,28 @@
+# COBOL symbol extraction rules for cq.
+#
+# Covers divisions, sections, paragraphs, and data items.
+
+[language]
+name = "cobol"
+extensions = [".cob", ".cbl", ".CBL", ".COB"]
+
+# Division headers: IDENTIFICATION DIVISION.
+[[symbols]]
+kind = "section"
+query = '(division_header (identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+# Section headers: WORKING-STORAGE SECTION.
+[[symbols]]
+kind = "section"
+query = '(section_header (identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+# Paragraph names (procedure labels)
+[[symbols]]
+kind = "function"
+query = '(paragraph_header (identifier) @name) @def'
+name = "@name"
+body = "@def"

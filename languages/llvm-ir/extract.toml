@@ -1,0 +1,35 @@
+# LLVM IR symbol extraction rules for cq.
+#
+# Covers function definitions, global variables, and type definitions.
+
+[language]
+name = "llvm-ir"
+extensions = [".ll"]
+
+# Function definitions: define i32 @foo(...) { ... }
+[[symbols]]
+kind = "function"
+query = '(function_definition name: (global_var) @name) @def'
+name = "@name"
+body = "@def"
+
+# Function declarations: declare i32 @foo(...)
+[[symbols]]
+kind = "function"
+query = '(declare name: (global_var) @name) @def'
+name = "@name"
+body = "@def"
+
+# Global variables: @foo = global i32 0
+[[symbols]]
+kind = "variable"
+query = '(global_variable name: (global_var) @name) @def'
+name = "@name"
+body = "@def"
+
+# Type definitions: %foo = type { i32, i64 }
+[[symbols]]
+kind = "type"
+query = '(type_definition name: (local_var) @name) @def'
+name = "@name"
+body = "@def"

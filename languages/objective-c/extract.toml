@@ -1,0 +1,46 @@
+# Objective-C symbol extraction rules for cq.
+#
+# Covers class interfaces, class implementations, method declarations,
+# protocol declarations, and category declarations.
+
+[language]
+name = "objc"
+extensions = [".m", ".h"]
+
+# Class interface: @interface Foo
+[[symbols]]
+kind = "class"
+query = '(class_interface name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Class implementation: @implementation Foo
+[[symbols]]
+kind = "class"
+query = '(class_implementation name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+# Method declarations: - (void)foo:(int)bar
+[[symbols]]
+kind = "method"
+query = '(method_declaration selector: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Protocol declarations: @protocol Foo
+[[symbols]]
+kind = "interface"
+query = '(protocol_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Category declarations: @interface Foo (Bar)
+[[symbols]]
+kind = "category"
+query = '(category_interface name: (identifier) @name) @def'
+name = "@name"
+body = "@def"

@@ -1,0 +1,30 @@
+# Just (justfile) symbol extraction rules for cq.
+#
+# Extracts recipe targets and variable assignments.
+
+[language]
+name = "just"
+extensions = [".just"]
+filenames = ["justfile", "Justfile", ".justfile"]
+
+# Recipe definitions: target: deps
+[[symbols]]
+kind = "function"
+query = '(recipe header: (recipe_header name: (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Variable assignments: foo := "bar"
+[[symbols]]
+kind = "variable"
+query = '(assignment name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+# Alias definitions: alias foo := bar
+[[symbols]]
+kind = "alias"
+query = '(alias left: (identifier) @name) @def'
+name = "@name"
+body = "@def"

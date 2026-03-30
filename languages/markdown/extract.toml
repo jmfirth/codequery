@@ -1,0 +1,21 @@
+# Markdown symbol extraction rules for cq.
+#
+# Extracts headings as navigable section symbols.
+
+[language]
+name = "markdown"
+extensions = [".md", ".markdown"]
+
+# ATX headings: # Heading, ## Heading, etc.
+[[symbols]]
+kind = "section"
+query = '(atx_heading (inline) @name) @def'
+name = "@name"
+body = "@def"
+
+# Setext headings: Heading\n=======
+[[symbols]]
+kind = "section"
+query = '(setext_heading (paragraph) @name) @def'
+name = "@name"
+body = "@def"

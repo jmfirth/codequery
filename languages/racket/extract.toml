@@ -1,0 +1,43 @@
+# Racket symbol extraction rules for cq.
+#
+# Covers define, define/contract, struct, and module forms.
+# Racket uses a Scheme-like tree-sitter grammar.
+
+[language]
+name = "racket"
+extensions = [".rkt"]
+
+# Function definitions: (define (foo x y) ...)
+[[symbols]]
+kind = "function"
+query = '(list (symbol) @_head (#eq? @_head "define") (list (symbol) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Variable definitions: (define foo value)
+[[symbols]]
+kind = "variable"
+query = '(list (symbol) @_head (#eq? @_head "define") (symbol) @name) @def'
+name = "@name"
+body = "@def"
+
+# Struct definitions: (struct foo (...))
+[[symbols]]
+kind = "struct"
+query = '(list (symbol) @_head (#eq? @_head "struct") (symbol) @name) @def'
+name = "@name"
+body = "@def"
+
+# Module declarations: (module foo ...)
+[[symbols]]
+kind = "module"
+query = '(list (symbol) @_head (#eq? @_head "module") (symbol) @name) @def'
+name = "@name"
+body = "@def"
+
+# Provide forms: (provide foo)
+[[symbols]]
+kind = "export"
+query = '(list (symbol) @_head (#eq? @_head "provide") (symbol) @name) @def'
+name = "@name"
+body = "@def"

@@ -1,0 +1,37 @@
+# Prisma symbol extraction rules for cq.
+#
+# Covers model, enum, datasource, and generator definitions.
+
+[language]
+name = "prisma"
+extensions = [".prisma"]
+
+# Model definitions: model User { ... }
+[[symbols]]
+kind = "type"
+query = '(model_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Enum definitions: enum Role { ... }
+[[symbols]]
+kind = "enum"
+query = '(enum_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Datasource blocks: datasource db { ... }
+[[symbols]]
+kind = "config"
+query = '(datasource_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+# Generator blocks: generator client { ... }
+[[symbols]]
+kind = "config"
+query = '(generator_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"

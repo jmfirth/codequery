@@ -1,0 +1,8 @@
+# Vue LSP configuration for cq.
+#
+# Vue Language Tools (Volar) provides the Vue language server.
+# Install via: npm install -g @vue/language-server
+
+[server]
+binary = "vue-language-server"
+args = ["--stdio"]
