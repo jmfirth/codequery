@@ -239,17 +239,49 @@ fn group_by_language(scan_results: &[FileSymbols]) -> HashMap<Language, Vec<&Fil
 /// Build a stack graph for a language group and resolve references.
 ///
 /// Returns resolved references and any warnings from graph construction.
+/// Maximum number of files to feed into stack graph construction.
+/// Beyond this, fall back to syntactic — the precision benefit doesn't
+/// justify the cost. Use `--semantic` (LSP) for large-scale precision.
+const MAX_STACK_GRAPH_FILES: usize = 200;
+
 fn resolve_language_group(
     files: &[&FileSymbols],
     language: Language,
     symbol: &str,
 ) -> crate::error::Result<(Vec<ResolvedReference>, Vec<String>)> {
-    let graph_input: Vec<_> = files
+    // Optimization: only build the graph from files that mention the symbol.
+    // For a 500-file project querying one symbol, this typically reduces
+    // the graph to 5-20 files instead of 500.
+    let relevant_files: Vec<_> = files
+        .iter()
+        .filter(|fs| fs.source.contains(symbol))
+        .copied()
+        .collect();
+
+    // If too many files match (common symbol name), cap it and warn.
+    let (graph_files, capped) = if relevant_files.len() > MAX_STACK_GRAPH_FILES {
+        (&relevant_files[..MAX_STACK_GRAPH_FILES], true)
+    } else {
+        (relevant_files.as_slice(), false)
+    };
+
+    let graph_input: Vec<_> = graph_files
         .iter()
         .map(|fs| (fs.file.clone(), fs.source.clone(), fs.tree.clone()))
         .collect();
 
     let mut graph_result = build_graph(&graph_input, language)?;
+    if capped {
+        graph_result.warnings.push(crate::graph::GraphWarning {
+            file: std::path::PathBuf::from("<resolver>"),
+            message: format!(
+                "stack graph limited to {} of {} files containing '{symbol}'. \
+                 Use --semantic for full resolution on large projects.",
+                MAX_STACK_GRAPH_FILES,
+                relevant_files.len()
+            ),
+        });
+    }
     let graph_warnings: Vec<String> = graph_result
         .warnings
         .iter()
