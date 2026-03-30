@@ -1,0 +1,3 @@
+[server]
+binary = "nginx-language-server"
+args = []

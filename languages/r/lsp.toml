@@ -1,0 +1,3 @@
+[server]
+binary = "R"
+args = ["--slave", "-e", "languageserver::run()"]

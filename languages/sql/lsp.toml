@@ -1,0 +1,3 @@
+[server]
+binary = "sql-language-server"
+args = ["up", "--method", "stdio"]
