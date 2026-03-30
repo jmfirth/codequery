@@ -31,12 +31,18 @@ impl Parser {
     ///
     /// Returns `ParseError::LanguageError` if the grammar fails to load.
     pub fn for_language(language: Language) -> Result<Self> {
-        let mut parser = tree_sitter::Parser::new();
-        let grammar = grammar_for_language(language)?;
-        parser
-            .set_language(&grammar)
-            .map_err(|e| ParseError::LanguageError(e.to_string()))?;
-        Ok(Self { parser, language })
+        // Try compiled-in grammar first (fast path)
+        if let Some(grammar) = compiled_grammar(language) {
+            let mut parser = tree_sitter::Parser::new();
+            parser
+                .set_language(&grammar)
+                .map_err(|e| ParseError::LanguageError(e.to_string()))?;
+            return Ok(Self { parser, language });
+        }
+
+        // For non-compiled-in grammars, try runtime/WASM fallback.
+        // Cannot delegate to for_name here (would recurse).
+        Self::from_runtime_or_wasm(language.name(), language)
     }
 
     /// Create a parser for a language identified by name.
@@ -56,7 +62,19 @@ impl Parser {
             return Self::for_language(lang);
         }
 
-        // Fall back to native runtime grammar loading (.so/.dylib)
+        // Unknown language name — try runtime/WASM with a placeholder variant
+        Self::from_runtime_or_wasm(name, Language::Rust)
+    }
+
+    /// Try loading a grammar from native runtime (.so/.dylib) or WASM plugin.
+    ///
+    /// This is the shared fallback for `for_language` (when the compiled-in
+    /// grammar isn't available) and `for_name` (when the name isn't a known
+    /// Language variant). The `language` parameter is used as the Language
+    /// variant on the returned Parser; for WASM/runtime grammars it may be
+    /// a placeholder.
+    fn from_runtime_or_wasm(name: &str, language: Language) -> Result<Self> {
+        // Try native runtime grammar loading (.so/.dylib)
         match runtime_grammar::load_runtime_grammar(name) {
             Ok(grammar) => {
                 let mut parser = tree_sitter::Parser::new();
@@ -64,13 +82,7 @@ impl Parser {
                     .set_language(&grammar)
                     .map_err(|e| ParseError::LanguageError(e.to_string()))?;
 
-                // Runtime grammars don't have a Language variant; use Rust as a
-                // placeholder -- callers using for_name should not rely on
-                // language() for runtime grammars.
-                return Ok(Self {
-                    parser,
-                    language: Language::Rust, // placeholder for runtime grammars
-                });
+                return Ok(Self { parser, language });
             }
             Err(_native_err) => {
                 // Native grammar not found, try WASM next
@@ -82,12 +94,7 @@ impl Parser {
             let mut parser = tree_sitter::Parser::new();
             wasm_loader::load_wasm_language_cached(&info.wasm_path, &mut parser)?;
 
-            // WASM grammars don't have a Language variant; use Rust as a
-            // placeholder -- same limitation as native runtime grammars.
-            return Ok(Self {
-                parser,
-                language: Language::Rust, // placeholder for WASM grammars
-            });
+            return Ok(Self { parser, language });
         }
 
         Err(ParseError::LanguageError(format!(
