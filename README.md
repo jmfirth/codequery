@@ -4,13 +4,13 @@ The `jq` for source code.
 
 ---
 
-`cq` is a semantic code query tool for the command line. One binary, 16 languages, zero setup. It answers structural questions about code: where is this symbol defined, what does it look like, who calls it, what does it depend on.
+`cq` is a semantic code query tool for the command line. **75 languages, one binary, zero setup.** It answers structural questions about code: where is this symbol defined, what does it look like, who calls it, what does it depend on. Languages install automatically on first use.
 
 There is a gap between `grep` and language servers. Grep is fast but semantically blind. Language servers are precise but heavy — they need toolchains, indexing time, and compilable code. `cq` bridges the gap with three tiers of precision that activate automatically:
 
-- **Tree-sitter** -- instant, works on broken code, knows definitions from references from strings. Always available.
-- **Stack graphs** -- scope-resolved name binding. Follows imports, qualified names, and cross-file references. Available for 10 languages, no setup required.
-- **Language servers** -- compiler-level precision via LSP. Resolves generics, trait dispatch, type inference. Available for all 16 languages when a language server is installed. Optional `cq daemon` keeps servers warm for sub-second queries.
+- **Tree-sitter** -- instant (<100ms), works on broken code, knows definitions from references from strings. 75 languages.
+- **Stack graphs** -- scope-resolved name binding. Follows imports, qualified names, and cross-file references. 10 languages, no setup required.
+- **Language servers** -- compiler-level precision via LSP. Resolves generics, trait dispatch, type inference. 40+ languages with built-in server configs. Optional `cq daemon` keeps servers warm for sub-second queries.
 
 The same command produces the same output format at every tier. Only the `resolution` metadata field changes — from `syntactic` to `resolved` to `semantic`. The cascade runs automatically: you get the best precision available without configuring anything.
 
@@ -93,47 +93,17 @@ Homebrew formula coming soon.
 
 ## Language Support
 
-**75 languages supported.** 15 compiled-in, 60 installable via `cq grammar install`.
+**75 languages.** Languages install automatically on first use — `cq outline app.ex` downloads Elixir support in the background, then shows results. No manual setup.
 
-### Built-in (always available)
-
-| Language | Precision | Notes |
-|----------|-----------|-------|
-| Python | Resolved | Stack graph + LSP (pyright) |
-| TypeScript | Resolved | Stack graph + LSP (tsserver) |
-| JavaScript | Resolved | Stack graph, includes JSX |
-| Rust | Resolved | Stack graph + LSP (rust-analyzer) |
-| Go | Resolved | Stack graph + LSP (gopls) |
-| C | Resolved | Stack graph + LSP (clangd) |
-| C++ | Resolved | Stack graph + LSP (clangd) |
-| Java | Resolved | Stack graph + LSP (jdtls) |
-| Ruby | Resolved | Stack graph + LSP (solargraph) |
-| PHP | Syntactic | LSP (intelephense) |
-| HTML | Syntactic | Structural tag extraction |
-| CSS | Syntactic | Selectors, variables, media queries |
-| JSON | Syntactic | Top-level key extraction |
-| YAML | Syntactic | Key and anchor extraction |
-| TOML | Syntactic | Table and key extraction |
-
-### Installable (60+ languages)
+Python, TypeScript, JavaScript, Rust, Go, C, C++, Java, Ruby, PHP, C#, Swift, Kotlin, HTML, CSS, JSON, YAML, TOML, Elixir, Haskell, Dart, SQL, Scala, Zig, Lua, Bash, Dockerfile, Terraform, Markdown, XML, Protobuf, GraphQL, Vue, Svelte, F#, Groovy, Objective-C, Nix, CMake, SCSS, Elm, Solidity, Verilog, CUDA, Fortran, Ada, Pascal, LaTeX, Prisma, Bicep, and more. Run `cq grammar list` for the full list.
 
 ```
-$ cq grammar install elixir    # install one language
-$ cq grammar install --all     # install everything
-$ cq grammar list              # see what's available
+$ cq grammar install --all     # pre-download everything (optional)
 ```
 
-Languages auto-download on first encounter — `cq outline app.ex` installs Elixir support automatically.
+**Scope-resolved cross-references** for 10 languages (Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, Ruby, C#) — follows imports, qualified names, and resolves across files without a language server.
 
-Available languages include: C#, Swift, Kotlin, Scala, Zig, Lua, Bash, Elixir, Haskell, Dart, SQL, Dockerfile, Terraform, Markdown, XML, Protobuf, GraphQL, Vue, Svelte, F#, Groovy, Objective-C, Nix, CMake, SCSS, Elm, Solidity, Verilog, CUDA, Fortran, COBOL, Ada, Pascal, LaTeX, Prisma, Bicep, Starlark, and more. Run `cq grammar list` for the full list.
-
-### Stack graph resolution
-
-10 languages have scope-resolved cross-references (follows imports, qualified names, resolves across files): Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, Ruby, C#.
-
-### LSP semantic precision
-
-Available for any language with a language server installed. Built-in LSP configs for 40+ languages. The precision cascade runs automatically — no configuration needed.
+**LSP semantic precision** for 40+ languages with built-in server configs. The cascade runs automatically — no configuration needed.
 
 ---
 
@@ -185,11 +155,11 @@ Every `cq` result includes `resolution` and `completeness` metadata so consumers
 
 ### Three tiers of precision
 
-**Syntactic.** Tree-sitter AST name and structure matching. Knows definitions from references from string literals. Cannot disambiguate when multiple types share a method name. Available for all 16 languages. Instant — under 100ms for targeted queries, under 1s for project-wide scans.
+**Syntactic.** Tree-sitter AST name and structure matching. Knows definitions from references from string literals. Cannot disambiguate when multiple types share a method name. All 75 languages. Instant — under 100ms for targeted queries, under 1s for project-wide scans.
 
-**Resolved.** Stack graph scope resolution. Follows import paths, qualified names, scope chains, and re-exports. Disambiguates across modules without a language server. Available for the 10 languages with TSG rules. Adds 1-2s for scope resolution on large projects.
+**Resolved.** Stack graph scope resolution. Follows import paths, qualified names, scope chains, and re-exports. Disambiguates across modules without a language server. 10 languages. Adds 1-2s for scope resolution on large projects.
 
-**Semantic.** Full type resolution via language server. Resolves trait dispatch, generics, macros, and the full type system. Available for all 16 languages when a language server is installed. Cold start: 3-30s (starts a server, queries, stops). With `cq daemon`: sub-second (server stays warm).
+**Semantic.** Full type resolution via language server. Resolves trait dispatch, generics, macros, and the full type system. 40+ languages with built-in LSP configs. Cold start: 3-30s (starts a server, queries, stops). With `cq daemon`: sub-second (server stays warm).
 
 ### Automatic cascade
 
@@ -225,16 +195,16 @@ For best-effort commands, JSON output includes a `note` field explaining the lim
 
 ### Real-world project validation
 
-Stack graph rules hardened against ~1,800 source files from 24 open-source projects with zero TSG errors:
+Stack graph rules hardened against ~1,800 source files from 24 open-source projects with zero errors:
 
-| Language | Projects | Tests |
-|----------|----------|-------|
-| Rust | ripgrep, serde, tokio, clap | 350+ |
-| Go | gin, cobra, hugo, fiber | 300+ |
-| C | redis, jq, curl, zstd | 300+ |
-| C++ | nlohmann/json, fmt, catch2, leveldb | 250+ |
-| Ruby | sinatra, rack, jekyll, devise | 250+ |
-| C# | newtonsoft-json, dapper, polly | 250+ |
+| Language | Validated against |
+|----------|------------------|
+| Rust | ripgrep, serde, tokio, clap |
+| Go | gin, cobra, hugo, fiber |
+| C | redis, jq, curl, zstd |
+| C++ | nlohmann/json, fmt, catch2, leveldb |
+| Ruby | sinatra, rack, jekyll, devise |
+| C# | newtonsoft-json, dapper, polly |
 
 ### LSP ground truth comparison
 
