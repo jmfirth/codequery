@@ -11,6 +11,16 @@ use serde::Deserialize;
 /// The baked-in language registry, compiled into the binary.
 const REGISTRY_JSON: &str = include_str!("../../../../languages/registry.json");
 
+/// Remote registry URL (CORS-enabled, auto-updates on push to main).
+/// Used by `cq grammar update` to fetch the latest registry, and available
+/// for browser/WASM integrations that need CORS access.
+const REGISTRY_URL: &str =
+    "https://raw.githubusercontent.com/jmfirth/codequery/main/languages/registry.json";
+
+/// Base URL for GitHub release artifacts (grammar packages, binaries).
+/// CORS-enabled — works from browsers.
+const RELEASE_BASE_URL: &str = "https://github.com/jmfirth/codequery/releases/download";
+
 /// Languages compiled into the binary with the `common` feature preset.
 ///
 /// This list reflects the default `common` feature. Languages outside this set
@@ -203,10 +213,7 @@ pub fn run_install(language: &str) -> anyhow::Result<ExitCode> {
     }
 
     let version = env!("CARGO_PKG_VERSION");
-    let base_url = format!(
-        "https://github.com/jmfirth/codequery/releases/download/v{version}"
-    );
-    let archive_url = format!("{base_url}/lang-{language}.tar.gz");
+    let archive_url = format!("{RELEASE_BASE_URL}/v{version}/lang-{language}.tar.gz");
 
     eprintln!("Downloading {language} language package for cq v{version}...");
     eprintln!("  from: {archive_url}");
@@ -320,12 +327,29 @@ pub fn run_install_all() -> anyhow::Result<ExitCode> {
 ///
 /// Returns an error if installation of any package fails.
 pub fn run_update() -> anyhow::Result<ExitCode> {
+    // Refresh the cached registry from GitHub
+    eprintln!("Refreshing language registry...");
+    if let Some(cache_path) = codequery_core::dirs::registry_cache_path() {
+        let output = std::process::Command::new("curl")
+            .args(["-fsSL", "--max-time", "10", REGISTRY_URL, "-o"])
+            .arg(&cache_path)
+            .output();
+        match output {
+            Ok(result) if result.status.success() => {
+                eprintln!("  registry updated from {REGISTRY_URL}");
+            }
+            _ => {
+                eprintln!("  registry refresh failed (using baked-in version)");
+            }
+        }
+    }
+
     let languages_dir = codequery_core::dirs::languages_dir()
         .ok_or_else(|| anyhow::anyhow!("cannot determine languages directory"))?;
 
     let installed = find_installed(&languages_dir);
     if installed.is_empty() {
-        eprintln!("no language packages installed");
+        eprintln!("No language packages installed. Use: cq grammar install <lang>");
         return Ok(ExitCode::Success);
     }
 
