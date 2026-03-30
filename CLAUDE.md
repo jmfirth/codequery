@@ -2,19 +2,17 @@
 
 Semantic code query tool for the command line. Tree-sitter-powered structural navigation for AI agents and humans.
 
-See `SPECIFICATION.md` for the full design. See `CONVENTIONS.md` for coding standards — all code changes must follow those conventions.
 
 ---
 
 ## Project State
 
-Release-ready. 1960 tests, 7 crates, 12 commands, 16 languages. Stack graphs for 10 languages (all Tier 1 + Ruby, C#), hardened against 24 real-world open-source projects. LSP defaults for all 16 languages. MCP server ships as `cq-mcp`.
+Release-ready. 2050+ tests, 7 crates, 12 commands, 22 languages. Stack graphs for 10 languages (all Tier 1 + Ruby, C#), hardened against 24 real-world open-source projects. LSP defaults for all 22 languages. MCP server ships as `cq-mcp`.
 
 ## Key Documents
 
 | Document | Purpose | Read when |
 |----------|---------|-----------|
-| `SPECIFICATION.md` | Tool design, command surface, output formats, architecture | Before any design decision |
 | `CONVENTIONS.md` | Coding standards, style, architecture rules | Before writing any code |
 
 ## Crate Structure
@@ -22,7 +20,7 @@ Release-ready. 1960 tests, 7 crates, 12 commands, 16 languages. Stack graphs for
 | Crate | Purpose |
 |-------|---------|
 | `codequery-core` | Symbol types, project detection, file discovery, config |
-| `codequery-parse` | Tree-sitter parsing, per-language extraction (16 languages), search engine |
+| `codequery-parse` | Tree-sitter parsing, per-language extraction (22 languages), search engine |
 | `codequery-index` | Parallel scanning (rayon), grep pre-filter (memchr), symbol index, reference extraction, caching |
 | `codequery-resolve` | Stack graph resolution (10 languages), TSG rules, resolver facade |
 | `codequery-lsp` | LSP client, JSON-RPC transport, server lifecycle, daemon, cascade |
@@ -85,7 +83,7 @@ These are non-negotiable constraints:
 |-------|------|-------|
 | Unit | Internal API correctness | `#[cfg(test)]` in each module |
 | Integration | Command → expected output against fixture projects | `crates/codequery-cli/tests/` |
-| Cross-language | Same commands across all 16 languages | `test_coverage_tier1.rs`, `test_coverage_tier2.rs` |
+| Cross-language | Same commands across all 22 languages | `test_coverage_tier1.rs`, `test_coverage_tier2.rs` |
 | Precision | Stack graph resolution proof, LSP comparison | `test_proof.rs`, `test_precision.rs` |
 | Strict | Exact resolution tiers per language | `test_stack_graph_strict.rs` |
 

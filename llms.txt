@@ -15,7 +15,7 @@ symbols [--kind K]    All symbols in project
 imports <file>        Imports/dependencies of a file
 context <file>:<line> Enclosing symbol for a line number
 tree [path]           Hierarchical symbol tree
-search <pattern>      Structural pattern matching (ast-grep syntax)
+search <pattern>      Structural pattern matching ($NAME metavariables)
 grammar list          Show installed and available languages
 grammar install <L>   Install a language (or --all for everything)
 

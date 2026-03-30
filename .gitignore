@@ -1,6 +1,5 @@
 # Rust
 target/
-Cargo.lock
 
 # macOS
 .DS_Store
@@ -20,6 +19,7 @@ tarpaulin-report.json
 PLAN.md
 PROCESS.md
 BOOTSTRAP.md
+SPECIFICATION.md
 tasks/
 agents/
 reviews/

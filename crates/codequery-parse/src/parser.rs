@@ -89,7 +89,7 @@ impl Parser {
             }
         }
 
-        // Fall back to WASM grammar loading
+        // Fall back to WASM grammar loading (check if already installed)
         if let Some(info) = wasm_loader::find_wasm_grammar(name) {
             let mut parser = tree_sitter::Parser::new();
             wasm_loader::load_wasm_language_cached(&info.wasm_path, &mut parser)?;
@@ -97,10 +97,22 @@ impl Parser {
             return Ok(Self { parser, language });
         }
 
+        // Auto-install: if the language is in the registry, download it on first use.
+        // This makes the "75 languages, zero setup" promise real — any language works
+        // the first time you use it, with a ~1-2s download on first encounter.
+        if auto_install_grammar(name) {
+            // Retry WASM loading after install
+            if let Some(info) = wasm_loader::find_wasm_grammar(name) {
+                let mut parser = tree_sitter::Parser::new();
+                wasm_loader::load_wasm_language_cached(&info.wasm_path, &mut parser)?;
+                return Ok(Self { parser, language });
+            }
+        }
+
         Err(ParseError::LanguageError(format!(
             "no grammar available for language '{name}': \
-             not a builtin language, no native runtime grammar, \
-             and no WASM grammar installed"
+             not a builtin language, no runtime grammar, \
+             and auto-install failed. Try: cq grammar install {name}"
         )))
     }
 
@@ -109,7 +121,88 @@ impl Parser {
     pub fn language(&self) -> Language {
         self.language
     }
+}
 
+// ── Auto-install ────────────────────────────────────────────────
+
+/// Attempt to auto-install a grammar from the registry via `cq grammar install`.
+///
+/// Returns `true` if the install succeeded and the grammar should now be available.
+/// Prints a brief status message to stderr so the user knows what's happening.
+fn auto_install_grammar(name: &str) -> bool {
+    eprintln!("cq: auto-installing {name} language support...");
+
+    let version = env!("CARGO_PKG_VERSION");
+    let url = format!(
+        "https://github.com/jmfirth/codequery/releases/download/v{version}/lang-{name}.tar.gz"
+    );
+
+    // Determine install directory
+    let Some(languages_dir) = codequery_core::dirs::languages_dir() else {
+        return false;
+    };
+    let pkg_dir = languages_dir.join(name);
+    if std::fs::create_dir_all(&pkg_dir).is_err() {
+        return false;
+    }
+
+    // Download and extract via curl + tar (available on macOS/Linux)
+    let download = std::process::Command::new("curl")
+        .args(["-fsSL", "--max-time", "30", &url, "-o", "-"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .output();
+
+    let Ok(result) = download else {
+        let _ = std::fs::remove_dir_all(&pkg_dir);
+        return false;
+    };
+
+    if !result.status.success() {
+        let _ = std::fs::remove_dir_all(&pkg_dir);
+        return false;
+    }
+
+    // Extract tarball
+    let extract = std::process::Command::new("tar")
+        .args(["xzf", "-", "-C"])
+        .arg(&pkg_dir)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .and_then(|mut child| {
+            use std::io::Write;
+            if let Some(ref mut stdin) = child.stdin {
+                let _ = stdin.write_all(&result.stdout);
+            }
+            child.wait()
+        });
+
+    match extract {
+        Ok(status) if status.success() => {
+            // Verify we got a real grammar
+            let grammar_path = pkg_dir.join("grammar.wasm");
+            if grammar_path.exists()
+                && std::fs::metadata(&grammar_path)
+                    .map(|m| m.len() > 100)
+                    .unwrap_or(false)
+            {
+                eprintln!("cq: {name} installed successfully");
+                true
+            } else {
+                let _ = std::fs::remove_dir_all(&pkg_dir);
+                false
+            }
+        }
+        _ => {
+            let _ = std::fs::remove_dir_all(&pkg_dir);
+            false
+        }
+    }
+}
+
+impl Parser {
     /// Parse source bytes into a tree-sitter tree.
     ///
     /// Tree-sitter always produces a tree, even for invalid syntax.
