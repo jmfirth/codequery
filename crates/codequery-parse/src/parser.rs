@@ -125,11 +125,32 @@ impl Parser {
 
 // ── Auto-install ────────────────────────────────────────────────
 
+use std::sync::Mutex;
+
+/// Languages we've already attempted to auto-install this process.
+/// Prevents repeated download attempts (and 30s timeouts) for the same language
+/// when scanning a project with many files of that type.
+static AUTO_INSTALL_ATTEMPTED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
 /// Attempt to auto-install a grammar from the registry via `cq grammar install`.
 ///
 /// Returns `true` if the install succeeded and the grammar should now be available.
-/// Prints a brief status message to stderr so the user knows what's happening.
+/// Only attempts once per language per process — subsequent calls return immediately.
 fn auto_install_grammar(name: &str) -> bool {
+    // Check if we've already tried this language
+    {
+        let attempted = AUTO_INSTALL_ATTEMPTED.lock().unwrap_or_else(|e| e.into_inner());
+        if attempted.iter().any(|n| n == name) {
+            return false;
+        }
+    }
+
+    // Mark as attempted before trying (even if it fails)
+    {
+        let mut attempted = AUTO_INSTALL_ATTEMPTED.lock().unwrap_or_else(|e| e.into_inner());
+        attempted.push(name.to_string());
+    }
+
     eprintln!("cq: auto-installing {name} language support...");
 
     let version = env!("CARGO_PKG_VERSION");
@@ -148,7 +169,7 @@ fn auto_install_grammar(name: &str) -> bool {
 
     // Download and extract via curl + tar (available on macOS/Linux)
     let download = std::process::Command::new("curl")
-        .args(["-fsSL", "--max-time", "30", &url, "-o", "-"])
+        .args(["-fsSL", "--max-time", "5", &url, "-o", "-"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .output();
