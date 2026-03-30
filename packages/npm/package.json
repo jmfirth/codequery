@@ -1,0 +1,20 @@
+{
+  "name": "cq-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for cq — semantic code query tool. 75 languages, three-tier precision cascade.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jmfirth/codequery"
+  },
+  "bin": {
+    "cq-mcp": "./bin/run.js"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "files": [
+    "install.js",
+    "bin/"
+  ]
+}
