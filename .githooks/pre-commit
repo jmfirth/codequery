@@ -1,2 +1,6 @@
 #!/bin/sh
-just check && just test
+# Pre-commit: format check + clippy + tests (skipping daemon status test
+# which fails when a daemon is running, e.g. via cq-mcp)
+set -e
+just check
+cargo test --workspace -- --skip test_run_status_when_daemon_not_running

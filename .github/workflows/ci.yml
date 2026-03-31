@@ -43,7 +43,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Run tests
+        # codequery-lsp uses Unix domain sockets; skip tests on Windows
+        if: runner.os != 'Windows'
         run: cargo test --workspace
+
+      - name: Build check (Windows)
+        if: runner.os == 'Windows'
+        run: cargo check --workspace --exclude codequery-lsp
 
   build:
     name: Release Build
