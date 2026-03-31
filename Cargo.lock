@@ -297,7 +297,7 @@ dependencies = [
 
 [[package]]
 name = "codequery-cli"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -315,7 +315,7 @@ dependencies = [
 
 [[package]]
 name = "codequery-core"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "glob",
  "ignore",
@@ -328,7 +328,7 @@ dependencies = [
 
 [[package]]
 name = "codequery-index"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "bincode",
  "codequery-core",
@@ -346,7 +346,7 @@ dependencies = [
 
 [[package]]
 name = "codequery-lsp"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "codequery-core",
  "codequery-index",
@@ -362,7 +362,7 @@ dependencies = [
 
 [[package]]
 name = "codequery-mcp"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -370,7 +370,7 @@ dependencies = [
 
 [[package]]
 name = "codequery-parse"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "codequery-core",
  "criterion",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "codequery-resolve"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "codequery-core",
  "codequery-index",

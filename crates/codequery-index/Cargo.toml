@@ -1,6 +1,6 @@
 [package]
 name = "codequery-index"
-version = "0.1.0"
+version = "1.0.0"
 license = "Apache-2.0"
 description = "Parallel file scanning, grep pre-filter, and symbol indexing for cq"
 repository = "https://github.com/jmfirth/codequery"

@@ -1,6 +1,6 @@
 [package]
 name = "codequery-resolve"
-version = "0.1.0"
+version = "1.0.0"
 license = "Apache-2.0"
 description = "Stack graph name resolution with TSG rules for 10 languages"
 repository = "https://github.com/jmfirth/codequery"

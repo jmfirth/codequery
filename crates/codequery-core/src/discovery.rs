@@ -2,11 +2,54 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use ignore::WalkBuilder;
 
 use crate::config::ProjectConfig;
 use crate::error::{CoreError, Result};
+
+/// Baked-in registry JSON (all 71 languages with their extensions).
+const REGISTRY_JSON: &str = include_str!("../../../languages/registry.json");
+
+/// Cached extension → language name map built from the registry.
+static EXTENSION_MAP: OnceLock<HashMap<String, String>> = OnceLock::new();
+
+/// Get the extension → language name map, building it on first access.
+fn extension_map() -> &'static HashMap<String, String> {
+    EXTENSION_MAP.get_or_init(|| {
+        let mut map = HashMap::new();
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(REGISTRY_JSON) {
+            if let Some(languages) = parsed.get("languages").and_then(|l| l.as_array()) {
+                for lang in languages {
+                    let Some(name) = lang.get("name").and_then(|n| n.as_str()) else {
+                        continue;
+                    };
+                    if let Some(exts) = lang.get("extensions").and_then(|e| e.as_array()) {
+                        for ext in exts {
+                            if let Some(ext_str) = ext.as_str() {
+                                // Strip leading dot: ".rs" → "rs"
+                                let key = ext_str.strip_prefix('.').unwrap_or(ext_str);
+                                map.insert(key.to_string(), name.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        map
+    })
+}
+
+/// Resolve a file extension to a language name using the registry.
+///
+/// Returns the language name (e.g. "rust", "elixir") for any language
+/// in the registry, whether built-in or installable.
+#[must_use]
+pub fn language_name_for_file(path: &Path) -> Option<String> {
+    let ext_str = path.extension().and_then(|ext| ext.to_str())?;
+    extension_map().get(ext_str).cloned()
+}
 
 /// Supported source languages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
@@ -177,7 +220,10 @@ pub fn language_for_file_with_overrides<S: std::hash::BuildHasher>(
         "json" => Some(Language::Json),
         "yaml" | "yml" => Some(Language::Yaml),
         "toml" => Some(Language::Toml),
-        _ => None,
+        // Fallback: check the registry for runtime/installable languages
+        _ => extension_map()
+            .get(ext_str)
+            .and_then(|name| Language::from_name(name)),
     }
 }
 
@@ -221,7 +267,7 @@ pub fn discover_files(root: &Path, scope: Option<&Path>) -> Result<Vec<PathBuf>>
         }
 
         let path = entry.path();
-        if language_for_file(path).is_some() {
+        if language_name_for_file(path).is_some() {
             let relative = path
                 .strip_prefix(root)
                 .map_err(|e| CoreError::Path(format!("cannot make path relative: {e}")))?;

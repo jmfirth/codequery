@@ -2,6 +2,244 @@
   "version": "1",
   "languages": [
     {
+      "name": "rust",
+      "display_name": "Rust",
+      "description": "Rust systems programming language",
+      "extensions": [
+        ".rs"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract",
+        "lsp",
+        "stack-graphs"
+      ],
+      "lsp_server": "rust-analyzer",
+      "builtin": true
+    },
+    {
+      "name": "typescript",
+      "display_name": "TypeScript",
+      "description": "TypeScript / JavaScript with types",
+      "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract",
+        "lsp",
+        "stack-graphs"
+      ],
+      "lsp_server": "typescript-language-server",
+      "builtin": true
+    },
+    {
+      "name": "javascript",
+      "display_name": "JavaScript",
+      "description": "JavaScript / Node.js",
+      "extensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract",
+        "lsp",
+        "stack-graphs"
+      ],
+      "lsp_server": "typescript-language-server",
+      "builtin": true
+    },
+    {
+      "name": "python",
+      "display_name": "Python",
+      "description": "Python",
+      "extensions": [
+        ".py",
+        ".pyi"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract",
+        "lsp",
+        "stack-graphs"
+      ],
+      "lsp_server": "pyright",
+      "builtin": true
+    },
+    {
+      "name": "go",
+      "display_name": "Go",
+      "description": "Go",
+      "extensions": [
+        ".go"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract",
+        "lsp",
+        "stack-graphs"
+      ],
+      "lsp_server": "gopls",
+      "builtin": true
+    },
+    {
+      "name": "c",
+      "display_name": "C",
+      "description": "C",
+      "extensions": [
+        ".c",
+        ".h"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract",
+        "lsp",
+        "stack-graphs"
+      ],
+      "lsp_server": "clangd",
+      "builtin": true
+    },
+    {
+      "name": "cpp",
+      "display_name": "C++",
+      "description": "C++",
+      "extensions": [
+        ".cpp",
+        ".cc",
+        ".cxx",
+        ".hpp",
+        ".hxx",
+        ".hh"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract",
+        "lsp"
+      ],
+      "lsp_server": "clangd",
+      "builtin": true
+    },
+    {
+      "name": "java",
+      "display_name": "Java",
+      "description": "Java",
+      "extensions": [
+        ".java"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract",
+        "lsp",
+        "stack-graphs"
+      ],
+      "lsp_server": "jdtls",
+      "builtin": true
+    },
+    {
+      "name": "ruby",
+      "display_name": "Ruby",
+      "description": "Ruby",
+      "extensions": [
+        ".rb",
+        ".rake",
+        ".gemspec"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract",
+        "lsp",
+        "stack-graphs"
+      ],
+      "lsp_server": "solargraph",
+      "builtin": true
+    },
+    {
+      "name": "php",
+      "display_name": "PHP",
+      "description": "PHP",
+      "extensions": [
+        ".php"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract",
+        "lsp"
+      ],
+      "lsp_server": "intelephense",
+      "builtin": true
+    },
+    {
+      "name": "html",
+      "display_name": "HTML",
+      "description": "HTML",
+      "extensions": [
+        ".html",
+        ".htm"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract"
+      ],
+      "builtin": true
+    },
+    {
+      "name": "css",
+      "display_name": "CSS",
+      "description": "CSS",
+      "extensions": [
+        ".css"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract"
+      ],
+      "builtin": true
+    },
+    {
+      "name": "json",
+      "display_name": "JSON",
+      "description": "JSON",
+      "extensions": [
+        ".json"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract"
+      ],
+      "builtin": true
+    },
+    {
+      "name": "yaml",
+      "display_name": "YAML",
+      "description": "YAML",
+      "extensions": [
+        ".yaml",
+        ".yml"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract"
+      ],
+      "builtin": true
+    },
+    {
+      "name": "toml",
+      "display_name": "TOML",
+      "description": "TOML",
+      "extensions": [
+        ".toml"
+      ],
+      "capabilities": [
+        "grammar",
+        "extract"
+      ],
+      "builtin": true
+    },
+    {
       "name": "csharp",
       "display_name": "C#",
       "description": "C# / .NET",
