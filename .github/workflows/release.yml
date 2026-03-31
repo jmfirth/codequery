@@ -30,7 +30,7 @@ jobs:
             mcp_binary: cq-mcp
             archive: tar.gz
           - target: x86_64-apple-darwin
-            os: macos-13
+            os: macos-latest
             binary: cq
             mcp_binary: cq-mcp
             archive: tar.gz

@@ -13,8 +13,8 @@ use codequery_index::FileSymbols;
 use codequery_resolve::{ResolutionResult, ResolvedReference, StackGraphResolver};
 
 use crate::client::DaemonClient;
+use crate::daemon_file;
 use crate::oneshot;
-use crate::pid;
 use crate::queries::uri_to_path;
 
 /// Resolves references using a four-step cascade of increasing cost.
@@ -48,7 +48,7 @@ pub fn resolve_with_cascade(
     semantic_requested: bool,
 ) -> ResolutionResult {
     // Step 1: Try the daemon if it's running.
-    if pid::is_daemon_running() {
+    if daemon_file::is_daemon_running(project_root) {
         if let Ok(result) = try_daemon_refs(
             project_root,
             language,
@@ -96,7 +96,7 @@ fn try_daemon_refs(
     symbol_line: usize,
     symbol_column: usize,
 ) -> crate::error::Result<ResolutionResult> {
-    let mut client = DaemonClient::connect()?;
+    let mut client = DaemonClient::connect(project_root)?;
     let locations = client.query_refs(
         project_root,
         language,
@@ -326,7 +326,7 @@ mod tests {
     fn test_cascade_skips_daemon_when_not_running() {
         // With no daemon running, the cascade should skip step 1 entirely
         // and go to step 2 (if semantic) or step 3 (if not).
-        assert!(!pid::is_daemon_running());
+        assert!(!daemon_file::is_daemon_running(Path::new("/tmp/project")));
 
         let source = "x = 1\n";
         let fs = make_file_symbols("app.py", source, Language::Python);

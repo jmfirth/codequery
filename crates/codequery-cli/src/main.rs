@@ -216,11 +216,11 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             },
         },
         Command::Daemon { action } => match action {
-            DaemonAction::Start => commands::daemon::run_start(),
-            DaemonAction::Stop => commands::daemon::run_stop(),
-            DaemonAction::Status => commands::daemon::run_status(),
+            DaemonAction::Start => commands::daemon::run_start(args.project.as_deref()),
+            DaemonAction::Stop => commands::daemon::run_stop(args.project.as_deref()),
+            DaemonAction::Status => commands::daemon::run_status(args.project.as_deref()),
         },
-        Command::DaemonRun => commands::daemon::run_foreground(),
+        Command::DaemonRun { .. } => commands::daemon::run_foreground(),
         Command::Grammar { action } => match action {
             GrammarAction::List => commands::grammar::run_list(),
             GrammarAction::Install { language, all } => {

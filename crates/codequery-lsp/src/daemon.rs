@@ -2,14 +2,14 @@
 //!
 //! The daemon keeps language servers warm between cq invocations, avoiding the
 //! startup cost of initializing a new server for each query. It listens on a
-//! Unix domain socket and processes one request at a time (sequential).
+//! TCP socket bound to localhost and processes one request at a time (sequential).
 //!
 //! No async runtime is used — the daemon runs a simple synchronous accept loop
-//! with `std::os::unix::net::UnixListener`.
+//! with `std::net::TcpListener`.
 
 use std::collections::HashMap;
 use std::io;
-use std::os::unix::net::UnixListener;
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -18,8 +18,8 @@ use std::time::{Duration, Instant};
 use codequery_core::Language;
 
 use crate::config::LanguageServerRegistry;
+use crate::daemon_file;
 use crate::error::{LspError, Result};
-use crate::pid;
 use crate::server::LspServer;
 use crate::socket::{read_message, write_message, DaemonRequest, DaemonResponse, ServerInfo};
 
@@ -53,7 +53,7 @@ struct PooledServer {
 ///
 /// Manages a pool of `LspServer` instances keyed by `(project_root, language)`.
 /// Idle servers are evicted after a configurable timeout. The daemon listens on
-/// a Unix domain socket and processes requests sequentially.
+/// a TCP socket bound to localhost and processes requests sequentially.
 pub struct Daemon {
     /// Pooled servers keyed by (project root, language).
     servers: HashMap<(PathBuf, Language), PooledServer>,
@@ -63,26 +63,34 @@ pub struct Daemon {
     idle_timeout: Duration,
     /// When the daemon was started.
     start_time: Instant,
+    /// The project root this daemon is serving.
+    project_root: PathBuf,
+    /// Authentication token for incoming connections.
+    token: String,
 }
 
 impl Daemon {
-    /// Creates a new daemon with the given idle timeout.
+    /// Creates a new daemon with the given idle timeout and project root.
     ///
     /// The idle timeout controls how long a language server can go unused
     /// before being shut down to free resources.
     #[must_use]
-    pub fn new(idle_timeout: Duration) -> Self {
+    pub fn new(idle_timeout: Duration, project_root: PathBuf) -> Self {
         Self {
             servers: HashMap::new(),
             registry: LanguageServerRegistry::new(),
             idle_timeout,
             start_time: Instant::now(),
+            project_root,
+            token: daemon_file::generate_token(),
         }
     }
 
     /// Creates a new daemon with the idle timeout from environment or default.
     ///
     /// Reads `CQ_LSP_TIMEOUT` (in seconds) if set, otherwise uses 30 minutes.
+    /// The project root is read from the `CQ_DAEMON_PROJECT` environment variable,
+    /// defaulting to the current directory.
     #[must_use]
     pub fn from_env() -> Self {
         let timeout_secs = std::env::var(IDLE_TIMEOUT_ENV_VAR)
@@ -90,41 +98,62 @@ impl Daemon {
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(DEFAULT_IDLE_TIMEOUT_SECS);
 
-        Self::new(Duration::from_secs(timeout_secs))
+        let project_root = std::env::var("CQ_DAEMON_PROJECT").map_or_else(
+            |_| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            PathBuf::from,
+        );
+
+        Self::new(Duration::from_secs(timeout_secs), project_root)
     }
 
     /// Runs the daemon (blocking).
     ///
-    /// 1. Creates the runtime directory and writes the PID file.
-    /// 2. Binds a Unix domain socket.
+    /// 1. Binds a TCP socket on localhost with an OS-assigned port.
+    /// 2. Writes the daemon info file with port, token, and PID.
     /// 3. Loops: accept connection, read request, handle, write response.
     /// 4. Between connections, evicts idle servers.
     /// 5. On `Shutdown` request or signal, cleans up and exits.
     ///
     /// # Errors
     ///
-    /// Returns an error if the socket cannot be bound or the PID file cannot
-    /// be written.
+    /// Returns an error if the socket cannot be bound or the daemon info file
+    /// cannot be written.
     pub fn run(&mut self) -> Result<()> {
         // Set up signal handling for clean shutdown.
         let shutdown_flag = Arc::new(AtomicBool::new(false));
         Self::register_signal_handlers(&shutdown_flag);
 
-        // Write PID file and bind socket.
-        pid::write_pid_file()?;
-        let socket_path = pid::socket_path()?;
+        // Bind TCP on localhost with OS-assigned port.
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .map_err(|e| LspError::ConnectionFailed(format!("failed to bind TCP listener: {e}")))?;
 
-        // Remove stale socket file if it exists.
-        if socket_path.exists() {
-            let _ = std::fs::remove_file(&socket_path);
-        }
+        let local_addr = listener.local_addr().map_err(LspError::Io)?;
+        let port = local_addr.port();
 
-        let listener = UnixListener::bind(&socket_path).map_err(|e| {
-            pid::remove_pid_file();
-            LspError::ConnectionFailed(format!(
-                "failed to bind socket {}: {e}",
-                socket_path.display()
-            ))
+        // Write daemon info file.
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap_or_default();
+        let started = format!(
+            "{}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+            1970 + now.as_secs() / 31_536_000,
+            (now.as_secs() % 31_536_000) / 2_592_000 + 1,
+            (now.as_secs() % 2_592_000) / 86400 + 1,
+            (now.as_secs() % 86400) / 3600,
+            (now.as_secs() % 3600) / 60,
+            now.as_secs() % 60,
+        );
+
+        let info = daemon_file::DaemonInfo {
+            port,
+            token: self.token.clone(),
+            pid: std::process::id(),
+            project: self.project_root.clone(),
+            started,
+        };
+
+        daemon_file::write_daemon_info(&info).map_err(|e| {
+            LspError::ConnectionFailed(format!("failed to write daemon info file: {e}"))
         })?;
 
         // Set a timeout on accept so we can check the shutdown flag periodically.
@@ -134,8 +163,7 @@ impl Daemon {
 
         // Clean up regardless of how we exited.
         self.shutdown_all_servers();
-        let _ = std::fs::remove_file(&socket_path);
-        pid::remove_pid_file();
+        daemon_file::remove_daemon_file(&self.project_root);
 
         result
     }
@@ -143,7 +171,7 @@ impl Daemon {
     /// The main accept loop.
     fn accept_loop(
         &mut self,
-        listener: &UnixListener,
+        listener: &TcpListener,
         shutdown_flag: &Arc<AtomicBool>,
     ) -> Result<()> {
         loop {
@@ -177,11 +205,33 @@ impl Daemon {
 
     /// Handles a single client connection. Returns `true` if the daemon
     /// should shut down.
-    fn handle_connection(&mut self, mut stream: std::os::unix::net::UnixStream) -> bool {
+    fn handle_connection(&mut self, mut stream: std::net::TcpStream) -> bool {
         // Set the stream to blocking for the duration of this request.
         let _ = stream.set_nonblocking(false);
 
-        // Read the request.
+        // First message must be authentication.
+        let auth_request: DaemonRequest = match read_message(&mut stream) {
+            Ok(req) => req,
+            Err(e) => {
+                eprintln!("cq daemon: failed to read auth request: {e}");
+                return false;
+            }
+        };
+
+        match &auth_request {
+            DaemonRequest::Authenticate { token } if token == &self.token => {
+                let _ = write_message(&mut stream, &DaemonResponse::AuthOk);
+            }
+            _ => {
+                let _ = write_message(
+                    &mut stream,
+                    &DaemonResponse::Error("authentication failed".to_string()),
+                );
+                return false;
+            }
+        }
+
+        // Read the actual request.
         let request: DaemonRequest = match read_message(&mut stream) {
             Ok(req) => req,
             Err(e) => {
@@ -221,6 +271,13 @@ impl Daemon {
                 (response, false)
             }
             DaemonRequest::Shutdown => (DaemonResponse::Ok, true),
+            DaemonRequest::Authenticate { .. } => {
+                // Auth is handled at the connection level, not here.
+                (
+                    DaemonResponse::Error("unexpected authenticate request".to_string()),
+                    false,
+                )
+            }
         }
     }
 
@@ -375,50 +432,14 @@ impl Daemon {
         }
     }
 
-    /// Registers SIGTERM and SIGINT handlers that set the shutdown flag.
+    /// Registers cross-platform signal handlers (SIGINT, SIGTERM on Unix;
+    /// Ctrl-C on Windows) that set the shutdown flag.
     fn register_signal_handlers(shutdown_flag: &Arc<AtomicBool>) {
         let flag = Arc::clone(shutdown_flag);
-        let _ = unsafe {
-            // SAFETY: We only set an atomic bool in the signal handler, which
-            // is async-signal-safe. The AtomicBool is kept alive by the Arc
-            // in the caller's scope.
-            libc::signal(
-                libc::SIGTERM,
-                signal_handler as *const () as libc::sighandler_t,
-            )
-        };
-
-        let _ = unsafe {
-            // SAFETY: Same as above for SIGINT.
-            libc::signal(
-                libc::SIGINT,
-                signal_handler as *const () as libc::sighandler_t,
-            )
-        };
-
-        // Store the flag in a global so the signal handler can access it.
-        // This is safe because we only have one daemon instance per process.
-        SHUTDOWN_FLAG.store(Arc::into_raw(flag) as *mut bool as usize, Ordering::Release);
-    }
-}
-
-/// Global storage for the shutdown flag pointer, accessed from the signal handler.
-static SHUTDOWN_FLAG: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
-/// Signal handler that sets the shutdown flag.
-///
-/// # Safety
-///
-/// Only performs an atomic store, which is async-signal-safe.
-extern "C" fn signal_handler(_signum: libc::c_int) {
-    let ptr = SHUTDOWN_FLAG.load(Ordering::Acquire);
-    if ptr != 0 {
-        let flag = unsafe {
-            // SAFETY: The pointer was created from Arc::into_raw in
-            // register_signal_handlers and points to a valid AtomicBool.
-            &*(ptr as *const AtomicBool)
-        };
-        flag.store(true, Ordering::Release);
+        // ctrlc handles SIGINT on all platforms and SIGTERM on Unix.
+        let _ = ctrlc::set_handler(move || {
+            flag.store(true, Ordering::Release);
+        });
     }
 }
 
@@ -430,7 +451,7 @@ mod tests {
 
     #[test]
     fn test_daemon_new_creates_empty_pool() {
-        let daemon = Daemon::new(Duration::from_secs(60));
+        let daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         assert!(daemon.servers.is_empty());
         assert_eq!(daemon.idle_timeout, Duration::from_secs(60));
     }
@@ -468,7 +489,7 @@ mod tests {
 
     #[test]
     fn test_handle_request_shutdown_returns_ok_and_stop() {
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         let (resp, should_stop) = daemon.handle_request(DaemonRequest::Shutdown);
         assert_eq!(resp, DaemonResponse::Ok);
         assert!(should_stop);
@@ -476,7 +497,7 @@ mod tests {
 
     #[test]
     fn test_handle_request_status_returns_empty_status() {
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         let (resp, should_stop) = daemon.handle_request(DaemonRequest::Status);
         assert!(!should_stop);
         match resp {
@@ -492,7 +513,7 @@ mod tests {
 
     #[test]
     fn test_handle_request_query_unsupported_language() {
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         let (resp, should_stop) = daemon.handle_request(DaemonRequest::Query {
             project: PathBuf::from("/project"),
             language: "brainfuck".to_string(),
@@ -515,7 +536,7 @@ mod tests {
     fn test_handle_request_query_unknown_operation() {
         // This will fail to start a real server, but we can test the operation
         // routing by using a language that won't have a server on CI.
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         let (resp, should_stop) = daemon.handle_request(DaemonRequest::Query {
             project: PathBuf::from("/nonexistent-project"),
             language: "rust".to_string(),
@@ -534,7 +555,7 @@ mod tests {
 
     #[test]
     fn test_evict_idle_servers_does_nothing_when_empty() {
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         daemon.evict_idle_servers();
         assert!(daemon.servers.is_empty());
     }
@@ -543,7 +564,7 @@ mod tests {
 
     #[test]
     fn test_handle_status_reports_uptime() {
-        let daemon = Daemon::new(Duration::from_secs(60));
+        let daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         // Let a tiny bit of time pass.
         std::thread::sleep(Duration::from_millis(10));
         let resp = daemon.handle_status();
@@ -556,24 +577,11 @@ mod tests {
         }
     }
 
-    // ─── signal handler global ──────────────────────────────────────
-
-    #[test]
-    fn test_shutdown_flag_default_is_zero() {
-        // The global should start at 0 (no flag set).
-        // Note: this test is order-dependent in theory, but the value
-        // is only set when a daemon starts running.
-        let val = SHUTDOWN_FLAG.load(Ordering::Relaxed);
-        // We can't assert == 0 because a previous test might have set it.
-        // Just verify it's loadable without crashing.
-        let _ = val;
-    }
-
     // ─── DaemonRequest/DaemonResponse equality used in tests ────────
 
     #[test]
     fn test_handle_query_unsupported_language_returns_error() {
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         let resp = daemon.handle_query(
             Path::new("/project"),
             "haskell",
@@ -594,7 +602,7 @@ mod tests {
 
     #[test]
     fn test_get_or_start_server_no_config_returns_error() {
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         // Ruby has no config in the default registry.
         let result = daemon.get_or_start_server(Path::new("/project"), Language::Ruby);
         assert!(result.is_err());
@@ -611,7 +619,7 @@ mod tests {
     fn test_handle_query_rust_no_server_binary_returns_error() {
         // Use a language with no server config (Ruby) to ensure the server
         // binary is not found, triggering a clean error path.
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         let resp = daemon.handle_query(
             Path::new("/nonexistent-project-xyz"),
             "ruby",
@@ -628,7 +636,7 @@ mod tests {
 
     #[test]
     fn test_shutdown_all_servers_empty_pool_is_noop() {
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         daemon.shutdown_all_servers();
         assert!(daemon.servers.is_empty());
     }
@@ -640,7 +648,7 @@ mod tests {
         // We can't easily insert a mock PooledServer because PooledServer
         // contains a LspServer. But we can verify the logic path by using a
         // very long timeout with an empty pool (no panic).
-        let mut daemon = Daemon::new(Duration::from_secs(3600));
+        let mut daemon = Daemon::new(Duration::from_secs(3600), PathBuf::from("/test/project"));
         daemon.evict_idle_servers();
         assert!(daemon.servers.is_empty());
     }
@@ -649,7 +657,7 @@ mod tests {
 
     #[test]
     fn test_handle_request_query_valid_language_invalid_project() {
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         // Python has a config, but pyright-langserver is unlikely installed in CI.
         let (resp, should_stop) = daemon.handle_request(DaemonRequest::Query {
             project: PathBuf::from("/nonexistent-project"),
@@ -669,7 +677,7 @@ mod tests {
 
     #[test]
     fn test_handle_request_query_with_hover_operation() {
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         let (resp, should_stop) = daemon.handle_request(DaemonRequest::Query {
             project: PathBuf::from("/nonexistent-project"),
             language: "go".to_string(),
@@ -687,7 +695,7 @@ mod tests {
 
     #[test]
     fn test_handle_status_empty_pool_returns_zero_servers() {
-        let daemon = Daemon::new(Duration::from_secs(60));
+        let daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         let resp = daemon.handle_status();
         match resp {
             DaemonResponse::Status {
@@ -823,7 +831,7 @@ mod tests {
 
         let config = mock_query_server_config("{\"definitionProvider\":true}", &def_result);
 
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         insert_mock_server(
             &mut daemon,
             dir.path().to_path_buf(),
@@ -858,7 +866,7 @@ mod tests {
 
         let config = mock_query_server_config("{\"referencesProvider\":true}", &refs_result);
 
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         insert_mock_server(
             &mut daemon,
             dir.path().to_path_buf(),
@@ -887,7 +895,7 @@ mod tests {
         let hover_result = r#"{"contents":{"kind":"markdown","value":"fn foo() -> i32"}}"#;
         let config = mock_query_server_config("{\"hoverProvider\":true}", hover_result);
 
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         insert_mock_server(
             &mut daemon,
             dir.path().to_path_buf(),
@@ -932,7 +940,7 @@ mod tests {
             env: vec![],
         };
 
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         insert_mock_server(
             &mut daemon,
             dir.path().to_path_buf(),
@@ -977,7 +985,7 @@ mod tests {
             env: vec![],
         };
 
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         insert_mock_server(
             &mut daemon,
             dir.path().to_path_buf(),
@@ -1022,7 +1030,7 @@ mod tests {
         };
 
         // Use a zero timeout so the server is immediately eligible for eviction.
-        let mut daemon = Daemon::new(Duration::from_secs(0));
+        let mut daemon = Daemon::new(Duration::from_secs(0), PathBuf::from("/test/project"));
         insert_mock_server(
             &mut daemon,
             dir.path().to_path_buf(),
@@ -1060,7 +1068,7 @@ mod tests {
             env: vec![],
         };
 
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         insert_mock_server(
             &mut daemon,
             dir.path().to_path_buf(),
@@ -1094,7 +1102,7 @@ mod tests {
             env: vec![],
         };
 
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         insert_mock_server(
             &mut daemon,
             dir.path().to_path_buf(),
@@ -1134,7 +1142,7 @@ mod tests {
             env: vec![],
         };
 
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         insert_mock_server(
             &mut daemon,
             dir.path().to_path_buf(),
@@ -1174,7 +1182,7 @@ mod tests {
             env: vec![],
         };
 
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         insert_mock_server(
             &mut daemon,
             dir.path().to_path_buf(),
@@ -1212,7 +1220,7 @@ mod tests {
             env: vec![],
         };
 
-        let mut daemon = Daemon::new(Duration::from_secs(60));
+        let mut daemon = Daemon::new(Duration::from_secs(60), PathBuf::from("/test/project"));
         insert_mock_server(
             &mut daemon,
             dir.path().to_path_buf(),

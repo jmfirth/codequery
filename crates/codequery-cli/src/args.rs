@@ -481,7 +481,11 @@ pub enum Command {
     },
     /// Internal: run the daemon in the foreground (used by `daemon start`)
     #[command(name = "_daemon-run", hide = true)]
-    DaemonRun,
+    DaemonRun {
+        /// Project root for this daemon instance.
+        #[arg(long)]
+        project: Option<PathBuf>,
+    },
     /// Manage language grammar packages
     #[command(
         long_about = "Install, remove, and inspect language grammar packages.\n\
@@ -989,7 +993,7 @@ mod tests {
     #[test]
     fn test_daemon_run_hidden_subcommand_parsed() {
         let args = CqArgs::parse_from(["cq", "_daemon-run"]);
-        assert!(matches!(args.command, Command::DaemonRun));
+        assert!(matches!(args.command, Command::DaemonRun { .. }));
     }
 
     // -----------------------------------------------------------------------

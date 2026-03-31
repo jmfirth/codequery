@@ -1,6 +1,15 @@
 //! Daemon management commands: start, stop, status.
 
+use std::path::{Path, PathBuf};
+
 use crate::args::ExitCode;
+
+/// Resolves the project root for daemon commands, falling back to auto-detection.
+fn resolve_project_root(project: Option<&Path>) -> anyhow::Result<PathBuf> {
+    let cwd = std::env::current_dir()?;
+    codequery_core::detect_project_root_or(&cwd, project)
+        .map_err(|e| anyhow::anyhow!("failed to detect project root: {e}"))
+}
 
 /// Start the daemon as a detached background process.
 ///
@@ -12,10 +21,18 @@ use crate::args::ExitCode;
 ///
 /// Returns an error if the current executable path cannot be determined or
 /// the child process cannot be spawned.
-pub fn run_start() -> anyhow::Result<ExitCode> {
-    if codequery_lsp::pid::is_daemon_running() {
-        let pid = codequery_lsp::pid::read_pid_file().unwrap_or(0);
-        eprintln!("daemon already running (pid {pid})");
+pub fn run_start(project: Option<&Path>) -> anyhow::Result<ExitCode> {
+    let project_root = resolve_project_root(project)?;
+
+    if codequery_lsp::daemon_file::is_daemon_running(&project_root) {
+        if let Some(info) = codequery_lsp::daemon_file::read_daemon_info(&project_root) {
+            eprintln!(
+                "daemon already running (pid {}, port {})",
+                info.pid, info.port
+            );
+        } else {
+            eprintln!("daemon already running");
+        }
         return Ok(ExitCode::Success);
     }
 
@@ -23,6 +40,7 @@ pub fn run_start() -> anyhow::Result<ExitCode> {
 
     let child = std::process::Command::new(exe)
         .arg("_daemon-run")
+        .env("CQ_DAEMON_PROJECT", &project_root)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -41,13 +59,15 @@ pub fn run_start() -> anyhow::Result<ExitCode> {
 /// # Errors
 ///
 /// Returns an error if the connection succeeds but the shutdown request fails.
-pub fn run_stop() -> anyhow::Result<ExitCode> {
-    if !codequery_lsp::pid::is_daemon_running() {
+pub fn run_stop(project: Option<&Path>) -> anyhow::Result<ExitCode> {
+    let project_root = resolve_project_root(project)?;
+
+    if !codequery_lsp::daemon_file::is_daemon_running(&project_root) {
         eprintln!("daemon is not running");
         return Ok(ExitCode::Success);
     }
 
-    let mut client = codequery_lsp::DaemonClient::connect()
+    let mut client = codequery_lsp::DaemonClient::connect(&project_root)
         .map_err(|e| anyhow::anyhow!("failed to connect to daemon: {e}"))?;
 
     client
@@ -66,13 +86,32 @@ pub fn run_stop() -> anyhow::Result<ExitCode> {
 /// # Errors
 ///
 /// Returns an error if the connection succeeds but the status request fails.
-pub fn run_status() -> anyhow::Result<ExitCode> {
-    if !codequery_lsp::pid::is_daemon_running() {
-        eprintln!("daemon is not running");
+pub fn run_status(project: Option<&Path>) -> anyhow::Result<ExitCode> {
+    let project_root = resolve_project_root(project)?;
+
+    if !codequery_lsp::daemon_file::is_daemon_running(&project_root) {
+        // Try listing all daemons for broader context.
+        let all = codequery_lsp::daemon_file::list_all_daemons();
+        if all.is_empty() {
+            eprintln!("daemon is not running");
+        } else {
+            eprintln!(
+                "daemon is not running for this project, but {} daemon(s) found:",
+                all.len()
+            );
+            for info in &all {
+                eprintln!(
+                    "  pid {} — {} (port {})",
+                    info.pid,
+                    info.project.display(),
+                    info.port
+                );
+            }
+        }
         return Ok(ExitCode::NoResults);
     }
 
-    let mut client = codequery_lsp::DaemonClient::connect()
+    let mut client = codequery_lsp::DaemonClient::connect(&project_root)
         .map_err(|e| anyhow::anyhow!("failed to connect to daemon: {e}"))?;
 
     let response = client
@@ -126,14 +165,14 @@ mod tests {
     #[test]
     fn test_run_stop_when_daemon_not_running_succeeds() {
         // When no daemon is running, run_stop should print a message and return success.
-        let result = run_stop().unwrap();
+        let result = run_stop(None).unwrap();
         assert_eq!(result, ExitCode::Success);
     }
 
     #[test]
     fn test_run_status_when_daemon_not_running_returns_no_results() {
         // When no daemon is running, run_status should return NoResults.
-        let result = run_status().unwrap();
+        let result = run_status(None).unwrap();
         assert_eq!(result, ExitCode::NoResults);
     }
 

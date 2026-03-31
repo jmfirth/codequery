@@ -11,9 +11,9 @@ pub mod cascade;
 pub mod client;
 pub mod config;
 pub mod daemon;
+pub mod daemon_file;
 pub mod error;
 pub mod oneshot;
-pub mod pid;
 pub mod protocol;
 pub mod queries;
 pub mod server;
@@ -25,6 +25,7 @@ pub use cascade::resolve_with_cascade;
 pub use client::DaemonClient;
 pub use config::{LanguageServerRegistry, ServerConfig};
 pub use daemon::Daemon;
+pub use daemon_file::DaemonInfo;
 pub use error::{LspError, Result};
 pub use oneshot::{
     semantic_definition, semantic_definition_with_wait, semantic_refs, semantic_refs_with_wait,

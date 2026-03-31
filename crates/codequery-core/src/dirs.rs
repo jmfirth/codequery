@@ -61,6 +61,14 @@ pub fn cwasm_dir() -> Option<PathBuf> {
     cache_dir().map(|d| d.join("cwasm"))
 }
 
+/// Returns the directory for daemon info files.
+///
+/// Default: `~/.cache/cq/daemons/`
+#[must_use]
+pub fn daemons_dir() -> Option<PathBuf> {
+    cache_dir().map(|d| d.join("daemons"))
+}
+
 /// Returns the path to the cached language registry.
 ///
 /// Default: `~/.cache/cq/registry.json`

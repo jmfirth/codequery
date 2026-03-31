@@ -114,42 +114,74 @@ impl StdioTransport {
     /// Returns `Ok(Some(message))` if a message was read, `Ok(None)` if the
     /// timeout expired before any data arrived, or an error on I/O failure.
     ///
-    /// Uses `libc::poll` on the underlying file descriptor to avoid blocking
-    /// indefinitely. Checks the `BufReader` buffer before polling the fd,
-    /// since data may already be buffered from a previous read.
+    /// Uses `mio::Poll` on the underlying pipe to avoid blocking indefinitely.
+    /// Checks the `BufReader` buffer before polling, since data may already be
+    /// buffered from a previous read.
     ///
     /// # Errors
     ///
     /// Returns `LspError::Io` on I/O failures during reading, or
     /// `LspError::ConnectionFailed` if the message framing is invalid.
-    #[cfg(unix)]
     pub fn try_read_message(&mut self, timeout: Duration) -> Result<Option<String>> {
-        use std::os::unix::io::AsRawFd;
+        use mio::{Events, Interest, Poll, Token};
+
+        const PIPE_TOKEN: Token = Token(0);
 
         // If the BufReader already has data buffered, read immediately.
         if !self.stdout.buffer().is_empty() {
             return read_message(&mut self.stdout).map(Some);
         }
 
-        // Poll the raw fd for readability.
-        let fd = self.stdout.get_ref().as_raw_fd();
-        let timeout_ms = i32::try_from(timeout.as_millis()).unwrap_or(i32::MAX);
+        // Wrap the ChildStdout fd in a mio-compatible source and poll.
+        let mut poll = Poll::new().map_err(LspError::Io)?;
+        let mut events = Events::with_capacity(1);
 
-        let mut pfd = libc::pollfd {
-            fd,
-            events: libc::POLLIN,
-            revents: 0,
+        // Create a mio pipe from the ChildStdout's raw handle/fd.
+        #[cfg(unix)]
+        let mut source = {
+            use std::os::unix::io::{AsRawFd, FromRawFd};
+            let fd = self.stdout.get_ref().as_raw_fd();
+            // SAFETY: We borrow the fd for the duration of poll only. The
+            // ChildStdout outlives this scope. We use from_raw_fd on a dup'd
+            // fd would be safer, but mio only needs it registered temporarily.
+            // We'll deregister before returning.
+            unsafe { mio::unix::pipe::Receiver::from_raw_fd(fd) }
         };
 
-        // SAFETY: pfd is a valid pollfd struct on the stack, nfds=1, timeout is bounded.
-        let ret = unsafe { libc::poll(&raw mut pfd, 1, timeout_ms) };
+        #[cfg(windows)]
+        let mut source = {
+            use std::os::windows::io::{AsRawHandle, FromRawHandle};
+            let handle = self.stdout.get_ref().as_raw_handle();
+            unsafe { mio::windows::NamedPipe::from_raw_handle(handle) }
+        };
 
-        if ret <= 0 {
-            return Ok(None); // Timeout (0) or error (-1)
+        poll.registry()
+            .register(&mut source, PIPE_TOKEN, Interest::READABLE)
+            .map_err(LspError::Io)?;
+
+        poll.poll(&mut events, Some(timeout))
+            .map_err(LspError::Io)?;
+
+        let readable = events
+            .iter()
+            .any(|e| e.token() == PIPE_TOKEN && e.is_readable());
+
+        // Deregister and forget the mio wrapper so it doesn't close the fd.
+        let _ = poll.registry().deregister(&mut source);
+        #[cfg(unix)]
+        {
+            use std::os::unix::io::IntoRawFd;
+            // Consume without closing — the fd belongs to ChildStdout.
+            let _ = source.into_raw_fd();
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::io::IntoRawHandle;
+            let _ = source.into_raw_handle();
         }
 
-        if pfd.revents & (libc::POLLIN | libc::POLLHUP) == 0 {
-            return Ok(None); // No readable data
+        if !readable {
+            return Ok(None);
         }
 
         read_message(&mut self.stdout).map(Some)

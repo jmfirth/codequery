@@ -1,54 +1,77 @@
 //! Synchronous daemon client for cq.
 //!
 //! Provides a synchronous client that connects to a running cq daemon over a
-//! Unix domain socket. Used by the resolution cascade to query LSP servers
+//! TCP socket on localhost. Used by the resolution cascade to query LSP servers
 //! managed by the daemon without paying startup costs.
 
-use std::os::unix::net::UnixStream;
+use std::net::TcpStream;
 use std::path::Path;
 
 use codequery_core::Language;
 
+use crate::daemon_file;
 use crate::error::{LspError, Result};
-use crate::pid;
 use crate::socket::{read_message, write_message, DaemonRequest, DaemonResponse};
 use crate::types::LspLocation;
 
 /// Synchronous client for querying the cq daemon.
 ///
-/// Connects to a running daemon via Unix domain socket and issues single
+/// Connects to a running daemon via TCP on localhost and issues single
 /// request/response exchanges. The connection is held open for the lifetime
 /// of the client, allowing multiple queries on the same connection.
 #[derive(Debug)]
 pub struct DaemonClient {
-    /// The connected Unix stream to the daemon.
-    stream: UnixStream,
+    /// The connected TCP stream to the daemon.
+    stream: TcpStream,
 }
 
 impl DaemonClient {
-    /// Connect to a running daemon.
+    /// Connect to a running daemon for the given project.
     ///
-    /// Looks up the daemon socket path and attempts to connect. Returns an
-    /// error if the daemon is not running or the connection cannot be
-    /// established.
+    /// Reads the daemon info file, connects via TCP, and authenticates with
+    /// the stored token. Returns an error if the daemon is not running or
+    /// the connection cannot be established.
     ///
     /// # Errors
     ///
-    /// - `LspError::DaemonNotRunning` if no daemon PID file exists or the
-    ///   process is not alive.
-    /// - `LspError::ConnectionFailed` if the socket cannot be connected to.
-    pub fn connect() -> Result<Self> {
-        if !pid::is_daemon_running() {
-            return Err(LspError::DaemonNotRunning);
-        }
+    /// - `LspError::DaemonNotRunning` if no daemon info file exists or the
+    ///   daemon is not reachable.
+    /// - `LspError::ConnectionFailed` if the TCP connection or authentication
+    ///   fails.
+    pub fn connect(project_root: &Path) -> Result<Self> {
+        let info = daemon_file::read_daemon_info(project_root).ok_or(LspError::DaemonNotRunning)?;
 
-        let socket_path = pid::socket_path()?;
-        let stream = UnixStream::connect(&socket_path).map_err(|e| {
-            LspError::ConnectionFailed(format!(
-                "failed to connect to daemon socket {}: {e}",
-                socket_path.display()
-            ))
-        })?;
+        let addr = std::net::SocketAddr::from(([127, 0, 0, 1], info.port));
+        let mut stream = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(2))
+            .map_err(|e| {
+                // Connection failed — remove stale daemon file.
+                daemon_file::remove_daemon_file(project_root);
+                LspError::ConnectionFailed(format!(
+                    "failed to connect to daemon at 127.0.0.1:{}: {e}",
+                    info.port
+                ))
+            })?;
+
+        // Authenticate with the daemon.
+        write_message(
+            &mut stream,
+            &DaemonRequest::Authenticate { token: info.token },
+        )?;
+
+        let response: DaemonResponse = read_message(&mut stream)?;
+        match response {
+            DaemonResponse::AuthOk => {}
+            DaemonResponse::Error(msg) => {
+                return Err(LspError::ConnectionFailed(format!(
+                    "daemon authentication failed: {msg}"
+                )));
+            }
+            _ => {
+                return Err(LspError::ConnectionFailed(
+                    "unexpected response during authentication".to_string(),
+                ));
+            }
+        }
 
         Ok(Self { stream })
     }
@@ -171,7 +194,17 @@ fn language_to_daemon_string(language: Language) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::TcpListener as TestTcpListener;
     use std::path::PathBuf;
+
+    /// Creates a TCP pair (client, server) for testing.
+    fn tcp_pair() -> (TcpStream, TcpStream) {
+        let listener = TestTcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let client = TcpStream::connect(addr).unwrap();
+        let (server, _) = listener.accept().unwrap();
+        (client, server)
+    }
 
     // ─── language_to_daemon_string ────────────────────────────────────
 
@@ -245,16 +278,14 @@ mod tests {
     #[test]
     fn test_connect_when_daemon_not_running_returns_error() {
         // No daemon is running during tests, so connect should fail.
-        let result = DaemonClient::connect();
+        let result = DaemonClient::connect(Path::new("/nonexistent/project/test123"));
         assert!(result.is_err());
     }
 
     #[test]
     fn test_connect_error_is_daemon_not_running_or_connection_failed() {
-        let result = DaemonClient::connect();
+        let result = DaemonClient::connect(Path::new("/nonexistent/project/test456"));
         let err = result.unwrap_err();
-        // Either the daemon is not running (no PID file) or the socket
-        // connection failed (PID file exists but socket is stale).
         assert!(
             matches!(
                 err,
@@ -325,13 +356,12 @@ mod tests {
         }
     }
 
-    // ─── Socket-based integration test ────────────────────────────────
+    // ─── Buffer-based integration test ────────────────────────────────
 
     #[test]
-    fn test_send_and_receive_via_socketpair() {
+    fn test_send_and_receive_via_buffer() {
         use std::io::Cursor;
 
-        // Simulate a DaemonResponse::Locations being received.
         let response = DaemonResponse::Locations(vec![LspLocation {
             uri: "file:///src/main.rs".to_string(),
             range: crate::types::Range::new(
@@ -340,11 +370,9 @@ mod tests {
             ),
         }]);
 
-        // Write the response to a buffer.
         let mut buf = Vec::new();
         write_message(&mut buf, &response).unwrap();
 
-        // Read it back.
         let mut cursor = Cursor::new(buf);
         let parsed: DaemonResponse = read_message(&mut cursor).unwrap();
 
@@ -469,8 +497,6 @@ mod tests {
 
     #[test]
     fn test_ok_response_is_unexpected_for_locations_query() {
-        // When send_and_receive_locations receives DaemonResponse::Ok,
-        // it should return an error since it expected Locations.
         use std::io::Cursor;
 
         let response = DaemonResponse::Ok;
@@ -480,12 +506,10 @@ mod tests {
         let mut cursor = Cursor::new(buf);
         let parsed: DaemonResponse = read_message(&mut cursor).unwrap();
 
-        // Verify the matching logic that would be in send_and_receive_locations.
         match parsed {
             DaemonResponse::Locations(_) => panic!("should not be Locations"),
             DaemonResponse::Error(_) => panic!("should not be Error"),
             other => {
-                // This is the "unexpected response" branch.
                 let msg = format!("unexpected daemon response: {other:?}");
                 assert!(msg.contains("Ok"));
             }
@@ -548,10 +572,10 @@ mod tests {
         }
     }
 
-    // ─── DaemonClient methods via mock socket pair ──────────────────
+    // ─── DaemonClient methods via mock TCP pair ─────────────────────
 
     #[test]
-    fn test_status_via_mock_socket() {
+    fn test_status_via_mock_tcp() {
         use crate::socket::ServerInfo;
 
         let status_resp = DaemonResponse::Status {
@@ -563,9 +587,8 @@ mod tests {
             uptime_secs: 120,
         };
 
-        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+        let (client_stream, mut daemon_stream) = tcp_pair();
 
-        // Spawn a thread to simulate the daemon: read the request, write the response.
         let handle = std::thread::spawn(move || {
             let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
             write_message(&mut daemon_stream, &status_resp).unwrap();
@@ -591,8 +614,8 @@ mod tests {
     }
 
     #[test]
-    fn test_shutdown_via_mock_socket() {
-        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+    fn test_shutdown_via_mock_tcp() {
+        let (client_stream, mut daemon_stream) = tcp_pair();
 
         let handle = std::thread::spawn(move || {
             let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
@@ -609,7 +632,7 @@ mod tests {
 
     #[test]
     fn test_shutdown_error_response_returns_error() {
-        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+        let (client_stream, mut daemon_stream) = tcp_pair();
 
         let handle = std::thread::spawn(move || {
             let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
@@ -630,7 +653,7 @@ mod tests {
     }
 
     #[test]
-    fn test_query_refs_via_mock_socket() {
+    fn test_query_refs_via_mock_tcp() {
         let locations_resp = DaemonResponse::Locations(vec![LspLocation {
             uri: "file:///src/main.rs".to_string(),
             range: crate::types::Range::new(
@@ -639,7 +662,7 @@ mod tests {
             ),
         }]);
 
-        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+        let (client_stream, mut daemon_stream) = tcp_pair();
 
         let handle = std::thread::spawn(move || {
             let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
@@ -666,7 +689,7 @@ mod tests {
     }
 
     #[test]
-    fn test_query_definition_via_mock_socket() {
+    fn test_query_definition_via_mock_tcp() {
         let locations_resp = DaemonResponse::Locations(vec![LspLocation {
             uri: "file:///src/lib.rs".to_string(),
             range: crate::types::Range::new(
@@ -675,7 +698,7 @@ mod tests {
             ),
         }]);
 
-        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+        let (client_stream, mut daemon_stream) = tcp_pair();
 
         let handle = std::thread::spawn(move || {
             let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
@@ -703,7 +726,7 @@ mod tests {
 
     #[test]
     fn test_query_refs_error_response() {
-        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+        let (client_stream, mut daemon_stream) = tcp_pair();
 
         let handle = std::thread::spawn(move || {
             let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
@@ -734,11 +757,10 @@ mod tests {
 
     #[test]
     fn test_query_refs_unexpected_response_type() {
-        let (client_stream, mut daemon_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+        let (client_stream, mut daemon_stream) = tcp_pair();
 
         let handle = std::thread::spawn(move || {
             let _req: crate::socket::DaemonRequest = read_message(&mut daemon_stream).unwrap();
-            // Return a Status response instead of Locations.
             write_message(
                 &mut daemon_stream,
                 &DaemonResponse::Status {

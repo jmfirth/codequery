@@ -37,6 +37,11 @@ pub enum DaemonRequest {
     Status,
     /// Request the daemon to shut down gracefully.
     Shutdown,
+    /// Authenticate with the daemon using a token.
+    Authenticate {
+        /// The authentication token.
+        token: String,
+    },
 }
 
 /// Information about a running language server in the daemon pool.
@@ -66,6 +71,8 @@ pub enum DaemonResponse {
     },
     /// Acknowledgement (e.g., for shutdown).
     Ok,
+    /// Authentication succeeded.
+    AuthOk,
     /// An error occurred processing the request.
     Error(String),
 }

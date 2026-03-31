@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use codequery_core::Language;
-use codequery_lsp::{oneshot, pid};
+use codequery_lsp::{daemon_file, oneshot};
 
 use super::common::find_symbols_by_name;
 use crate::args::{ExitCode, OutputMode};
@@ -65,13 +65,13 @@ fn disambiguate_with_lsp(
     _symbol: &str,
     project: Option<&Path>,
 ) -> Option<Vec<codequery_core::Symbol>> {
-    // Only attempt if a daemon is running (avoid expensive oneshot for def disambiguation)
-    if !pid::is_daemon_running() {
-        return None;
-    }
-
     let cwd = std::env::current_dir().ok()?;
     let project_root = codequery_core::detect_project_root_or(&cwd, project).ok()?;
+
+    // Only attempt if a daemon is running (avoid expensive oneshot for def disambiguation)
+    if !daemon_file::is_daemon_running(&project_root) {
+        return None;
+    }
     let first = matches.first()?;
     let language = codequery_core::language_for_file(&first.file)?;
 
