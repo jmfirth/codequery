@@ -94,14 +94,58 @@ function extractZip(buffer, destDir) {
   }
 }
 
+async function downloadAndExtract(url, ext, binDir, binaryName) {
+  let buffer;
+  try {
+    buffer = await download(url);
+  } catch (e) {
+    throw new Error(`Failed to download ${binaryName}: ${e.message}`);
+  }
+
+  const tmpDir = path.join(os.tmpdir(), `cq-extract-${Date.now()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  try {
+    if (ext === "tar.gz") {
+      extractTarGz(buffer, tmpDir);
+    } else {
+      extractZip(buffer, tmpDir);
+    }
+
+    const extracted = findBinary(tmpDir, binaryName);
+    if (!extracted) {
+      throw new Error(
+        `Could not find ${binaryName} in downloaded archive. ` +
+          `Contents: ${listDir(tmpDir).join(", ")}`
+      );
+    }
+
+    fs.mkdirSync(binDir, { recursive: true });
+    const dest = path.join(binDir, binaryName);
+    fs.copyFileSync(extracted, dest);
+
+    if (process.platform !== "win32") {
+      fs.chmodSync(dest, 0o755);
+    }
+
+    return dest;
+  } finally {
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch (_) {
+      // ignore
+    }
+  }
+}
+
 async function main() {
   const binDir = path.join(__dirname, "bin");
-  const binaryName = process.platform === "win32" ? "cq-mcp.exe" : "cq-mcp";
-  const binaryPath = path.join(binDir, binaryName);
+  const mcpName = process.platform === "win32" ? "cq-mcp.exe" : "cq-mcp";
+  const cqName = process.platform === "win32" ? "cq.exe" : "cq";
 
-  // Skip if binary already exists (e.g. reinstall)
-  if (fs.existsSync(binaryPath)) {
-    console.log(`cq-mcp binary already exists at ${binaryPath}`);
+  // Skip if both binaries already exist
+  if (fs.existsSync(path.join(binDir, mcpName)) && fs.existsSync(path.join(binDir, cqName))) {
+    console.log(`cq-mcp and cq binaries already exist in ${binDir}`);
     return;
   }
 
@@ -113,57 +157,34 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Downloading cq-mcp v${VERSION} for ${getPlatformKey()}...`);
-  console.log(`  ${artifact.url}`);
+  const key = getPlatformKey();
+  const info = PLATFORM_MAP[key];
 
-  let buffer;
+  // Download cq-mcp
+  console.log(`Downloading cq-mcp v${VERSION} for ${key}...`);
+  console.log(`  ${artifact.url}`);
   try {
-    buffer = await download(artifact.url);
+    const dest = await downloadAndExtract(artifact.url, artifact.ext, binDir, mcpName);
+    console.log(`Installed cq-mcp to ${dest}`);
   } catch (e) {
     console.error(
-      `\nFailed to download cq-mcp binary:\n  ${e.message}\n\n` +
-        `You can install it manually from:\n` +
-        `  https://github.com/${REPO}/releases/tag/v${VERSION}\n`
+      `\n${e.message}\n\n` +
+        `Install manually from: https://github.com/${REPO}/releases/tag/v${VERSION}\n`
     );
     process.exit(1);
   }
 
-  // Extract to a temp dir, then move the binary
-  const tmpDir = path.join(os.tmpdir(), `cq-mcp-extract-${Date.now()}`);
-  fs.mkdirSync(tmpDir, { recursive: true });
-
+  // Download cq (cq-mcp needs it to run queries)
+  const cqFilename = `codequery-v${VERSION}-${info.target}.${info.ext}`;
+  const cqUrl = `https://github.com/${REPO}/releases/download/v${VERSION}/${cqFilename}`;
+  console.log(`Downloading cq v${VERSION}...`);
+  console.log(`  ${cqUrl}`);
   try {
-    if (artifact.ext === "tar.gz") {
-      extractTarGz(buffer, tmpDir);
-    } else {
-      extractZip(buffer, tmpDir);
-    }
-
-    // Find the binary in the extracted contents
-    const extracted = findBinary(tmpDir, binaryName);
-    if (!extracted) {
-      throw new Error(
-        `Could not find ${binaryName} in downloaded archive. ` +
-          `Contents: ${listDir(tmpDir).join(", ")}`
-      );
-    }
-
-    fs.mkdirSync(binDir, { recursive: true });
-    fs.copyFileSync(extracted, binaryPath);
-
-    // Make executable on Unix
-    if (process.platform !== "win32") {
-      fs.chmodSync(binaryPath, 0o755);
-    }
-
-    console.log(`Installed cq-mcp to ${binaryPath}`);
-  } finally {
-    // Clean up temp dir
-    try {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-    } catch (_) {
-      // ignore
-    }
+    const dest = await downloadAndExtract(cqUrl, info.ext, binDir, cqName);
+    console.log(`Installed cq to ${dest}`);
+  } catch (e) {
+    console.warn(`Warning: could not download cq binary (${e.message})`);
+    console.warn(`cq-mcp will look for cq on PATH. Install cq separately if needed.`);
   }
 }
 

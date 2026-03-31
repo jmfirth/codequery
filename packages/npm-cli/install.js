@@ -32,7 +32,7 @@ function getArtifactInfo() {
         `Install cq manually from https://github.com/${REPO}/releases`
     );
   }
-  const filename = `cq-${info.target}.${info.ext}`;
+  const filename = `codequery-v${VERSION}-${info.target}.${info.ext}`;
   const url = `https://github.com/${REPO}/releases/download/v${VERSION}/${filename}`;
   return { url, filename, ext: info.ext };
 }

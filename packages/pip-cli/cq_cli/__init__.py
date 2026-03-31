@@ -60,7 +60,7 @@ def _get_artifact_info():
             f"Install cq manually from https://github.com/{REPO}/releases"
         )
     target, ext = info
-    filename = f"cq-{target}.{ext}"
+    filename = f"codequery-v{__version__}-{target}.{ext}"
     url = f"https://github.com/{REPO}/releases/download/v{__version__}/{filename}"
     return url, ext
 

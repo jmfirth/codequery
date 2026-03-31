@@ -104,24 +104,9 @@ def _extract_zip(data, dest_dir, binary_name):
     raise RuntimeError(f"Could not find {binary_name} in archive")
 
 
-def _ensure_binary():
-    """Ensure the cq-mcp binary is installed and return its path."""
-    cache_dir = _get_cache_dir()
-    binary_name = _get_binary_name()
-    binary_path = cache_dir / binary_name
-
-    if binary_path.exists():
-        return str(binary_path)
-
-    url, ext = _get_artifact_info()
-    plat_key = _get_platform_key()
-
-    print(f"Downloading cq-mcp v{__version__} for {plat_key[0]}/{plat_key[1]}...",
-          file=sys.stderr)
-    print(f"  {url}", file=sys.stderr)
-
+def _download_binary(cache_dir, binary_name, url, ext):
+    """Download, extract, and install a single binary. Returns path."""
     data = _download(url)
-
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     if ext == "tar.gz":
@@ -129,13 +114,48 @@ def _ensure_binary():
     else:
         result = _extract_zip(data, str(cache_dir), binary_name)
 
-    # Make executable on Unix
     if sys.platform != "win32":
         st = os.stat(result)
         os.chmod(result, st.st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
-    print(f"Installed cq-mcp to {result}", file=sys.stderr)
-    return str(result)
+    return result
+
+
+def _ensure_binary():
+    """Ensure cq-mcp and cq binaries are installed. Returns cq-mcp path."""
+    cache_dir = _get_cache_dir()
+    mcp_name = _get_binary_name()
+    cq_name = "cq.exe" if sys.platform == "win32" else "cq"
+    mcp_path = cache_dir / mcp_name
+    cq_path = cache_dir / cq_name
+
+    if mcp_path.exists() and cq_path.exists():
+        return str(mcp_path)
+
+    plat_key = _get_platform_key()
+    info = PLATFORM_MAP.get(plat_key)
+    if info is None:
+        raise RuntimeError(f"Unsupported platform: {plat_key[0]}/{plat_key[1]}")
+    target, ext = info
+
+    if not mcp_path.exists():
+        mcp_url = f"https://github.com/{REPO}/releases/download/v{__version__}/cq-mcp-{target}.{ext}"
+        print(f"Downloading cq-mcp v{__version__} for {plat_key[0]}/{plat_key[1]}...",
+              file=sys.stderr)
+        result = _download_binary(cache_dir, mcp_name, mcp_url, ext)
+        print(f"Installed cq-mcp to {result}", file=sys.stderr)
+
+    if not cq_path.exists():
+        cq_url = f"https://github.com/{REPO}/releases/download/v{__version__}/codequery-v{__version__}-{target}.{ext}"
+        print(f"Downloading cq v{__version__}...", file=sys.stderr)
+        try:
+            result = _download_binary(cache_dir, cq_name, cq_url, ext)
+            print(f"Installed cq to {result}", file=sys.stderr)
+        except RuntimeError as e:
+            print(f"Warning: could not download cq ({e}). cq-mcp will look for cq on PATH.",
+                  file=sys.stderr)
+
+    return str(mcp_path)
 
 
 def main():
@@ -146,12 +166,17 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
+    # Set CQ_BIN so cq-mcp can find the co-installed cq binary
+    cache_dir = _get_cache_dir()
+    cq_name = "cq.exe" if sys.platform == "win32" else "cq"
+    cq_path = cache_dir / cq_name
+    if not os.environ.get("CQ_BIN") and cq_path.exists():
+        os.environ["CQ_BIN"] = str(cq_path)
+
     args = sys.argv[1:]
 
     if sys.platform != "win32":
-        # Replace the current process on Unix
         os.execv(binary, [binary] + args)
     else:
-        # On Windows, use subprocess
         result = subprocess.run([binary] + args)
         sys.exit(result.returncode)
