@@ -364,10 +364,7 @@ fn run_context_command(args: &serde_json::Value) -> Result<String, String> {
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| "Missing required argument: location".to_string())?;
 
-    let cmd_args: Vec<String> = vec![
-        "context".to_string(),
-        location.to_string(),
-    ];
+    let cmd_args: Vec<String> = vec!["context".to_string(), location.to_string()];
 
     call_cq(&cmd_args, args)
 }
@@ -390,10 +387,7 @@ fn run_hover_command(args: &serde_json::Value) -> Result<String, String> {
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| "Missing required argument: location".to_string())?;
 
-    let cmd_args: Vec<String> = vec![
-        "hover".to_string(),
-        location.to_string(),
-    ];
+    let cmd_args: Vec<String> = vec!["hover".to_string(), location.to_string()];
 
     call_cq(&cmd_args, args)
 }
@@ -421,11 +415,7 @@ fn run_rename_command(args: &serde_json::Value) -> Result<String, String> {
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| "Missing required argument: new".to_string())?;
 
-    let mut cmd_args: Vec<String> = vec![
-        "rename".to_string(),
-        old.to_string(),
-        new.to_string(),
-    ];
+    let mut cmd_args: Vec<String> = vec!["rename".to_string(), old.to_string(), new.to_string()];
 
     if args
         .get("apply")
@@ -465,10 +455,7 @@ fn run_callchain_command(args: &serde_json::Value) -> Result<String, String> {
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| "Missing required argument: symbol".to_string())?;
 
-    let mut cmd_args: Vec<String> = vec![
-        "callchain".to_string(),
-        symbol.to_string(),
-    ];
+    let mut cmd_args: Vec<String> = vec!["callchain".to_string(), symbol.to_string()];
 
     if let Some(depth) = args.get("depth").and_then(serde_json::Value::as_i64) {
         cmd_args.push("--depth".to_string());
