@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use codequery_core::{detect_project_root_or, language_for_file};
+use codequery_core::{detect_project_root_or, language_for_file, language_name_for_file};
 use codequery_parse::{extract_imports, Parser};
 
 use crate::args::{ExitCode, OutputMode};
@@ -39,11 +39,14 @@ pub fn run(
         return Ok(ExitCode::ProjectError);
     }
 
-    // 3. Detect language from file extension
-    let Some(language) = language_for_file(&absolute_file) else {
+    // 3. Detect language from file extension (builtin or runtime)
+    let builtin_language = language_for_file(&absolute_file);
+    let has_language =
+        builtin_language.is_some() || language_name_for_file(&absolute_file).is_some();
+    if !has_language {
         eprintln!("error: unsupported file type: {}", absolute_file.display());
         return Ok(ExitCode::ProjectError);
-    };
+    }
 
     // 4. Compute relative path for display
     let relative_path = absolute_file
@@ -52,7 +55,13 @@ pub fn run(
         .map_or_else(|_| file.to_path_buf(), Path::to_path_buf);
 
     // 5. Parse
-    let mut parser = Parser::for_language(language)?;
+    let mut parser = if let Some(language) = builtin_language {
+        Parser::for_language(language)?
+    } else {
+        let lang_name = language_name_for_file(&absolute_file)
+            .expect("checked above that language name exists");
+        Parser::for_name(&lang_name)?
+    };
     let (source, tree) = match parser.parse_file(&absolute_file) {
         Ok(result) => result,
         Err(codequery_parse::ParseError::Io(e)) => {
@@ -64,8 +73,12 @@ pub fn run(
 
     let has_parse_errors = tree.root_node().has_error();
 
-    // 6. Extract imports
-    let imports = extract_imports(&source, &tree, language);
+    // 6. Extract imports (only supported for builtin languages)
+    let imports = if let Some(language) = builtin_language {
+        extract_imports(&source, &tree, language)
+    } else {
+        Vec::new()
+    };
 
     // 7. Format
     let output = format_imports_output(&relative_path, &imports, mode, pretty);

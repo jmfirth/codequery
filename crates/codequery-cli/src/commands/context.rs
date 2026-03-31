@@ -2,8 +2,8 @@
 
 use std::path::Path;
 
-use codequery_core::{detect_project_root_or, language_for_file, Symbol};
-use codequery_parse::{extract_symbols, Parser};
+use codequery_core::{detect_project_root_or, language_name_for_file, Symbol};
+use codequery_parse::{extract_symbols_by_name, Parser};
 
 use crate::args::{ExitCode, OutputMode};
 use crate::output::format_context_output;
@@ -49,7 +49,7 @@ pub fn run(
     }
 
     // 4. Detect language from file extension
-    let Some(language) = language_for_file(&absolute_file) else {
+    let Some(lang_name) = language_name_for_file(&absolute_file) else {
         eprintln!("error: unsupported file type: {}", absolute_file.display());
         return Ok(ExitCode::ProjectError);
     };
@@ -61,7 +61,7 @@ pub fn run(
         .map_or_else(|_| file.to_path_buf(), Path::to_path_buf);
 
     // 6. Parse
-    let mut parser = Parser::for_language(language)?;
+    let mut parser = Parser::for_name(&lang_name)?;
     let (source, tree) = match parser.parse_file(&absolute_file) {
         Ok(result) => result,
         Err(codequery_parse::ParseError::Io(e)) => {
@@ -74,7 +74,7 @@ pub fn run(
     let has_parse_errors = tree.root_node().has_error();
 
     // 7. Extract symbols
-    let symbols = extract_symbols(&source, &tree, &relative_path, language);
+    let symbols = extract_symbols_by_name(&source, &tree, &relative_path, &lang_name);
 
     // 8. Find enclosing symbol(s)
     let context_chain = find_enclosing_chain(&symbols, target_line);

@@ -377,6 +377,37 @@ pub fn grammar_for_language(language: Language) -> Result<tree_sitter::Language>
     )))
 }
 
+/// Select the tree-sitter grammar for a language identified by name.
+///
+/// Like [`grammar_for_language`], but accepts a name string instead of a
+/// `Language` enum. Tries builtin grammars first, then runtime (native),
+/// then WASM. This is the entry point for runtime/plugin languages.
+///
+/// # Errors
+///
+/// Returns `ParseError::LanguageError` if no grammar is available.
+pub fn grammar_for_name(name: &str) -> Result<tree_sitter::Language> {
+    // Try builtin first
+    if let Some(lang) = Language::from_name(name) {
+        return grammar_for_language(lang);
+    }
+
+    // Try native runtime grammar (.so/.dylib)
+    if let Ok(grammar) = runtime_grammar::load_runtime_grammar(name) {
+        return Ok(grammar);
+    }
+
+    // Try WASM grammar
+    if let Some(info) = wasm_loader::find_wasm_grammar(name) {
+        let mut parser = tree_sitter::Parser::new();
+        return wasm_loader::load_wasm_language_cached(&info.wasm_path, &mut parser);
+    }
+
+    Err(ParseError::LanguageError(format!(
+        "no grammar available for language '{name}'"
+    )))
+}
+
 /// A Rust-specific parser — convenience alias for backward compatibility.
 ///
 /// Equivalent to `Parser::for_language(Language::Rust)`.

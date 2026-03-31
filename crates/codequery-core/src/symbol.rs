@@ -63,6 +63,8 @@ pub enum SymbolKind {
     Impl,
     /// A test function.
     Test,
+    /// A macro definition.
+    Macro,
 }
 
 impl fmt::Display for SymbolKind {
@@ -81,6 +83,7 @@ impl fmt::Display for SymbolKind {
             Self::Module => "module",
             Self::Impl => "impl",
             Self::Test => "test",
+            Self::Macro => "macro",
         };
         write!(f, "{s}")
     }

@@ -73,7 +73,10 @@ fn disambiguate_with_lsp(
         return None;
     }
     let first = matches.first()?;
-    let language = codequery_core::language_for_file(&first.file)?;
+    let language = codequery_core::language_for_file(&first.file).or_else(|| {
+        codequery_core::language_name_for_file(&first.file)
+            .and_then(|n| codequery_core::Language::from_name(&n))
+    })?;
 
     let lsp_results = oneshot::semantic_definition(
         &project_root,

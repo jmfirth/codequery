@@ -8,9 +8,10 @@
 use std::path::{Path, PathBuf};
 
 use codequery_core::{
-    detect_project_root_or, discover_files, language_for_file, Language, Symbol, SymbolKind,
+    detect_project_root_or, discover_files, language_for_file, language_name_for_file, Language,
+    Symbol, SymbolKind,
 };
-use codequery_parse::{extract_symbols, Parser};
+use codequery_parse::{extract_symbols, extract_symbols_by_name, Parser};
 
 /// Search the project for symbols matching `name`, returning all matches sorted
 /// by file path then line number.
@@ -57,36 +58,56 @@ pub fn find_first_symbol_with_source(
     lang_filter: Option<Language>,
 ) -> anyhow::Result<(Option<Symbol>, Option<String>)> {
     let mut current_parser: Option<(Language, Parser)> = None;
+    let mut runtime_parser: Option<(String, Parser)> = None;
 
     for relative_path in files {
         let absolute_path = project_root.join(relative_path);
 
-        let Some(language) = language_for_file(relative_path) else {
-            continue;
-        };
+        let (symbols, source) = if let Some(language) = language_for_file(relative_path) {
+            if let Some(filter) = lang_filter {
+                if language != filter {
+                    continue;
+                }
+            }
 
-        // Apply language filter if set
-        if let Some(filter) = lang_filter {
-            if language != filter {
+            let Ok(source) = std::fs::read_to_string(&absolute_path) else {
+                continue;
+            };
+            if !source.contains(name) {
                 continue;
             }
-        }
 
-        let Ok(source) = std::fs::read_to_string(&absolute_path) else {
+            let parser = get_or_create_parser(&mut current_parser, language)?;
+            let Ok(tree) = parser.parse(source.as_bytes()) else {
+                continue;
+            };
+            (
+                extract_symbols(&source, &tree, relative_path, language),
+                source,
+            )
+        } else if let Some(lang_name) = language_name_for_file(relative_path) {
+            if lang_filter.is_some() {
+                continue;
+            }
+
+            let Ok(source) = std::fs::read_to_string(&absolute_path) else {
+                continue;
+            };
+            if !source.contains(name) {
+                continue;
+            }
+
+            let parser = get_or_create_runtime_parser(&mut runtime_parser, &lang_name)?;
+            let Ok(tree) = parser.parse(source.as_bytes()) else {
+                continue;
+            };
+            (
+                extract_symbols_by_name(&source, &tree, relative_path, &lang_name),
+                source,
+            )
+        } else {
             continue;
         };
-
-        if !source.contains(name) {
-            continue;
-        }
-
-        let parser = get_or_create_parser(&mut current_parser, language)?;
-
-        let Ok(tree) = parser.parse(source.as_bytes()) else {
-            continue;
-        };
-
-        let symbols = extract_symbols(&source, &tree, relative_path, language);
 
         for symbol in &symbols {
             if symbol.kind != SymbolKind::Impl && symbol.name == name {
@@ -130,19 +151,44 @@ fn search_files_for_symbol(
 ) -> anyhow::Result<Vec<Symbol>> {
     let mut matches: Vec<Symbol> = Vec::new();
     let mut current_parser: Option<(Language, Parser)> = None;
+    let mut runtime_parser: Option<(String, Parser)> = None;
 
     for relative_path in files {
         let absolute_path = project_root.join(relative_path);
 
-        let Some(language) = language_for_file(relative_path) else {
+        // Try builtin language (fast path)
+        if let Some(language) = language_for_file(relative_path) {
+            if let Some(filter) = lang_filter {
+                if language != filter {
+                    continue;
+                }
+            }
+
+            let Ok(source) = std::fs::read_to_string(&absolute_path) else {
+                continue;
+            };
+
+            if !source.contains(name) {
+                continue;
+            }
+
+            let parser = get_or_create_parser(&mut current_parser, language)?;
+            let Ok(tree) = parser.parse(source.as_bytes()) else {
+                continue;
+            };
+            let symbols = extract_symbols(&source, &tree, relative_path, language);
+            collect_matching_symbols(&symbols, name, &mut matches);
+            continue;
+        }
+
+        // Fallback: runtime language via registry name
+        let Some(lang_name) = language_name_for_file(relative_path) else {
             continue;
         };
 
-        // Apply language filter if set
-        if let Some(filter) = lang_filter {
-            if language != filter {
-                continue;
-            }
+        // Language enum filter can't match runtime languages — skip
+        if lang_filter.is_some() {
+            continue;
         }
 
         let Ok(source) = std::fs::read_to_string(&absolute_path) else {
@@ -153,14 +199,11 @@ fn search_files_for_symbol(
             continue;
         }
 
-        let parser = get_or_create_parser(&mut current_parser, language)?;
-
+        let parser = get_or_create_runtime_parser(&mut runtime_parser, &lang_name)?;
         let Ok(tree) = parser.parse(source.as_bytes()) else {
             continue;
         };
-
-        let symbols = extract_symbols(&source, &tree, relative_path, language);
-
+        let symbols = extract_symbols_by_name(&source, &tree, relative_path, &lang_name);
         collect_matching_symbols(&symbols, name, &mut matches);
     }
 
@@ -176,6 +219,20 @@ fn get_or_create_parser(
         Some((lang, _)) if *lang == language => {}
         _ => {
             *current = Some((language, Parser::for_language(language)?));
+        }
+    }
+    Ok(&mut current.as_mut().expect("just assigned or matched").1)
+}
+
+/// Reuse the current parser if it matches the runtime language name, otherwise create a new one.
+fn get_or_create_runtime_parser<'a>(
+    current: &'a mut Option<(String, Parser)>,
+    name: &'a str,
+) -> anyhow::Result<&'a mut Parser> {
+    match current {
+        Some((n, _)) if n == name => {}
+        _ => {
+            *current = Some((name.to_string(), Parser::for_name(name)?));
         }
     }
     Ok(&mut current.as_mut().expect("just assigned or matched").1)

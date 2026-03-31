@@ -3,7 +3,10 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use codequery_core::{detect_project_root_or, language_for_file, Symbol, SymbolKind, Visibility};
+use codequery_core::{
+    detect_project_root_or, language_for_file, language_name_for_file, Symbol, SymbolKind,
+    Visibility,
+};
 use codequery_index::{extract_references, scan_project_cached, SymbolIndex};
 
 use crate::args::{ExitCode, OutputMode};
@@ -44,7 +47,14 @@ pub fn run(
     let mut referenced_names: HashSet<String> = HashSet::new();
     for file_entry in &scan {
         let absolute = project_root.join(&file_entry.file);
-        let Some(language) = language_for_file(&absolute) else {
+        let language = if let Some(lang) = language_for_file(&absolute) {
+            lang
+        } else if let Some(name) = language_name_for_file(&absolute) {
+            match codequery_core::Language::from_name(&name) {
+                Some(lang) => lang,
+                None => continue,
+            }
+        } else {
             continue;
         };
         let refs = extract_references(

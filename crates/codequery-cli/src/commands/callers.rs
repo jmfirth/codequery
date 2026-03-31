@@ -57,7 +57,14 @@ pub fn run(
     > = std::collections::HashMap::new();
 
     for file_result in &scan_results {
-        let Some(language) = codequery_core::language_for_file(&file_result.file) else {
+        let language = if let Some(lang) = codequery_core::language_for_file(&file_result.file) {
+            lang
+        } else if let Some(name) = codequery_core::language_name_for_file(&file_result.file) {
+            match codequery_core::Language::from_name(&name) {
+                Some(lang) => lang,
+                None => continue,
+            }
+        } else {
             continue;
         };
 
@@ -78,8 +85,12 @@ pub fn run(
     // 5. Use resolution cascade (daemon -> oneshot LSP -> stack graph)
     //    The cascade returns all references; we filter to calls via the syntactic map.
     let resolution_result = if let Some(def) = definitions.first() {
-        let def_lang =
-            codequery_core::language_for_file(&def.file).unwrap_or(codequery_core::Language::Rust);
+        let def_lang = codequery_core::language_for_file(&def.file)
+            .or_else(|| {
+                codequery_core::language_name_for_file(&def.file)
+                    .and_then(|n| codequery_core::Language::from_name(&n))
+            })
+            .unwrap_or(codequery_core::Language::Rust);
         let mut result = resolve_with_cascade(
             &project_root,
             def_lang,

@@ -75,6 +75,7 @@ pub fn parse_symbol_kind(s: &str) -> Option<SymbolKind> {
         "module" => Some(SymbolKind::Module),
         "impl" => Some(SymbolKind::Impl),
         "test" => Some(SymbolKind::Test),
+        "macro" => Some(SymbolKind::Macro),
         _ => None,
     }
 }

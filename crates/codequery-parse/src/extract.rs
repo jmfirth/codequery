@@ -8,6 +8,7 @@ use std::path::Path;
 
 use codequery_core::{Language, Symbol};
 
+use crate::extract_engine::{extract_with_config, CompiledExtractor};
 use crate::languages::bash::BashExtractor;
 use crate::languages::c::CExtractor;
 use crate::languages::cpp::CppExtractor;
@@ -73,6 +74,56 @@ pub fn extract_symbols(
         Language::Yaml => YamlExtractor::extract_symbols(source, tree, file),
         Language::Toml => TomlExtractor::extract_symbols(source, tree, file),
     }
+}
+
+/// Extract symbols from a file identified by language name string.
+///
+/// For builtin languages (those with a `Language` enum variant), delegates to
+/// [`extract_symbols`] with the compiled-in extractor. For runtime languages
+/// (installed via `cq grammar install`), loads the `extract.toml` config and
+/// uses the declarative extraction engine.
+///
+/// Returns an empty `Vec` if the language has no extraction rules available.
+#[must_use]
+pub fn extract_symbols_by_name(
+    source: &str,
+    tree: &tree_sitter::Tree,
+    file: &std::path::Path,
+    lang_name: &str,
+) -> Vec<Symbol> {
+    // Fast path: builtin language with compiled-in extractor
+    if let Some(lang) = Language::from_name(lang_name) {
+        return extract_symbols(source, tree, file, lang);
+    }
+
+    // Check for cached compiled extractor (avoids re-loading grammar)
+    if let Some(compiled) = CompiledExtractor::get_cached(lang_name) {
+        return compiled.extract(source, tree, file);
+    }
+
+    // Cache miss: load extract.toml + grammar, compile rules, cache
+    let Some(config) = load_runtime_extract_config(lang_name) else {
+        return Vec::new();
+    };
+
+    let Ok(ts_lang) = crate::parser::grammar_for_name(lang_name) else {
+        return Vec::new();
+    };
+
+    extract_with_config(&config, source, tree, file, &ts_lang)
+}
+
+/// Load `extract.toml` from an installed grammar package.
+///
+/// Looks in `~/.local/share/cq/languages/<name>/extract.toml`. Returns `None`
+/// if the package is not installed or has no extraction config.
+fn load_runtime_extract_config(
+    lang_name: &str,
+) -> Option<codequery_core::extract_config::ExtractConfig> {
+    let dir = codequery_core::dirs::languages_dir()?;
+    let config_path = dir.join(lang_name).join("extract.toml");
+    let config_str = std::fs::read_to_string(&config_path).ok()?;
+    codequery_core::load_extract_config(&config_str).ok()
 }
 
 #[cfg(test)]

@@ -7,7 +7,8 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use codequery_core::{
-    detect_project_root_or, language_for_file, CallChainNode, ReferenceKind, SymbolKind,
+    detect_project_root_or, language_for_file, language_name_for_file, CallChainNode,
+    ReferenceKind, SymbolKind,
 };
 use codequery_index::{extract_references, scan_project_cached, FileSymbols, SymbolIndex};
 
@@ -99,7 +100,14 @@ fn build_caller_map(scan: &[FileSymbols]) -> HashMap<String, Vec<CallerEntry>> {
     let mut map: HashMap<String, Vec<CallerEntry>> = HashMap::new();
 
     for file_entry in scan {
-        let Some(language) = language_for_file(&file_entry.file) else {
+        let language = if let Some(lang) = language_for_file(&file_entry.file) {
+            lang
+        } else if let Some(name) = language_name_for_file(&file_entry.file) {
+            match codequery_core::Language::from_name(&name) {
+                Some(lang) => lang,
+                None => continue,
+            }
+        } else {
             continue;
         };
 

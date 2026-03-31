@@ -8,9 +8,10 @@
 use std::path::Path;
 
 use codequery_core::{
-    detect_project_root_or, language_for_file, Completeness, HoverInfo, QueryResult, Resolution,
+    detect_project_root_or, language_for_file, language_name_for_file, Completeness, HoverInfo,
+    QueryResult, Resolution,
 };
-use codequery_parse::{extract_symbols, extract_type_at_position, Parser};
+use codequery_parse::{extract_symbols, extract_symbols_by_name, extract_type_at_position, Parser};
 use serde::Serialize;
 use std::io::IsTerminal;
 
@@ -56,11 +57,14 @@ pub fn run(
         return Ok(ExitCode::ProjectError);
     }
 
-    // 4. Detect language
-    let Some(language) = language_for_file(&absolute_file) else {
+    // 4. Detect language (builtin or runtime)
+    let builtin_language = language_for_file(&absolute_file);
+    let has_language =
+        builtin_language.is_some() || language_name_for_file(&absolute_file).is_some();
+    if !has_language {
         eprintln!("error: unsupported file type: {}", absolute_file.display());
         return Ok(ExitCode::ProjectError);
-    };
+    }
 
     // 5. Compute relative path for display
     let relative_path = absolute_file
@@ -69,7 +73,13 @@ pub fn run(
         .map_or_else(|_| file.to_path_buf(), Path::to_path_buf);
 
     // 6. Parse the file
-    let mut parser = Parser::for_language(language)?;
+    let mut parser = if let Some(language) = builtin_language {
+        Parser::for_language(language)?
+    } else {
+        let lang_name = language_name_for_file(&absolute_file)
+            .expect("checked above that language name exists");
+        Parser::for_name(&lang_name)?
+    };
     let (source, tree) = match parser.parse_file(&absolute_file) {
         Ok(result) => result,
         Err(codequery_parse::ParseError::Io(e)) => {
@@ -81,11 +91,21 @@ pub fn run(
 
     let has_parse_errors = tree.root_node().has_error();
 
-    // 7. AST type extraction
-    let type_info = extract_type_at_position(&source, &tree, target_line, target_col, language);
+    // 7. AST type extraction (only supported for builtin languages)
+    let type_info = if let Some(language) = builtin_language {
+        extract_type_at_position(&source, &tree, target_line, target_col, language)
+    } else {
+        None
+    };
 
     // 8. Symbol lookup: find the innermost symbol whose range contains the position
-    let symbols = extract_symbols(&source, &tree, &relative_path, language);
+    let symbols = if let Some(language) = builtin_language {
+        extract_symbols(&source, &tree, &relative_path, language)
+    } else {
+        let lang_name = language_name_for_file(&absolute_file)
+            .expect("checked above that language name exists");
+        extract_symbols_by_name(&source, &tree, &relative_path, &lang_name)
+    };
     let enclosing = find_enclosing_symbol(&symbols, target_line);
 
     let docs = enclosing.and_then(|s| s.doc.clone());

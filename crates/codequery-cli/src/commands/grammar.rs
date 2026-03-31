@@ -560,9 +560,9 @@ mod tests {
     }
 
     #[test]
-    fn test_find_package_for_extension_builtin_not_in_registry() {
-        // Built-in languages like .rs should NOT be in the installable registry
-        assert_eq!(find_package_for_extension(".rs"), None);
+    fn test_find_package_for_extension_builtin_in_registry() {
+        // Built-in languages are now in the registry (unified extension resolver)
+        assert_eq!(find_package_for_extension(".rs"), Some("rust".to_string()));
     }
 
     #[test]
@@ -684,10 +684,10 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         std::env::set_var("CQ_DATA_DIR", tmp.path().to_str().unwrap());
 
-        // Install fails gracefully when GitHub release doesn't exist
-        let result = run_install("elixir");
+        // Install fails gracefully for a non-existent language
+        let result = run_install("klingon_lang_xyz");
         assert!(result.is_ok());
-        let pkg_dir = tmp.path().join("languages").join("elixir");
+        let pkg_dir = tmp.path().join("languages").join("klingon_lang_xyz");
         assert!(
             !pkg_dir.exists(),
             "package dir should not exist after failed download"

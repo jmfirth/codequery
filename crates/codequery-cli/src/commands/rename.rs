@@ -8,7 +8,8 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use codequery_core::{
-    detect_project_root_or, language_for_file, Language, Resolution, SymbolKind, TextEdit,
+    detect_project_root_or, language_for_file, language_name_for_file, Language, Resolution,
+    SymbolKind, TextEdit,
 };
 use codequery_index::{extract_references, scan_project_cached, SymbolIndex};
 
@@ -69,7 +70,14 @@ pub fn run(
 
     for file_entry in &scan {
         let absolute = project_root.join(&file_entry.file);
-        let Some(language) = language_for_file(&absolute) else {
+        let language = if let Some(lang) = language_for_file(&absolute) {
+            lang
+        } else if let Some(name) = language_name_for_file(&absolute) {
+            match codequery_core::Language::from_name(&name) {
+                Some(lang) => lang,
+                None => continue,
+            }
+        } else {
             continue;
         };
 

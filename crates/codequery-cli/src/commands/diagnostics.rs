@@ -2,7 +2,10 @@
 
 use std::path::Path;
 
-use codequery_core::{detect_project_root_or, language_for_file, Diagnostic, DiagnosticSeverity};
+use codequery_core::{
+    detect_project_root_or, language_for_file, language_name_for_file, Diagnostic,
+    DiagnosticSeverity,
+};
 use codequery_index::scan_project_cached;
 use codequery_parse::{extract_syntax_errors, Parser};
 
@@ -46,12 +49,14 @@ pub fn run(
             return Ok(ExitCode::ProjectError);
         }
 
-        let Some(language) = language_for_file(&absolute) else {
+        let mut parser = if let Some(language) = language_for_file(&absolute) {
+            Parser::for_language(language)?
+        } else if let Some(lang_name) = language_name_for_file(&absolute) {
+            Parser::for_name(&lang_name)?
+        } else {
             eprintln!("error: unsupported file type: {}", absolute.display());
             return Ok(ExitCode::ProjectError);
         };
-
-        let mut parser = Parser::for_language(language)?;
         let (source, tree) = match parser.parse_file(&absolute) {
             Ok(r) => r,
             Err(codequery_parse::ParseError::Io(e)) => {

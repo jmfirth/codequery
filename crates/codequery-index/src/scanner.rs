@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 
 use rayon::prelude::*;
 
-use codequery_core::{discover_files, language_for_file, Symbol};
-use codequery_parse::{extract_symbols, Parser};
+use codequery_core::{discover_files, language_for_file, language_name_for_file, Symbol};
+use codequery_parse::{extract_symbols, extract_symbols_by_name, Parser};
 
 use crate::cache::{self, CacheStore, CachedFile};
 use crate::error::Result;
@@ -37,13 +37,25 @@ pub struct FileSymbols {
 /// (error-tolerant: parse failures are silently skipped).
 fn scan_single_file(root: &Path, relative: &Path) -> Option<FileSymbols> {
     let absolute = root.join(relative);
-    let language = language_for_file(&absolute)?;
 
-    let mut parser = Parser::for_language(language).ok()?;
+    // Try builtin language (fast path: compiled-in extractors)
+    if let Some(language) = language_for_file(&absolute) {
+        let mut parser = Parser::for_language(language).ok()?;
+        let (source, tree) = parser.parse_file(&absolute).ok()?;
+        let symbols = extract_symbols(&source, &tree, relative, language);
+        return Some(FileSymbols {
+            file: relative.to_path_buf(),
+            symbols,
+            source,
+            tree,
+        });
+    }
+
+    // Fallback: runtime language via registry name + WASM grammar
+    let lang_name = language_name_for_file(&absolute)?;
+    let mut parser = Parser::for_name(&lang_name).ok()?;
     let (source, tree) = parser.parse_file(&absolute).ok()?;
-
-    let symbols = extract_symbols(&source, &tree, relative, language);
-
+    let symbols = extract_symbols_by_name(&source, &tree, relative, &lang_name);
     Some(FileSymbols {
         file: relative.to_path_buf(),
         symbols,
@@ -164,8 +176,15 @@ fn rebuild_from_cache(
         .filter(|entry| scope.is_none_or(|s| entry.path.starts_with(s)))
         .filter_map(|entry| {
             let absolute = root.join(&entry.path);
-            let language = language_for_file(&absolute)?;
-            let mut parser = Parser::for_language(language).ok()?;
+
+            // Create parser for builtin or runtime language
+            let mut parser = if let Some(language) = language_for_file(&absolute) {
+                Parser::for_language(language).ok()?
+            } else {
+                let name = language_name_for_file(&absolute)?;
+                Parser::for_name(&name).ok()?
+            };
+
             let (source, tree) = parser.parse_file(&absolute).ok()?;
 
             Some(FileSymbols {

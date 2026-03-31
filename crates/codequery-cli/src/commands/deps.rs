@@ -4,8 +4,8 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use codequery_core::{
-    detect_project_root_or, discover_files, language_for_file, Language, ReferenceKind, Resolution,
-    Symbol,
+    detect_project_root_or, discover_files, language_for_file, language_name_for_file, Language,
+    ReferenceKind, Resolution, Symbol,
 };
 use codequery_index::{extract_references, scan_project_cached, SymbolIndex};
 use codequery_parse::Parser;
@@ -194,7 +194,15 @@ fn extract_body_references(
     source: &str,
     target: &Symbol,
 ) -> anyhow::Result<Vec<codequery_core::Reference>> {
-    let Some(lang) = language_for_file(&target.file) else {
+    let lang = if let Some(l) = language_for_file(&target.file) {
+        l
+    } else if let Some(name) = language_name_for_file(&target.file) {
+        let Some(l) = Language::from_name(&name) else {
+            // Runtime language — no reference extraction yet
+            return Ok(Vec::new());
+        };
+        l
+    } else {
         return Ok(Vec::new());
     };
 

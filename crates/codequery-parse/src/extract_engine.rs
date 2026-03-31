@@ -79,6 +79,17 @@ impl CompiledExtractor {
         Self { rules }
     }
 
+    /// Check the cache for a previously compiled extractor.
+    ///
+    /// Returns `None` on cache miss. This avoids expensive grammar re-loading
+    /// when the extractor has already been compiled for a language.
+    pub fn get_cached(name: &str) -> Option<Arc<Self>> {
+        let cache = COMPILED_CACHE
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        cache.get(name).map(Arc::clone)
+    }
+
     /// Get or compile a cached extractor for the given config and language.
     ///
     /// Uses the language name from the config as the cache key.
