@@ -21,7 +21,7 @@ fn test_help_flag_prints_usage() {
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
-        out.contains("Tree-sitter powered structural code navigation"),
+        out.contains("Semantic code query tool"),
         "expected tool description in help output, got: {out}"
     );
 }
