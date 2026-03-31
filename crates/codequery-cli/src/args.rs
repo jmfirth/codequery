@@ -408,7 +408,7 @@ pub enum Command {
                      cq hover src/lib.rs:10"
     )]
     Hover {
-        /// Location as file:line[:column] (e.g. src/main.rs:42:8)
+        /// Location as `file:line[:column]` (e.g. `src/main.rs:42:8`)
         location: String,
     },
     /// Rename a symbol across the project
@@ -802,8 +802,7 @@ mod tests {
 
     #[test]
     fn test_search_command_captures_pattern() {
-        let args =
-            CqArgs::parse_from(["cq", "search", "(function_item name: (identifier) @name)"]);
+        let args = CqArgs::parse_from(["cq", "search", "(function_item name: (identifier) @name)"]);
         match args.command {
             Command::Search { pattern } => {
                 assert_eq!(pattern, "(function_item name: (identifier) @name)");

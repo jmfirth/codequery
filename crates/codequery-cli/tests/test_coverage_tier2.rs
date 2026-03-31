@@ -351,7 +351,10 @@ fn test_symbols_swift_lists_all_symbols() {
 fn test_search_swift_raw_finds_functions() {
     let output = run_cq_project(
         &swift_project(),
-        &["search", "(function_declaration name: (simple_identifier) @name)"],
+        &[
+            "search",
+            "(function_declaration name: (simple_identifier) @name)",
+        ],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
@@ -1137,10 +1140,7 @@ fn test_symbols_zig_lists_all_project_symbols() {
 
 #[test]
 fn test_search_zig_raw_finds_functions() {
-    let output = run_cq_project(
-        &zig_project(),
-        &["search", "(function_declaration) @fn"],
-    );
+    let output = run_cq_project(&zig_project(), &["search", "(function_declaration) @fn"]);
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(

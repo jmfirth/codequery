@@ -179,16 +179,21 @@ pub fn format_def(symbols: &[Symbol], symbol_name: &str, mode: OutputMode, prett
 ///
 /// Each symbol produces one frame header line: `@@ file:line:column kind name @@`
 /// Multiple results are separated by blank lines.
-/// Returns empty string if symbols is empty.
 pub fn format_def_results(symbols: &[Symbol]) -> String {
-    let mut output = String::new();
+    let meta = format_meta_header(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        symbols.len(),
+        None,
+    );
+    let mut content = String::new();
     for (i, symbol) in symbols.iter().enumerate() {
         if i > 0 {
-            output.push_str("\n\n");
+            content.push_str("\n\n");
         }
-        output.push_str(&format_frame_header(symbol));
+        content.push_str(&format_frame_header(symbol));
     }
-    output
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format `def` results as JSON wrapped in `QueryResult`.
@@ -210,13 +215,18 @@ fn format_def_json(symbols: &[Symbol], symbol_name: &str, force_pretty: bool) ->
 /// Format `def` results as raw text (no `@@` delimiters).
 fn format_def_raw(symbols: &[Symbol]) -> String {
     use std::fmt::Write;
-    let mut output = String::new();
+    let meta = format_meta_comment(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        symbols.len(),
+    );
+    let mut content = String::new();
     for (i, symbol) in symbols.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
         let _ = write!(
-            output,
+            content,
             "{}:{}:{} {} {}",
             symbol.file.display(),
             symbol.line,
@@ -225,7 +235,7 @@ fn format_def_raw(symbols: &[Symbol]) -> String {
             symbol.name,
         );
     }
-    output
+    prepend_meta_raw(&meta, &content)
 }
 
 // ---------------------------------------------------------------------------
@@ -251,18 +261,24 @@ pub fn format_body(
 /// Each symbol produces a frame header followed by its body text.
 /// Multiple results are separated by blank lines.
 fn format_body_framed(symbols: &[Symbol]) -> String {
-    let mut output = String::new();
+    let meta = format_meta_header(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        symbols.len(),
+        None,
+    );
+    let mut content = String::new();
     for (i, symbol) in symbols.iter().enumerate() {
         if i > 0 {
-            output.push_str("\n\n");
+            content.push_str("\n\n");
         }
-        output.push_str(&format_frame_header(symbol));
+        content.push_str(&format_frame_header(symbol));
         if let Some(body) = &symbol.body {
-            output.push('\n');
-            output.push_str(body);
+            content.push('\n');
+            content.push_str(body);
         }
     }
-    output
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format `body` results as JSON wrapped in `QueryResult`.
@@ -283,16 +299,21 @@ fn format_body_json(symbols: &[Symbol], symbol_name: &str, force_pretty: bool) -
 
 /// Format `body` results as raw text — body text only, no framing.
 fn format_body_raw(symbols: &[Symbol]) -> String {
-    let mut output = String::new();
+    let meta = format_meta_comment(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        symbols.len(),
+    );
+    let mut content = String::new();
     for (i, symbol) in symbols.iter().enumerate() {
         if i > 0 {
-            output.push_str("\n\n");
+            content.push_str("\n\n");
         }
         if let Some(body) = &symbol.body {
-            output.push_str(body);
+            content.push_str(body);
         }
     }
-    output
+    prepend_meta_raw(&meta, &content)
 }
 
 // ---------------------------------------------------------------------------
@@ -313,18 +334,24 @@ pub fn format_sig(symbols: &[Symbol], symbol_name: &str, mode: OutputMode, prett
 /// Each symbol produces a frame header followed by its signature text.
 /// Multiple results are separated by blank lines.
 fn format_sig_framed(symbols: &[Symbol]) -> String {
-    let mut output = String::new();
+    let meta = format_meta_header(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        symbols.len(),
+        None,
+    );
+    let mut content = String::new();
     for (i, symbol) in symbols.iter().enumerate() {
         if i > 0 {
-            output.push_str("\n\n");
+            content.push_str("\n\n");
         }
-        output.push_str(&format_frame_header(symbol));
+        content.push_str(&format_frame_header(symbol));
         if let Some(ref sig) = symbol.signature {
-            output.push('\n');
-            output.push_str(sig);
+            content.push('\n');
+            content.push_str(sig);
         }
     }
-    output
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format `sig` results as JSON wrapped in `QueryResult`.
@@ -345,16 +372,21 @@ fn format_sig_json(symbols: &[Symbol], symbol_name: &str, force_pretty: bool) ->
 
 /// Format `sig` results as raw text — just the signature, no framing.
 fn format_sig_raw(symbols: &[Symbol]) -> String {
-    let mut output = String::new();
+    let meta = format_meta_comment(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        symbols.len(),
+    );
+    let mut content = String::new();
     for (i, symbol) in symbols.iter().enumerate() {
         if i > 0 {
-            output.push_str("\n\n");
+            content.push_str("\n\n");
         }
         if let Some(ref sig) = symbol.signature {
-            output.push_str(sig);
+            content.push_str(sig);
         }
     }
-    output
+    prepend_meta_raw(&meta, &content)
 }
 
 // ---------------------------------------------------------------------------
@@ -380,12 +412,18 @@ pub fn format_outline_output(
 /// Produces a file-level header followed by an indented symbol list
 /// with nesting for children (e.g., methods inside impl blocks).
 pub fn format_outline(file: &Path, symbols: &[Symbol]) -> String {
-    let mut output = format!("@@ {} @@", file.display());
+    let meta = format_meta_header(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        symbols.len(),
+        None,
+    );
+    let mut content = format!("@@ {} @@", file.display());
     for symbol in symbols {
-        output.push('\n');
-        format_outline_symbol(symbol, 1, &mut output);
+        content.push('\n');
+        format_outline_symbol(symbol, 1, &mut content);
     }
-    output
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format `outline` results as JSON wrapped in `QueryResult`.
@@ -405,14 +443,19 @@ fn format_outline_json(file: &Path, symbols: &[Symbol], force_pretty: bool) -> S
 
 /// Format `outline` results as raw text (no `@@` header).
 fn format_outline_raw(symbols: &[Symbol]) -> String {
-    let mut output = String::new();
+    let meta = format_meta_comment(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        symbols.len(),
+    );
+    let mut content = String::new();
     for (i, symbol) in symbols.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
-        format_outline_symbol(symbol, 0, &mut output);
+        format_outline_symbol(symbol, 0, &mut content);
     }
-    output
+    prepend_meta_raw(&meta, &content)
 }
 
 // ---------------------------------------------------------------------------
@@ -436,11 +479,17 @@ pub fn format_imports_output(
 /// Format imports as framed output: `@@ file:line import source @@`.
 fn format_imports_framed(file: &Path, imports: &[ImportInfo]) -> String {
     use std::fmt::Write;
-    let mut output = format!("@@ {} @@", file.display());
+    let meta = format_meta_header(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        imports.len(),
+        None,
+    );
+    let mut content = format!("@@ {} @@", file.display());
     for import in imports {
-        output.push('\n');
+        content.push('\n');
         let _ = write!(
-            output,
+            content,
             "  @@ {}:{} {} {} @@",
             file.display(),
             import.line,
@@ -448,7 +497,7 @@ fn format_imports_framed(file: &Path, imports: &[ImportInfo]) -> String {
             import.source,
         );
     }
-    output
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format `imports` results as JSON wrapped in `QueryResult`.
@@ -470,14 +519,23 @@ fn format_imports_json(file: &Path, imports: &[ImportInfo], force_pretty: bool) 
 /// Format `imports` results as raw text (no `@@` delimiters).
 fn format_imports_raw(imports: &[ImportInfo]) -> String {
     use std::fmt::Write;
-    let mut output = String::new();
+    let meta = format_meta_comment(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        imports.len(),
+    );
+    let mut content = String::new();
     for (i, import) in imports.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
-        let _ = write!(output, ":{} {} {}", import.line, import.kind, import.source);
+        let _ = write!(
+            content,
+            ":{} {} {}",
+            import.line, import.kind, import.source
+        );
     }
-    output
+    prepend_meta_raw(&meta, &content)
 }
 
 // ---------------------------------------------------------------------------
@@ -501,30 +559,34 @@ pub fn format_context_output(
 
 /// Format context result as framed output.
 fn format_context_framed(symbol: Option<&Symbol>, target_line: usize, file: &Path) -> String {
-    let Some(sym) = symbol else {
-        return format!(
+    let total = usize::from(symbol.is_some());
+    let meta = format_meta_header(Resolution::Syntactic, Completeness::Exhaustive, total, None);
+
+    let content = if let Some(sym) = symbol {
+        let header = format!(
+            "@@ {}:{}:{} {} {} (contains line {}) @@",
+            sym.file.display(),
+            sym.line,
+            sym.column,
+            sym.kind,
+            sym.name,
+            target_line,
+        );
+        if let Some(body) = &sym.body {
+            let body_with_marker = insert_line_marker(body, sym.line, target_line);
+            format!("{header}\n{body_with_marker}")
+        } else {
+            header
+        }
+    } else {
+        format!(
             "@@ {}:{} (no enclosing symbol) @@",
             file.display(),
             target_line,
-        );
+        )
     };
 
-    let header = format!(
-        "@@ {}:{}:{} {} {} (contains line {}) @@",
-        sym.file.display(),
-        sym.line,
-        sym.column,
-        sym.kind,
-        sym.name,
-        target_line,
-    );
-
-    if let Some(body) = &sym.body {
-        let body_with_marker = insert_line_marker(body, sym.line, target_line);
-        format!("{header}\n{body_with_marker}")
-    } else {
-        header
-    }
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format context result as JSON wrapped in `QueryResult`.
@@ -550,22 +612,27 @@ fn format_context_json(
 
 /// Format context result as raw text (body with line marker, no framing).
 fn format_context_raw(symbol: Option<&Symbol>, target_line: usize) -> String {
-    let Some(sym) = symbol else {
-        return String::new();
+    let total = usize::from(symbol.is_some());
+    let meta = format_meta_comment(Resolution::Syntactic, Completeness::Exhaustive, total);
+
+    let content = if let Some(sym) = symbol {
+        if let Some(body) = &sym.body {
+            insert_line_marker(body, sym.line, target_line)
+        } else {
+            format!(
+                "{}:{}:{} {} {}",
+                sym.file.display(),
+                sym.line,
+                sym.column,
+                sym.kind,
+                sym.name,
+            )
+        }
+    } else {
+        String::new()
     };
 
-    if let Some(body) = &sym.body {
-        insert_line_marker(body, sym.line, target_line)
-    } else {
-        format!(
-            "{}:{}:{} {} {}",
-            sym.file.display(),
-            sym.line,
-            sym.column,
-            sym.kind,
-            sym.name,
-        )
-    }
+    prepend_meta_raw(&meta, &content)
 }
 
 /// Insert a `// <- line N` marker on the appropriate line of the body text.
@@ -602,6 +669,50 @@ fn format_frame_header(symbol: &Symbol) -> String {
         symbol.kind,
         symbol.name,
     )
+}
+
+/// Format a `@@ meta ... @@` header line for framed output.
+///
+/// Produces: `@@ meta resolution=X completeness=Y total=N [note="..."] @@`
+fn format_meta_header(
+    resolution: Resolution,
+    completeness: Completeness,
+    total: usize,
+    note: Option<&str>,
+) -> String {
+    use std::fmt::Write;
+    let mut header =
+        format!("@@ meta resolution={resolution} completeness={completeness} total={total}");
+    if let Some(n) = note {
+        let _ = write!(header, " note=\"{n}\"");
+    }
+    header.push_str(" @@");
+    header
+}
+
+/// Format a `# meta ...` comment line for raw output.
+///
+/// Produces: `# meta resolution=X completeness=Y total=N`
+fn format_meta_comment(resolution: Resolution, completeness: Completeness, total: usize) -> String {
+    format!("# meta resolution={resolution} completeness={completeness} total={total}")
+}
+
+/// Prepend a meta header to framed output, with a blank line separator.
+fn prepend_meta_framed(meta: &str, content: &str) -> String {
+    if content.is_empty() {
+        meta.to_string()
+    } else {
+        format!("{meta}\n\n{content}")
+    }
+}
+
+/// Prepend a meta comment to raw output, with a newline separator.
+fn prepend_meta_raw(meta: &str, content: &str) -> String {
+    if content.is_empty() {
+        meta.to_string()
+    } else {
+        format!("{meta}\n{content}")
+    }
 }
 
 /// Format a symbol for the outline, at a given indent level.
@@ -646,14 +757,20 @@ pub fn format_symbols(symbols: &[Symbol], mode: OutputMode, pretty: bool) -> Str
 
 /// Format symbols as framed output: `@@ file:line:col kind name @@` per symbol.
 fn format_symbols_framed(symbols: &[Symbol]) -> String {
-    let mut output = String::new();
+    let meta = format_meta_header(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        symbols.len(),
+        None,
+    );
+    let mut content = String::new();
     for (i, symbol) in symbols.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
-        output.push_str(&format_frame_header(symbol));
+        content.push_str(&format_frame_header(symbol));
     }
-    output
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format `symbols` results as JSON wrapped in `QueryResult`.
@@ -674,13 +791,18 @@ fn format_symbols_json(symbols: &[Symbol], force_pretty: bool) -> String {
 /// Format `symbols` results as raw text: `file:line:col kind name` per symbol.
 fn format_symbols_raw(symbols: &[Symbol]) -> String {
     use std::fmt::Write;
-    let mut output = String::new();
+    let meta = format_meta_comment(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        symbols.len(),
+    );
+    let mut content = String::new();
     for (i, symbol) in symbols.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
         let _ = write!(
-            output,
+            content,
             "{}:{}:{} {} {}",
             symbol.file.display(),
             symbol.line,
@@ -689,7 +811,7 @@ fn format_symbols_raw(symbols: &[Symbol]) -> String {
             symbol.name,
         );
     }
-    output
+    prepend_meta_raw(&meta, &content)
 }
 
 // ---------------------------------------------------------------------------
@@ -713,25 +835,35 @@ pub fn format_tree_output(
 /// Format tree as framed output: `@@ scope @@` header, then files with indented symbols.
 fn format_tree_framed(file_symbols: &[FileSymbols], scope: Option<&Path>) -> String {
     use std::fmt::Write;
-    let mut output = String::new();
+    let total_symbols: usize = file_symbols
+        .iter()
+        .map(|fs| count_symbols_recursive(&fs.symbols))
+        .sum();
+    let meta = format_meta_header(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        total_symbols,
+        None,
+    );
+    let mut content = String::new();
 
     // Scope header
     if let Some(scope) = scope {
-        let _ = write!(output, "@@ {} @@", scope.display());
+        let _ = write!(content, "@@ {} @@", scope.display());
     } else {
-        output.push_str("@@ . @@");
+        content.push_str("@@ . @@");
     }
 
     for fs in file_symbols {
-        output.push('\n');
-        let _ = write!(output, "{}", fs.file.display());
+        content.push('\n');
+        let _ = write!(content, "{}", fs.file.display());
         for symbol in &fs.symbols {
-            output.push('\n');
-            format_tree_symbol(symbol, 1, &mut output);
+            content.push('\n');
+            format_tree_symbol(symbol, 1, &mut content);
         }
     }
 
-    output
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format `tree` results as JSON wrapped in `QueryResult`.
@@ -770,20 +902,29 @@ fn format_tree_json(
 
 /// Format tree as raw text (no `@@` header), files with indented symbols.
 fn format_tree_raw(file_symbols: &[FileSymbols]) -> String {
-    let mut output = String::new();
+    let total_symbols: usize = file_symbols
+        .iter()
+        .map(|fs| count_symbols_recursive(&fs.symbols))
+        .sum();
+    let meta = format_meta_comment(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        total_symbols,
+    );
+    let mut content = String::new();
 
     for (i, fs) in file_symbols.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
-        output.push_str(&fs.file.display().to_string());
+        content.push_str(&fs.file.display().to_string());
         for symbol in &fs.symbols {
-            output.push('\n');
-            format_tree_symbol(symbol, 1, &mut output);
+            content.push('\n');
+            format_tree_symbol(symbol, 1, &mut content);
         }
     }
 
-    output
+    prepend_meta_raw(&meta, &content)
 }
 
 /// Recursively format a symbol in the tree, with indentation.
@@ -836,7 +977,13 @@ pub fn format_refs(
         OutputMode::Json => {
             format_refs_json(definitions, references, symbol_name, pretty, resolution)
         }
-        OutputMode::Raw => format_refs_raw(definitions, references, context_lines, source_map),
+        OutputMode::Raw => format_refs_raw(
+            definitions,
+            references,
+            context_lines,
+            source_map,
+            resolution,
+        ),
     }
 }
 
@@ -854,15 +1001,21 @@ fn format_refs_framed(
     use crate::commands::refs::get_context_lines;
     use std::fmt::Write;
 
-    let mut output = String::new();
+    let note = match resolution {
+        Resolution::Resolved => None,
+        _ => Some("name-based matching; may include false positives"),
+    };
+    let meta = format_meta_header(resolution, Completeness::BestEffort, references.len(), note);
+
+    let mut content = String::new();
 
     // Show definitions first
     for (i, def) in definitions.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
         let _ = write!(
-            output,
+            content,
             "@@ {}:{}:{} {} {} (definition) @@",
             def.file.display(),
             def.line,
@@ -874,11 +1027,11 @@ fn format_refs_framed(
 
     // Show references
     for r in references {
-        if !output.is_empty() {
-            output.push('\n');
+        if !content.is_empty() {
+            content.push('\n');
         }
         let _ = write!(
-            output,
+            content,
             "@@ {}:{}:{} {} @@",
             r.file.display(),
             r.line,
@@ -890,35 +1043,35 @@ fn format_refs_framed(
             if let Some(source) = source_map.get(r.file.as_path()) {
                 let ctx = get_context_lines(source, r.line, context_lines);
                 for line in &ctx {
-                    output.push('\n');
-                    output.push_str(line);
+                    content.push('\n');
+                    content.push_str(line);
                 }
             }
         } else {
             // Show the single context line
-            output.push('\n');
+            content.push('\n');
             let trimmed = r.context.trim_start();
-            output.push_str("    ");
-            output.push_str(trimmed);
+            content.push_str("    ");
+            content.push_str(trimmed);
         }
     }
 
     // Summary line — indicate resolution quality
-    if !output.is_empty() {
-        output.push('\n');
+    if !content.is_empty() {
+        content.push('\n');
     }
     let summary = match resolution {
         Resolution::Resolved => "resolved",
         _ => "syntactic match \u{2014} may be incomplete",
     };
     let _ = write!(
-        output,
+        content,
         "\n{} reference{} ({summary})",
         references.len(),
         if references.len() == 1 { "" } else { "s" },
     );
 
-    output
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format `refs` results as JSON wrapped in `QueryResult`.
@@ -956,19 +1109,21 @@ fn format_refs_raw(
     references: &[Reference],
     context_lines: usize,
     source_map: &HashMap<&Path, &str>,
+    resolution: Resolution,
 ) -> String {
     use crate::commands::refs::get_context_lines;
     use std::fmt::Write;
 
-    let mut output = String::new();
+    let meta = format_meta_comment(resolution, Completeness::BestEffort, references.len());
+    let mut content = String::new();
 
     // Show definitions
     for (i, def) in definitions.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
         let _ = write!(
-            output,
+            content,
             "{}:{}:{} {} {} (definition)",
             def.file.display(),
             def.line,
@@ -980,11 +1135,11 @@ fn format_refs_raw(
 
     // Show references
     for r in references {
-        if !output.is_empty() {
-            output.push('\n');
+        if !content.is_empty() {
+            content.push('\n');
         }
         let _ = write!(
-            output,
+            content,
             "{}:{}:{} {}",
             r.file.display(),
             r.line,
@@ -996,14 +1151,14 @@ fn format_refs_raw(
             if let Some(source) = source_map.get(r.file.as_path()) {
                 let ctx = get_context_lines(source, r.line, context_lines);
                 for line in &ctx {
-                    output.push('\n');
-                    output.push_str(line);
+                    content.push('\n');
+                    content.push_str(line);
                 }
             }
         }
     }
 
-    output
+    prepend_meta_raw(&meta, &content)
 }
 
 // ---------------------------------------------------------------------------
@@ -1030,7 +1185,7 @@ pub fn format_callers(
         OutputMode::Json => {
             format_callers_json(definitions, callers, symbol_name, pretty, resolution)
         }
-        OutputMode::Raw => format_callers_raw(callers, context_lines, source_map),
+        OutputMode::Raw => format_callers_raw(callers, context_lines, source_map, resolution),
     }
 }
 
@@ -1048,15 +1203,21 @@ fn format_callers_framed(
     use crate::commands::refs::get_context_lines;
     use std::fmt::Write;
 
-    let mut output = String::new();
+    let note = match resolution {
+        Resolution::Resolved => None,
+        _ => Some("name-based matching; may include false positives"),
+    };
+    let meta = format_meta_header(resolution, Completeness::BestEffort, callers.len(), note);
+
+    let mut content = String::new();
 
     // Show definitions first
     for (i, def) in definitions.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
         let _ = write!(
-            output,
+            content,
             "@@ {}:{}:{} {} {} (definition) @@",
             def.file.display(),
             def.line,
@@ -1068,8 +1229,8 @@ fn format_callers_framed(
 
     // Show call-site references with caller info
     for r in callers {
-        if !output.is_empty() {
-            output.push('\n');
+        if !content.is_empty() {
+            content.push('\n');
         }
 
         // Include caller function name if available
@@ -1079,7 +1240,7 @@ fn format_callers_framed(
         };
 
         let _ = write!(
-            output,
+            content,
             "@@ {}:{}:{} call{} @@",
             r.file.display(),
             r.line,
@@ -1091,35 +1252,35 @@ fn format_callers_framed(
             if let Some(source) = source_map.get(r.file.as_path()) {
                 let ctx = get_context_lines(source, r.line, context_lines);
                 for line in &ctx {
-                    output.push('\n');
-                    output.push_str(line);
+                    content.push('\n');
+                    content.push_str(line);
                 }
             }
         } else {
             // Show the single context line
-            output.push('\n');
+            content.push('\n');
             let trimmed = r.context.trim_start();
-            output.push_str("    ");
-            output.push_str(trimmed);
+            content.push_str("    ");
+            content.push_str(trimmed);
         }
     }
 
     // Summary line — indicate resolution quality
-    if !output.is_empty() {
-        output.push('\n');
+    if !content.is_empty() {
+        content.push('\n');
     }
     let summary = match resolution {
         Resolution::Resolved => "resolved",
         _ => "syntactic match \u{2014} may be incomplete",
     };
     let _ = write!(
-        output,
+        content,
         "\n{} caller{} ({summary})",
         callers.len(),
         if callers.len() == 1 { "" } else { "s" },
     );
 
-    output
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format `callers` results as JSON wrapped in `QueryResult`.
@@ -1156,15 +1317,17 @@ fn format_callers_raw(
     callers: &[Reference],
     context_lines: usize,
     source_map: &HashMap<&Path, &str>,
+    resolution: Resolution,
 ) -> String {
     use crate::commands::refs::get_context_lines;
     use std::fmt::Write;
 
-    let mut output = String::new();
+    let meta = format_meta_comment(resolution, Completeness::BestEffort, callers.len());
+    let mut content = String::new();
 
     for (i, r) in callers.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
 
         let caller_info = match &r.caller {
@@ -1173,7 +1336,7 @@ fn format_callers_raw(
         };
 
         let _ = write!(
-            output,
+            content,
             "{}:{}:{} call{}",
             r.file.display(),
             r.line,
@@ -1185,14 +1348,14 @@ fn format_callers_raw(
             if let Some(source) = source_map.get(r.file.as_path()) {
                 let ctx = get_context_lines(source, r.line, context_lines);
                 for line in &ctx {
-                    output.push('\n');
-                    output.push_str(line);
+                    content.push('\n');
+                    content.push_str(line);
                 }
             }
         }
     }
 
-    output
+    prepend_meta_raw(&meta, &content)
 }
 
 // ---------------------------------------------------------------------------
@@ -1217,19 +1380,30 @@ pub fn format_deps(
 /// Format deps as framed output.
 fn format_deps_framed(target: Option<&Symbol>, deps: &[Dependency]) -> String {
     use std::fmt::Write;
-    let mut output = String::new();
+    let overall_resolution = if deps.iter().any(|d| d.resolution == Resolution::Resolved) {
+        Resolution::Resolved
+    } else {
+        Resolution::Syntactic
+    };
+    let meta = format_meta_header(
+        overall_resolution,
+        Completeness::BestEffort,
+        deps.len(),
+        None,
+    );
+    let mut content = String::new();
 
     if let Some(sym) = target {
-        output.push_str(&format_frame_header(sym));
+        content.push_str(&format_frame_header(sym));
     }
 
     for dep in deps {
-        output.push('\n');
+        content.push('\n');
         let defined = dep.defined_in.as_deref().unwrap_or("<unresolved>");
-        let _ = write!(output, "  {} ({}) -> {}", dep.name, dep.kind, defined);
+        let _ = write!(content, "  {} ({}) -> {}", dep.name, dep.kind, defined);
     }
 
-    output
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format `deps` results as JSON wrapped in `QueryResult`.
@@ -1264,15 +1438,21 @@ fn format_deps_json(
 /// Format `deps` results as raw text (no framing).
 fn format_deps_raw(deps: &[Dependency]) -> String {
     use std::fmt::Write;
-    let mut output = String::new();
+    let overall_resolution = if deps.iter().any(|d| d.resolution == Resolution::Resolved) {
+        Resolution::Resolved
+    } else {
+        Resolution::Syntactic
+    };
+    let meta = format_meta_comment(overall_resolution, Completeness::BestEffort, deps.len());
+    let mut content = String::new();
     for (i, dep) in deps.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
         let defined = dep.defined_in.as_deref().unwrap_or("<unresolved>");
-        let _ = write!(output, "{} ({}) -> {}", dep.name, dep.kind, defined);
+        let _ = write!(content, "{} ({}) -> {}", dep.name, dep.kind, defined);
     }
-    output
+    prepend_meta_raw(&meta, &content)
 }
 
 // ---------------------------------------------------------------------------
@@ -1324,13 +1504,19 @@ pub fn format_search(
 /// Format search results as framed output: `@@ file:line:col @@` followed by matched text.
 fn format_search_framed(matches: &[SearchMatch]) -> String {
     use std::fmt::Write;
-    let mut output = String::new();
+    let meta = format_meta_header(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        matches.len(),
+        None,
+    );
+    let mut content = String::new();
     for (i, m) in matches.iter().enumerate() {
         if i > 0 {
-            output.push_str("\n\n");
+            content.push_str("\n\n");
         }
         let _ = write!(
-            output,
+            content,
             "@@ {}:{}:{} @@\n{}",
             m.file.display(),
             m.line,
@@ -1338,7 +1524,7 @@ fn format_search_framed(matches: &[SearchMatch]) -> String {
             m.matched_text,
         );
     }
-    output
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format `search` results as JSON wrapped in `QueryResult`.
@@ -1370,14 +1556,19 @@ fn format_search_json(matches: &[SearchMatch], pattern: &str, force_pretty: bool
 
 /// Format `search` results as raw text — matched text only.
 fn format_search_raw(matches: &[SearchMatch]) -> String {
-    let mut output = String::new();
+    let meta = format_meta_comment(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        matches.len(),
+    );
+    let mut content = String::new();
     for (i, m) in matches.iter().enumerate() {
         if i > 0 {
-            output.push_str("\n\n");
+            content.push_str("\n\n");
         }
-        output.push_str(&m.matched_text);
+        content.push_str(&m.matched_text);
     }
-    output
+    prepend_meta_raw(&meta, &content)
 }
 
 // ---------------------------------------------------------------------------
@@ -1394,26 +1585,32 @@ pub struct DeadResult {
 }
 
 /// Format dead code results in the requested mode.
-pub fn format_dead(
-    symbols: &[Symbol],
-    has_public: bool,
-    mode: OutputMode,
-    pretty: bool,
-) -> String {
+pub fn format_dead(symbols: &[Symbol], has_public: bool, mode: OutputMode, pretty: bool) -> String {
     match mode {
-        OutputMode::Framed => format_dead_framed(symbols),
+        OutputMode::Framed => format_dead_framed(symbols, has_public),
         OutputMode::Json => format_dead_json(symbols, has_public, pretty),
-        OutputMode::Raw => format_dead_raw(symbols),
+        OutputMode::Raw => format_dead_raw(symbols, has_public),
     }
 }
 
 /// Format dead symbols as framed output.
-fn format_dead_framed(symbols: &[Symbol]) -> String {
+fn format_dead_framed(symbols: &[Symbol], has_public: bool) -> String {
     use std::fmt::Write;
-    let mut output = String::new();
+    let note = if has_public {
+        Some("structural analysis; public symbols may have external callers not visible to cq")
+    } else {
+        None
+    };
+    let meta = format_meta_header(
+        Resolution::Syntactic,
+        Completeness::BestEffort,
+        symbols.len(),
+        note,
+    );
+    let mut content = String::new();
     for (i, symbol) in symbols.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
         let vis = if symbol.visibility == Visibility::Public {
             " (pub)"
@@ -1421,7 +1618,7 @@ fn format_dead_framed(symbols: &[Symbol]) -> String {
             ""
         };
         let _ = write!(
-            output,
+            content,
             "@@ {}:{}:{} {} {}{} — zero references @@",
             symbol.file.display(),
             symbol.line,
@@ -1431,7 +1628,7 @@ fn format_dead_framed(symbols: &[Symbol]) -> String {
             vis,
         );
     }
-    output
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format dead symbols as JSON wrapped in `QueryResult`.
@@ -1458,15 +1655,21 @@ fn format_dead_json(symbols: &[Symbol], has_public: bool, force_pretty: bool) ->
 }
 
 /// Format dead symbols as raw text.
-fn format_dead_raw(symbols: &[Symbol]) -> String {
+fn format_dead_raw(symbols: &[Symbol], has_public: bool) -> String {
     use std::fmt::Write;
-    let mut output = String::new();
+    let _ = has_public; // Note is only shown in framed/JSON modes
+    let meta = format_meta_comment(
+        Resolution::Syntactic,
+        Completeness::BestEffort,
+        symbols.len(),
+    );
+    let mut content = String::new();
     for (i, symbol) in symbols.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
         let _ = write!(
-            output,
+            content,
             "{}:{}:{} {} {}",
             symbol.file.display(),
             symbol.line,
@@ -1475,7 +1678,7 @@ fn format_dead_raw(symbols: &[Symbol]) -> String {
             symbol.name,
         );
     }
-    output
+    prepend_meta_raw(&meta, &content)
 }
 
 // ---------------------------------------------------------------------------
@@ -1505,14 +1708,20 @@ pub fn format_diagnostics(diagnostics: &[Diagnostic], mode: OutputMode, pretty: 
 /// Each diagnostic produces one line: `@@ file:line:col severity source message @@`
 fn format_diagnostics_framed(diagnostics: &[Diagnostic]) -> String {
     use std::fmt::Write;
-    let mut output = String::new();
+    let meta = format_meta_header(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        diagnostics.len(),
+        None,
+    );
+    let mut content = String::new();
     for (i, diag) in diagnostics.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
         let severity = format_severity(diag.severity);
         let _ = write!(
-            output,
+            content,
             "@@ {}:{}:{} {} {} {} @@",
             diag.file.display(),
             diag.line,
@@ -1522,7 +1731,7 @@ fn format_diagnostics_framed(diagnostics: &[Diagnostic]) -> String {
             diag.message,
         );
     }
-    output
+    prepend_meta_framed(&meta, &content)
 }
 
 /// Format diagnostics as JSON wrapped in `QueryResult`.
@@ -1543,13 +1752,18 @@ fn format_diagnostics_json(diagnostics: &[Diagnostic], force_pretty: bool) -> St
 /// Format diagnostics as raw text: `file:line:col severity message`.
 fn format_diagnostics_raw(diagnostics: &[Diagnostic]) -> String {
     use std::fmt::Write;
-    let mut output = String::new();
+    let meta = format_meta_comment(
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        diagnostics.len(),
+    );
+    let mut content = String::new();
     for (i, diag) in diagnostics.iter().enumerate() {
         if i > 0 {
-            output.push('\n');
+            content.push('\n');
         }
         let _ = write!(
-            output,
+            content,
             "{}:{}:{} {} {}",
             diag.file.display(),
             diag.line,
@@ -1558,7 +1772,7 @@ fn format_diagnostics_raw(diagnostics: &[Diagnostic]) -> String {
             diag.message,
         );
     }
-    output
+    prepend_meta_raw(&meta, &content)
 }
 
 /// Convert a `DiagnosticSeverity` to its lowercase display string.
@@ -1600,10 +1814,34 @@ pub fn format_callchain(
     pretty: bool,
 ) -> String {
     match mode {
-        OutputMode::Framed => format_callchain_framed(root, 0),
+        OutputMode::Framed => {
+            let total = count_callchain_nodes(root);
+            let meta = format_meta_header(
+                Resolution::Syntactic,
+                Completeness::BestEffort,
+                total,
+                Some("recursive caller analysis; may miss indirect calls"),
+            );
+            let content = format_callchain_framed(root, 0);
+            prepend_meta_framed(&meta, &content)
+        }
         OutputMode::Json => format_callchain_json(root, depth, pretty),
-        OutputMode::Raw => format_callchain_framed(root, 0),
+        OutputMode::Raw => {
+            let total = count_callchain_nodes(root);
+            let meta = format_meta_comment(Resolution::Syntactic, Completeness::BestEffort, total);
+            let content = format_callchain_framed(root, 0);
+            prepend_meta_raw(&meta, &content)
+        }
     }
+}
+
+/// Count total nodes in a call chain tree (including root).
+fn count_callchain_nodes(node: &codequery_core::CallChainNode) -> usize {
+    1 + node
+        .callers
+        .iter()
+        .map(count_callchain_nodes)
+        .sum::<usize>()
 }
 
 fn format_callchain_framed(node: &codequery_core::CallChainNode, indent: usize) -> String {
@@ -1663,9 +1901,20 @@ pub fn format_hierarchy(
     pretty: bool,
 ) -> String {
     match mode {
-        OutputMode::Framed => format_hierarchy_framed(result),
+        OutputMode::Framed => {
+            let total = 1 + result.supertypes.len() + result.subtypes.len();
+            let meta =
+                format_meta_header(Resolution::Syntactic, Completeness::BestEffort, total, None);
+            let content = format_hierarchy_framed(result);
+            prepend_meta_framed(&meta, &content)
+        }
         OutputMode::Json => format_hierarchy_json(result, pretty),
-        OutputMode::Raw => format_hierarchy_framed(result),
+        OutputMode::Raw => {
+            let total = 1 + result.supertypes.len() + result.subtypes.len();
+            let meta = format_meta_comment(Resolution::Syntactic, Completeness::BestEffort, total);
+            let content = format_hierarchy_framed(result);
+            prepend_meta_raw(&meta, &content)
+        }
     }
 }
 
@@ -1683,13 +1932,27 @@ fn format_hierarchy_framed(result: &codequery_core::TypeHierarchyResult) -> Stri
     if !result.supertypes.is_empty() {
         output.push_str("\n\nSupertypes:");
         for st in &result.supertypes {
-            let _ = write!(output, "\n  ↑ {} ({}) {}:{}", st.name, st.kind, st.file.display(), st.line);
+            let _ = write!(
+                output,
+                "\n  ↑ {} ({}) {}:{}",
+                st.name,
+                st.kind,
+                st.file.display(),
+                st.line
+            );
         }
     }
     if !result.subtypes.is_empty() {
         output.push_str("\n\nSubtypes:");
         for st in &result.subtypes {
-            let _ = write!(output, "\n  ↓ {} ({}) {}:{}", st.name, st.kind, st.file.display(), st.line);
+            let _ = write!(
+                output,
+                "\n  ↓ {} ({}) {}:{}",
+                st.name,
+                st.kind,
+                st.file.display(),
+                st.line
+            );
         }
     }
     output
@@ -1722,8 +1985,31 @@ pub fn format_rename(
     pretty: bool,
 ) -> String {
     match mode {
-        OutputMode::Framed | OutputMode::Raw => format_rename_framed(result),
+        OutputMode::Framed => {
+            let note = if result.resolution == Resolution::Syntactic {
+                Some("syntactic name matching; may include false positives")
+            } else {
+                None
+            };
+            let meta = format_meta_header(
+                result.resolution,
+                Completeness::BestEffort,
+                result.edits.len(),
+                note,
+            );
+            let content = format_rename_framed(result);
+            prepend_meta_framed(&meta, &content)
+        }
         OutputMode::Json => format_rename_json(result, pretty),
+        OutputMode::Raw => {
+            let meta = format_meta_comment(
+                result.resolution,
+                Completeness::BestEffort,
+                result.edits.len(),
+            );
+            let content = format_rename_framed(result);
+            prepend_meta_raw(&meta, &content)
+        }
     }
 }
 
@@ -1755,7 +2041,12 @@ fn format_rename_framed(result: &codequery_core::RenameResult) -> String {
         let mut current_file: Option<&Path> = None;
         for edit in &result.edits {
             if current_file != Some(edit.file.as_path()) {
-                let _ = write!(output, "\n\n--- {}\n+++ {}", edit.file.display(), edit.file.display());
+                let _ = write!(
+                    output,
+                    "\n\n--- {}\n+++ {}",
+                    edit.file.display(),
+                    edit.file.display()
+                );
                 current_file = Some(&edit.file);
             }
             let _ = write!(
@@ -1862,7 +2153,9 @@ mod tests {
             vec![],
         )];
         let output = format_def_results(&symbols);
-        assert_eq!(output, "@@ src/lib.rs:1:0 function foo @@");
+        assert!(output
+            .starts_with("@@ meta resolution=syntactic completeness=exhaustive total=1 @@\n\n"));
+        assert!(output.contains("@@ src/lib.rs:1:0 function foo @@"));
     }
 
     #[test]
@@ -1888,16 +2181,19 @@ mod tests {
             ),
         ];
         let output = format_def_results(&symbols);
-        assert_eq!(
-            output,
-            "@@ src/lib.rs:1:0 function foo @@\n\n@@ src/main.rs:10:4 function bar @@"
-        );
+        assert!(output
+            .starts_with("@@ meta resolution=syntactic completeness=exhaustive total=2 @@\n\n"));
+        assert!(output
+            .contains("@@ src/lib.rs:1:0 function foo @@\n\n@@ src/main.rs:10:4 function bar @@"));
     }
 
     #[test]
-    fn test_def_empty_results_returns_empty_string() {
+    fn test_def_empty_results_returns_meta_only() {
         let output = format_def_results(&[]);
-        assert_eq!(output, "");
+        assert_eq!(
+            output,
+            "@@ meta resolution=syntactic completeness=exhaustive total=0 @@"
+        );
     }
 
     #[test]
@@ -1923,10 +2219,11 @@ mod tests {
             ),
         ];
         let output = format_outline(Path::new("src/lib.rs"), &symbols);
-        assert_eq!(
-            output,
+        assert!(output
+            .starts_with("@@ meta resolution=syntactic completeness=exhaustive total=2 @@\n\n"));
+        assert!(output.contains(
             "@@ src/lib.rs @@\n  greet (function, pub) :10\n  MAX_RETRIES (const, pub) :20"
-        );
+        ));
     }
 
     #[test]
@@ -1960,14 +2257,18 @@ mod tests {
         );
         let symbols = vec![func, impl_block];
         let output = format_outline(Path::new("src/lib.rs"), &symbols);
-        let expected = "@@ src/lib.rs @@\n  greet (function, pub) :10\n  Router (impl, priv) :20\n    new (method, pub) :22";
-        assert_eq!(output, expected);
+        assert!(output
+            .starts_with("@@ meta resolution=syntactic completeness=exhaustive total=2 @@\n\n"));
+        assert!(output.contains("@@ src/lib.rs @@\n  greet (function, pub) :10\n  Router (impl, priv) :20\n    new (method, pub) :22"));
     }
 
     #[test]
     fn test_outline_file_header_format() {
         let output = format_outline(Path::new("src/api/routes.rs"), &[]);
-        assert!(output.starts_with("@@ src/api/routes.rs @@"));
+        assert!(
+            output.starts_with("@@ meta resolution=syntactic completeness=exhaustive total=0 @@")
+        );
+        assert!(output.contains("@@ src/api/routes.rs @@"));
     }
 
     #[test]
@@ -2051,9 +2352,12 @@ mod tests {
     }
 
     #[test]
-    fn test_outline_no_symbols_shows_just_file_header() {
+    fn test_outline_no_symbols_shows_meta_and_file_header() {
         let output = format_outline(Path::new("src/empty.rs"), &[]);
-        assert_eq!(output, "@@ src/empty.rs @@");
+        assert!(
+            output.starts_with("@@ meta resolution=syntactic completeness=exhaustive total=0 @@")
+        );
+        assert!(output.contains("@@ src/empty.rs @@"));
     }
 
     #[test]
@@ -2068,7 +2372,7 @@ mod tests {
             vec![],
         )];
         let output = format_def_results(&symbols);
-        assert_eq!(output, "@@ src/lib.rs:5:8 function indented @@");
+        assert!(output.contains("@@ src/lib.rs:5:8 function indented @@"));
     }
 
     #[test]
@@ -2162,7 +2466,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn test_def_raw_strips_frame_delimiters() {
+    fn test_def_raw_has_meta_comment() {
         let symbols = vec![make_symbol(
             "foo",
             SymbolKind::Function,
@@ -2174,7 +2478,8 @@ mod tests {
         )];
         let output = format_def(&symbols, "foo", OutputMode::Raw, false);
         assert!(!output.contains("@@"));
-        assert_eq!(output, "src/lib.rs:1:0 function foo");
+        assert!(output.starts_with("# meta resolution=syntactic completeness=exhaustive total=1\n"));
+        assert!(output.contains("src/lib.rs:1:0 function foo"));
     }
 
     #[test]
@@ -2202,13 +2507,14 @@ mod tests {
         let output = format_def(&symbols, "foo", OutputMode::Raw, false);
         assert!(!output.contains("@@"));
         let lines: Vec<&str> = output.lines().collect();
-        assert_eq!(lines.len(), 2);
-        assert_eq!(lines[0], "src/lib.rs:1:0 function foo");
-        assert_eq!(lines[1], "src/main.rs:10:0 function foo");
+        assert_eq!(lines.len(), 3); // meta + 2 results
+        assert!(lines[0].starts_with("# meta"));
+        assert_eq!(lines[1], "src/lib.rs:1:0 function foo");
+        assert_eq!(lines[2], "src/main.rs:10:0 function foo");
     }
 
     #[test]
-    fn test_outline_raw_strips_frame_header() {
+    fn test_outline_raw_has_meta_comment() {
         let symbols = vec![make_symbol(
             "greet",
             SymbolKind::Function,
@@ -2221,13 +2527,17 @@ mod tests {
         let output =
             format_outline_output(Path::new("src/lib.rs"), &symbols, OutputMode::Raw, false);
         assert!(!output.contains("@@"));
+        assert!(output.starts_with("# meta resolution=syntactic completeness=exhaustive total=1\n"));
         assert!(output.contains("greet (function, pub) :10"));
     }
 
     #[test]
-    fn test_outline_raw_empty_symbols_is_empty() {
+    fn test_outline_raw_empty_symbols_has_meta_only() {
         let output = format_outline_output(Path::new("src/lib.rs"), &[], OutputMode::Raw, false);
-        assert!(output.is_empty());
+        assert_eq!(
+            output,
+            "# meta resolution=syntactic completeness=exhaustive total=0"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -2284,7 +2594,9 @@ mod tests {
             "pub fn greet(name: &str) -> String {\n    format!(\"Hello, {name}!\")\n}",
         )];
         let output = format_body(&symbols, "greet", OutputMode::Framed, false);
-        assert!(output.starts_with("@@ src/lib.rs:9:0 function greet @@\n"));
+        assert!(output
+            .starts_with("@@ meta resolution=syntactic completeness=exhaustive total=1 @@\n\n"));
+        assert!(output.contains("@@ src/lib.rs:9:0 function greet @@\n"));
         assert!(output.contains("pub fn greet(name: &str) -> String {"));
         assert!(output.contains("format!(\"Hello, {name}!\")"));
     }
@@ -2317,13 +2629,16 @@ mod tests {
     }
 
     #[test]
-    fn test_body_framed_empty_results_returns_empty_string() {
+    fn test_body_framed_empty_results_returns_meta_only() {
         let output = format_body(&[], "missing", OutputMode::Framed, false);
-        assert_eq!(output, "");
+        assert_eq!(
+            output,
+            "@@ meta resolution=syntactic completeness=exhaustive total=0 @@"
+        );
     }
 
     #[test]
-    fn test_body_framed_symbol_without_body_shows_header_only() {
+    fn test_body_framed_symbol_without_body_shows_meta_and_header() {
         let symbols = vec![make_symbol(
             "foo",
             SymbolKind::Function,
@@ -2334,7 +2649,9 @@ mod tests {
             vec![],
         )];
         let output = format_body(&symbols, "foo", OutputMode::Framed, false);
-        assert_eq!(output, "@@ src/lib.rs:1:0 function foo @@");
+        assert!(output
+            .starts_with("@@ meta resolution=syntactic completeness=exhaustive total=1 @@\n\n"));
+        assert!(output.contains("@@ src/lib.rs:1:0 function foo @@"));
     }
 
     // -----------------------------------------------------------------------
@@ -2381,7 +2698,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn test_body_raw_outputs_body_text_only() {
+    fn test_body_raw_has_meta_and_body_text() {
         let symbols = vec![make_symbol_with_body(
             "greet",
             SymbolKind::Function,
@@ -2393,7 +2710,8 @@ mod tests {
         )];
         let output = format_body(&symbols, "greet", OutputMode::Raw, false);
         assert!(!output.contains("@@"));
-        assert_eq!(output, "pub fn greet() {\n    println!(\"hello\");\n}");
+        assert!(output.starts_with("# meta resolution=syntactic completeness=exhaustive total=1\n"));
+        assert!(output.contains("pub fn greet() {\n    println!(\"hello\");\n}"));
     }
 
     #[test]
@@ -2420,17 +2738,21 @@ mod tests {
         ];
         let output = format_body(&symbols, "foo", OutputMode::Raw, false);
         assert!(!output.contains("@@"));
-        assert_eq!(output, "fn foo() {}\n\nfn foo() { 42 }");
+        assert!(output.starts_with("# meta resolution=syntactic completeness=exhaustive total=2\n"));
+        assert!(output.contains("fn foo() {}\n\nfn foo() { 42 }"));
     }
 
     #[test]
-    fn test_body_raw_empty_results_returns_empty_string() {
+    fn test_body_raw_empty_results_returns_meta_only() {
         let output = format_body(&[], "missing", OutputMode::Raw, false);
-        assert_eq!(output, "");
+        assert_eq!(
+            output,
+            "# meta resolution=syntactic completeness=exhaustive total=0"
+        );
     }
 
     #[test]
-    fn test_body_raw_symbol_without_body_returns_empty_string() {
+    fn test_body_raw_symbol_without_body_returns_meta_only() {
         let symbols = vec![make_symbol(
             "foo",
             SymbolKind::Function,
@@ -2441,7 +2763,8 @@ mod tests {
             vec![],
         )];
         let output = format_body(&symbols, "foo", OutputMode::Raw, false);
-        assert_eq!(output, "");
+        // Body is None, so content is empty, but meta still present
+        assert!(output.starts_with("# meta resolution=syntactic completeness=exhaustive total=1"));
     }
 
     // -----------------------------------------------------------------------
@@ -2458,23 +2781,27 @@ mod tests {
     }
 
     #[test]
-    fn test_imports_framed_produces_file_header_and_entries() {
+    fn test_imports_framed_produces_meta_and_file_header_and_entries() {
         let imports = vec![
             make_import("std::collections::HashMap", "use", 1, true),
             make_import("crate::models::User", "use", 2, false),
         ];
         let output =
             format_imports_output(Path::new("src/lib.rs"), &imports, OutputMode::Framed, false);
-        assert!(output.starts_with("@@ src/lib.rs @@"));
+        assert!(output
+            .starts_with("@@ meta resolution=syntactic completeness=exhaustive total=2 @@\n\n"));
+        assert!(output.contains("@@ src/lib.rs @@"));
         assert!(output.contains("@@ src/lib.rs:1 use std::collections::HashMap @@"));
         assert!(output.contains("@@ src/lib.rs:2 use crate::models::User @@"));
     }
 
     #[test]
-    fn test_imports_framed_empty_shows_just_file_header() {
+    fn test_imports_framed_empty_shows_meta_and_file_header() {
         let output =
             format_imports_output(Path::new("src/empty.rs"), &[], OutputMode::Framed, false);
-        assert_eq!(output, "@@ src/empty.rs @@");
+        assert!(output
+            .starts_with("@@ meta resolution=syntactic completeness=exhaustive total=0 @@\n\n"));
+        assert!(output.contains("@@ src/empty.rs @@"));
     }
 
     #[test]
@@ -2503,7 +2830,7 @@ mod tests {
     }
 
     #[test]
-    fn test_imports_raw_strips_frame_delimiters() {
+    fn test_imports_raw_has_meta_comment() {
         let imports = vec![
             make_import("std::io", "use", 1, true),
             make_import("crate::models", "use", 2, false),
@@ -2512,15 +2839,19 @@ mod tests {
             format_imports_output(Path::new("src/lib.rs"), &imports, OutputMode::Raw, false);
         assert!(!output.contains("@@"));
         let lines: Vec<&str> = output.lines().collect();
-        assert_eq!(lines.len(), 2);
-        assert_eq!(lines[0], ":1 use std::io");
-        assert_eq!(lines[1], ":2 use crate::models");
+        assert_eq!(lines.len(), 3); // meta + 2 imports
+        assert!(lines[0].starts_with("# meta"));
+        assert_eq!(lines[1], ":1 use std::io");
+        assert_eq!(lines[2], ":2 use crate::models");
     }
 
     #[test]
-    fn test_imports_raw_empty_is_empty() {
+    fn test_imports_raw_empty_has_meta_only() {
         let output = format_imports_output(Path::new("src/lib.rs"), &[], OutputMode::Raw, false);
-        assert!(output.is_empty());
+        assert_eq!(
+            output,
+            "# meta resolution=syntactic completeness=exhaustive total=0"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -2562,7 +2893,7 @@ mod tests {
     }
 
     #[test]
-    fn test_context_framed_without_body_shows_header_only() {
+    fn test_context_framed_without_body_shows_meta_and_header() {
         let sym = Symbol {
             name: "foo".to_string(),
             kind: SymbolKind::Function,
@@ -2583,9 +2914,11 @@ mod tests {
             OutputMode::Framed,
             false,
         );
+        assert!(output
+            .starts_with("@@ meta resolution=syntactic completeness=exhaustive total=1 @@\n\n"));
         assert!(output.contains("@@ src/lib.rs:10:0 function foo (contains line 12) @@"));
-        // No body lines after header
-        assert_eq!(output.lines().count(), 1);
+        // Meta line + blank line + header = 3 lines, no body
+        assert_eq!(output.lines().count(), 3);
     }
 
     #[test]
@@ -2656,10 +2989,13 @@ mod tests {
     }
 
     #[test]
-    fn test_context_raw_no_symbol_is_empty() {
+    fn test_context_raw_no_symbol_has_meta_only() {
         let output =
             format_context_output(None, 5, Path::new("src/lib.rs"), OutputMode::Raw, false);
-        assert!(output.is_empty());
+        assert_eq!(
+            output,
+            "# meta resolution=syntactic completeness=exhaustive total=0"
+        );
     }
 
     #[test]
@@ -2733,20 +3069,24 @@ mod tests {
     }
 
     #[test]
-    fn test_search_framed_empty_matches() {
+    fn test_search_framed_empty_matches_has_meta_only() {
         let matches: Vec<SearchMatch> = vec![];
         let output = format_search(&matches, "fn $NAME() {}", OutputMode::Framed, false);
-        assert!(output.is_empty());
+        assert_eq!(
+            output,
+            "@@ meta resolution=syntactic completeness=exhaustive total=0 @@"
+        );
     }
 
     #[test]
-    fn test_search_raw_shows_matched_text_only() {
+    fn test_search_raw_has_meta_and_matched_text() {
         let matches = vec![
             make_search_match("src/a.rs", 0, 0, "fn alpha() {}"),
             make_search_match("src/b.rs", 2, 4, "fn beta() {}"),
         ];
         let output = format_search(&matches, "fn $NAME() {}", OutputMode::Raw, false);
-        assert_eq!(output, "fn alpha() {}\n\nfn beta() {}");
+        assert!(output.starts_with("# meta resolution=syntactic completeness=exhaustive total=2\n"));
+        assert!(output.contains("fn alpha() {}\n\nfn beta() {}"));
     }
 
     #[test]
@@ -2779,7 +3119,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     fn make_diagnostic(file: &str, line: usize, column: usize, message: &str) -> Diagnostic {
-        use codequery_core::{DiagnosticSource};
+        use codequery_core::DiagnosticSource;
         Diagnostic {
             file: PathBuf::from(file),
             line,
@@ -2794,16 +3134,20 @@ mod tests {
     }
 
     #[test]
-    fn test_format_diagnostics_framed_empty_returns_empty_string() {
+    fn test_format_diagnostics_framed_empty_returns_meta_only() {
         let output = format_diagnostics(&[], OutputMode::Framed, false);
-        assert_eq!(output, "");
+        assert_eq!(
+            output,
+            "@@ meta resolution=syntactic completeness=exhaustive total=0 @@"
+        );
     }
 
     #[test]
     fn test_format_diagnostics_framed_single_diagnostic() {
         let diag = make_diagnostic("src/main.rs", 10, 4, "unexpected syntax");
         let output = format_diagnostics(&[diag], OutputMode::Framed, false);
-        assert!(output.starts_with("@@"));
+        assert!(output
+            .starts_with("@@ meta resolution=syntactic completeness=exhaustive total=1 @@\n\n"));
         assert!(output.contains("src/main.rs:10:4"));
         assert!(output.contains("error"));
         assert!(output.contains("syntax"));
@@ -2819,15 +3163,19 @@ mod tests {
         ];
         let output = format_diagnostics(&diags, OutputMode::Framed, false);
         let lines: Vec<&str> = output.lines().collect();
-        assert_eq!(lines.len(), 2);
-        assert!(lines[0].contains("src/a.rs"));
-        assert!(lines[1].contains("src/b.rs"));
+        assert_eq!(lines.len(), 4); // meta + blank + 2 diagnostics
+        assert!(lines[0].starts_with("@@ meta"));
+        assert!(lines[2].contains("src/a.rs"));
+        assert!(lines[3].contains("src/b.rs"));
     }
 
     #[test]
-    fn test_format_diagnostics_raw_empty_returns_empty_string() {
+    fn test_format_diagnostics_raw_empty_returns_meta_only() {
         let output = format_diagnostics(&[], OutputMode::Raw, false);
-        assert_eq!(output, "");
+        assert_eq!(
+            output,
+            "# meta resolution=syntactic completeness=exhaustive total=0"
+        );
     }
 
     #[test]

@@ -3,9 +3,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use codequery_core::{
-    detect_project_root_or, language_for_file, Symbol, SymbolKind, Visibility,
-};
+use codequery_core::{detect_project_root_or, language_for_file, Symbol, SymbolKind, Visibility};
 use codequery_index::{extract_references, scan_project_cached, SymbolIndex};
 
 use crate::args::{ExitCode, OutputMode};
@@ -65,9 +63,7 @@ pub fn run(
     }
 
     // 5. Find symbols with zero references
-    let kind_filter = kind
-        .map(|s| parse_kind(s))
-        .transpose()?;
+    let kind_filter = kind.map(parse_kind).transpose()?;
 
     let mut dead_symbols: Vec<Symbol> = index
         .all_symbols()
@@ -137,9 +133,7 @@ fn extract_name_at_column(line: &str, column: usize) -> Option<String> {
     }
     let start = column;
     let mut end = start;
-    while end < bytes.len()
-        && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_')
-    {
+    while end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
         end += 1;
     }
     if end > start {

@@ -167,7 +167,12 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             pretty,
             use_semantic,
         ),
-        Command::Rename { old, new, apply, dry_run } => commands::rename::run(
+        Command::Rename {
+            old,
+            new,
+            apply,
+            dry_run,
+        } => commands::rename::run(
             &old,
             &new,
             apply,

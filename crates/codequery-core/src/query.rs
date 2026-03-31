@@ -40,6 +40,15 @@ pub enum Completeness {
     BestEffort,
 }
 
+impl fmt::Display for Completeness {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Exhaustive => write!(f, "exhaustive"),
+            Self::BestEffort => write!(f, "best_effort"),
+        }
+    }
+}
+
 /// Wrapper for command results with precision metadata.
 ///
 /// The `data` field is flattened into the top-level JSON object, so the data's

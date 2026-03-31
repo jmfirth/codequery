@@ -47,10 +47,7 @@ pub fn run(
         }
 
         let Some(language) = language_for_file(&absolute) else {
-            eprintln!(
-                "error: unsupported file type: {}",
-                absolute.display()
-            );
+            eprintln!("error: unsupported file type: {}", absolute.display());
             return Ok(ExitCode::ProjectError);
         };
 
@@ -140,14 +137,7 @@ mod tests {
     #[test]
     fn test_diagnostics_clean_project_returns_no_results() {
         let project = fixture_project();
-        let result = run(
-            None,
-            Some(&project),
-            None,
-            OutputMode::Framed,
-            false,
-            false,
-        );
+        let result = run(None, Some(&project), None, OutputMode::Framed, false, false);
         assert!(result.is_ok());
         // The fixture project should be clean (no syntax errors)
         assert_eq!(result.unwrap(), ExitCode::NoResults);
@@ -196,14 +186,7 @@ mod tests {
             .write_all(b"fn main() {")
             .unwrap();
 
-        let result = run(
-            None,
-            Some(tmp.path()),
-            None,
-            OutputMode::Json,
-            false,
-            false,
-        );
+        let result = run(None, Some(tmp.path()), None, OutputMode::Json, false, false);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::ParseWarning);
     }

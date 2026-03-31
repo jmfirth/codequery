@@ -30,7 +30,11 @@ use crate::output::format_rename;
 ///
 /// Returns an error if the project root cannot be detected, scanning fails,
 /// or the symbol is not found.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::fn_params_excessive_bools
+)]
 // CLI command runners naturally take one parameter per flag
 pub fn run(
     old_name: &str,

@@ -50,12 +50,7 @@ pub fn run(
     // 5. Build the call chain tree
     let definitions = index.find_by_name(symbol);
     let (file, line, column, kind) = if let Some(def) = definitions.first() {
-        (
-            def.file.clone(),
-            def.line,
-            def.column,
-            def.kind,
-        )
+        (def.file.clone(), def.line, def.column, def.kind)
     } else {
         (
             std::path::PathBuf::from("<unknown>"),
@@ -96,7 +91,7 @@ pub fn run(
     }
 }
 
-/// A caller entry: (caller_name, caller_kind, file, line, column)
+/// A caller entry: (`caller_name`, `caller_kind`, file, line, column)
 type CallerEntry = (String, SymbolKind, std::path::PathBuf, usize, usize);
 
 /// Build a map from symbol name to its callers across the project.
@@ -127,15 +122,13 @@ fn build_caller_map(scan: &[FileSymbols]) -> HashMap<String, Vec<CallerEntry>> {
             // Extract the called symbol name from the context
             let line_text = r.context.as_str();
             if let Some(called_name) = extract_name_at_column(line_text, r.column) {
-                map.entry(called_name)
-                    .or_default()
-                    .push((
-                        caller_name.clone(),
-                        caller_kind,
-                        r.file.clone(),
-                        r.line,
-                        r.column,
-                    ));
+                map.entry(called_name).or_default().push((
+                    caller_name.clone(),
+                    caller_kind,
+                    r.file.clone(),
+                    r.line,
+                    r.column,
+                ));
             }
         }
     }
@@ -144,6 +137,7 @@ fn build_caller_map(scan: &[FileSymbols]) -> HashMap<String, Vec<CallerEntry>> {
 }
 
 /// Recursively build a call chain node.
+#[allow(clippy::too_many_arguments)]
 fn build_chain_node(
     name: &str,
     kind: SymbolKind,

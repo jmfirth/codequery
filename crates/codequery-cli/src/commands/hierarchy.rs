@@ -22,7 +22,7 @@ use crate::output::format_hierarchy;
 /// # Errors
 ///
 /// Returns an error if the project root cannot be detected or scanning fails.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 // CLI command runners naturally take one parameter per flag
 pub fn run(
     symbol: &str,

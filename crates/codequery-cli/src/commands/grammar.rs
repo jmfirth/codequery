@@ -642,7 +642,10 @@ mod tests {
 
         // The directory should NOT exist since download failed
         let pkg_dir = tmp.path().join("languages").join("elixir");
-        assert!(!pkg_dir.exists(), "package dir should not exist after failed download");
+        assert!(
+            !pkg_dir.exists(),
+            "package dir should not exist after failed download"
+        );
 
         std::env::remove_var("CQ_DATA_DIR");
     }

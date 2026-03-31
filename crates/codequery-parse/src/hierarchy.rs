@@ -145,7 +145,7 @@ fn collect_ts_relations(
     }
 }
 
-/// Extract type names from an extends_clause or implements_clause.
+/// Extract type names from an `extends_clause` or `implements_clause`.
 fn collect_ts_clause_types(
     clause: &tree_sitter::Node,
     source: &str,

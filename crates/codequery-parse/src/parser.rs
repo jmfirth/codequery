@@ -141,7 +141,7 @@ fn auto_install_grammar(name: &str) -> bool {
     {
         let attempted = AUTO_INSTALL_ATTEMPTED
             .lock()
-            .unwrap_or_else(|e| e.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if attempted.iter().any(|n| n == name) {
             return false;
         }
@@ -151,7 +151,7 @@ fn auto_install_grammar(name: &str) -> bool {
     {
         let mut attempted = AUTO_INSTALL_ATTEMPTED
             .lock()
-            .unwrap_or_else(|e| e.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         attempted.push(name.to_string());
     }
 

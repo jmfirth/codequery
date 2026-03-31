@@ -8,7 +8,7 @@
 use std::path::Path;
 
 use codequery_core::{
-    Completeness, HoverInfo, QueryResult, Resolution, detect_project_root_or, language_for_file,
+    detect_project_root_or, language_for_file, Completeness, HoverInfo, QueryResult, Resolution,
 };
 use codequery_parse::{extract_symbols, extract_type_at_position, Parser};
 use serde::Serialize;
@@ -155,6 +155,17 @@ pub fn format_hover_output(info: &HoverInfo, mode: OutputMode, pretty: bool) -> 
 /// Each non-empty field gets its own `@@ ... @@` section header.
 /// Sections are separated by blank lines.
 fn format_hover_framed(info: &HoverInfo) -> String {
+    let total = [&info.type_info, &info.signature, &info.docs]
+        .iter()
+        .filter(|f| f.is_some())
+        .count();
+    let meta = format!(
+        "@@ meta resolution={} completeness={} total={} @@",
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        total,
+    );
+
     let mut sections: Vec<String> = Vec::new();
 
     if let Some(ref t) = info.type_info {
@@ -187,7 +198,12 @@ fn format_hover_framed(info: &HoverInfo) -> String {
         ));
     }
 
-    sections.join("\n\n")
+    let content = sections.join("\n\n");
+    if content.is_empty() {
+        meta
+    } else {
+        format!("{meta}\n\n{content}")
+    }
 }
 
 /// Format hover info as JSON wrapped in `QueryResult`.
@@ -214,16 +230,32 @@ fn format_hover_json(info: &HoverInfo, force_pretty: bool) -> String {
 /// Emits the type info if available, otherwise the signature, otherwise the
 /// doc comment. Returns an empty string if all fields are `None`.
 fn format_hover_raw(info: &HoverInfo) -> String {
-    if let Some(ref t) = info.type_info {
-        return t.clone();
+    let total = [&info.type_info, &info.signature, &info.docs]
+        .iter()
+        .filter(|f| f.is_some())
+        .count();
+    let meta = format!(
+        "# meta resolution={} completeness={} total={}",
+        Resolution::Syntactic,
+        Completeness::Exhaustive,
+        total,
+    );
+
+    let content = if let Some(ref t) = info.type_info {
+        t.clone()
+    } else if let Some(ref sig) = info.signature {
+        sig.clone()
+    } else if let Some(ref doc) = info.docs {
+        doc.clone()
+    } else {
+        String::new()
+    };
+
+    if content.is_empty() {
+        meta
+    } else {
+        format!("{meta}\n{content}")
     }
-    if let Some(ref sig) = info.signature {
-        return sig.clone();
-    }
-    if let Some(ref doc) = info.docs {
-        return doc.clone();
-    }
-    String::new()
 }
 
 /// Parse a `file:line` or `file:line:col` location string.
@@ -433,8 +465,15 @@ mod tests {
             Some("Does the thing."),
             Some("fn do_thing(&self) -> bool"),
         );
-        let impl_block =
-            make_symbol("MyStruct", SymbolKind::Impl, 3, 10, vec![method], None, None);
+        let impl_block = make_symbol(
+            "MyStruct",
+            SymbolKind::Impl,
+            3,
+            10,
+            vec![method],
+            None,
+            None,
+        );
         let symbols = vec![impl_block];
         let result = find_enclosing_symbol(&symbols, 6);
         assert_eq!(result.map(|s| s.name.as_str()), Some("do_thing"));
@@ -498,7 +537,10 @@ mod tests {
         )];
         let sym = find_enclosing_symbol(&symbols, 2).unwrap();
         assert_eq!(sym.doc.as_deref(), Some("A greeting function."));
-        assert_eq!(sym.signature.as_deref(), Some("fn greet(name: &str) -> String"));
+        assert_eq!(
+            sym.signature.as_deref(),
+            Some("fn greet(name: &str) -> String")
+        );
     }
 
     // -----------------------------------------------------------------------
