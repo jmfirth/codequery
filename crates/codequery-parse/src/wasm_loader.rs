@@ -28,6 +28,64 @@ pub struct WasmGrammarInfo {
     pub wasm_path: PathBuf,
 }
 
+/// Resolve the WASM function name for a language.
+///
+/// Tree-sitter WASM modules export `tree_sitter_<name>`. The `<name>` may differ
+/// from our canonical language name (e.g., "common-lisp" → "commonlisp",
+/// "objective-c" → "objc"). This function checks for a `wasm_name` file in the
+/// grammar package, then tries hyphens→underscores, then the original name.
+#[cfg(feature = "wasm")]
+fn resolve_wasm_name(lang_name: &str, wasm_path: &Path) -> String {
+    // Check for explicit wasm_name file in the grammar package directory
+    if let Some(dir) = wasm_path.parent() {
+        let name_file = dir.join("wasm_name");
+        if let Ok(name) = std::fs::read_to_string(&name_file) {
+            let name = name.trim();
+            if !name.is_empty() {
+                return name.to_string();
+            }
+        }
+    }
+
+    // If name contains hyphens, try without them (common pattern)
+    if lang_name.contains('-') {
+        return lang_name.replace('-', "_");
+    }
+
+    lang_name.to_string()
+}
+
+/// Try loading a WASM language with name fallbacks.
+///
+/// Attempts the resolved name first, then the original name if different.
+#[cfg(feature = "wasm")]
+fn load_language_with_fallback(
+    store: &mut tree_sitter::WasmStore,
+    lang_name: &str,
+    wasm_path: &Path,
+    wasm_bytes: &[u8],
+) -> std::result::Result<tree_sitter::Language, String> {
+    let resolved = resolve_wasm_name(lang_name, wasm_path);
+
+    // Try resolved name first
+    match store.load_language(&resolved, wasm_bytes) {
+        Ok(lang) => Ok(lang),
+        Err(e) => {
+            // If resolved name differs from original, the original won't work either
+            // (it has hyphens which are invalid). Try without any separators.
+            if resolved != lang_name {
+                let no_sep = lang_name.replace('-', "");
+                if no_sep != resolved {
+                    if let Ok(lang) = store.load_language(&no_sep, wasm_bytes) {
+                        return Ok(lang);
+                    }
+                }
+            }
+            Err(format!("load language '{lang_name}': {e}"))
+        }
+    }
+}
+
 /// Scan the languages directory for installed WASM grammar packages.
 ///
 /// Each language package lives in `~/.local/share/cq/languages/<name>/`
@@ -131,9 +189,8 @@ pub fn load_wasm_language(
     let mut store =
         WasmStore::new(&engine).map_err(|e| ParseError::WasmError(format!("wasm store: {e}")))?;
 
-    let language = store
-        .load_language(lang_name, &wasm_bytes)
-        .map_err(|e| ParseError::WasmError(format!("load language '{lang_name}': {e}")))?;
+    let language = load_language_with_fallback(&mut store, lang_name, wasm_path, &wasm_bytes)
+        .map_err(ParseError::WasmError)?;
 
     // Transfer store ownership to the parser. The store must outlive
     // the language; set_wasm_store moves it into the C parser via mem::forget.
@@ -199,9 +256,8 @@ pub fn load_wasm_language_cached(
     let mut store =
         WasmStore::new(&engine).map_err(|e| ParseError::WasmError(format!("wasm store: {e}")))?;
 
-    let language = store
-        .load_language(lang_name, &wasm_bytes)
-        .map_err(|e| ParseError::WasmError(format!("load language '{lang_name}': {e}")))?;
+    let language = load_language_with_fallback(&mut store, lang_name, wasm_path, &wasm_bytes)
+        .map_err(ParseError::WasmError)?;
 
     // Attempt to cache the precompiled module for future loads
     try_save_cwasm(lang_name, &engine, &wasm_bytes);

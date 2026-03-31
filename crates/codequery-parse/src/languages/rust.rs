@@ -68,7 +68,8 @@ pub fn extract_signature(source: &str, node: &tree_sitter::Node<'_>, kind: Symbo
             extract_single_line_signature(body_text)
         }
         SymbolKind::Module => extract_mod_signature(body_text),
-        SymbolKind::Macro => extract_single_line_signature(body_text),
+        // All other kinds (macro, language-specific, infra, markup)
+        _ => extract_single_line_signature(body_text),
     }
 }
 

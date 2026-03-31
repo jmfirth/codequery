@@ -4,12 +4,12 @@ extensions = [".kt", ".kts"]
 
 [[symbols]]
 kind = "function"
-query = '(function_declaration (simple_identifier) @name) @def'
+query = '(function_declaration (identifier) @name) @def'
 name = "@name"
 body = "@def"
 
 [[symbols]]
 kind = "class"
-query = '(class_declaration (type_identifier) @name) @def'
+query = '(class_declaration (identifier) @name) @def'
 name = "@name"
 body = "@def"

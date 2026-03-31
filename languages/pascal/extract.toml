@@ -1,6 +1,7 @@
 # Pascal symbol extraction rules for cq.
 #
 # Covers program, unit, procedure, function, type, and class definitions.
+# Uses tree-sitter-pascal grammar (Isopod/tree-sitter-pascal).
 
 [language]
 name = "pascal"
@@ -9,29 +10,21 @@ extensions = [".pas", ".pp", ".lpr"]
 # Program declaration: program Foo;
 [[symbols]]
 kind = "module"
-query = '(program (programHeading (identifier) @name)) @def'
+query = '(program (moduleName) @name) @def'
 name = "@name"
 body = "@def"
 
 # Unit declaration: unit Foo;
 [[symbols]]
 kind = "module"
-query = '(unit (unitHeading (identifier) @name)) @def'
+query = '(unit (moduleName) @name) @def'
 name = "@name"
 body = "@def"
 
-# Procedure definitions: procedure Foo(...);
+# Procedure/function definitions: procedure Foo(...); / function Foo(...): Type;
 [[symbols]]
 kind = "function"
-query = '(procedureDeclaration (procedureHeader (identifier) @name)) @def'
-name = "@name"
-body = "@def"
-doc = "preceding_comment"
-
-# Function definitions: function Foo(...): Type;
-[[symbols]]
-kind = "function"
-query = '(functionDeclaration (functionHeader (identifier) @name)) @def'
+query = '(defProc header: (declProc name: (identifier) @name)) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -39,7 +32,7 @@ doc = "preceding_comment"
 # Type definitions: type Foo = ...
 [[symbols]]
 kind = "type"
-query = '(typeDeclaration (identifier) @name) @def'
+query = '(declType name: (identifier) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"

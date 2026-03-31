@@ -37,6 +37,7 @@ pub struct Symbol {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SymbolKind {
+    // --- Core programming constructs ---
     /// A free function.
     Function,
     /// A method on a type.
@@ -51,13 +52,13 @@ pub enum SymbolKind {
     Interface,
     /// An enum definition.
     Enum,
-    /// A type alias.
+    /// A type alias or type definition.
     Type,
     /// A constant binding.
     Const,
     /// A static binding.
     Static,
-    /// A module declaration.
+    /// A module or namespace declaration.
     Module,
     /// An impl block.
     Impl,
@@ -65,6 +66,80 @@ pub enum SymbolKind {
     Test,
     /// A macro definition.
     Macro,
+    /// A variable or binding.
+    Variable,
+
+    // --- Language-specific constructs ---
+    /// A namespace (C++, C#, PHP, Clojure).
+    Namespace,
+    /// A package declaration (Java, Go, Perl).
+    Package,
+    /// A record type (Erlang, Haskell, OCaml).
+    Record,
+    /// A type signature or declaration (Haskell).
+    Signature,
+    /// A mixin (Dart, Ruby, SCSS).
+    Mixin,
+    /// A language extension (Dart).
+    Extension,
+    /// An export declaration (Erlang, Racket).
+    Export,
+    /// A port declaration (Elm).
+    Port,
+    /// An exception definition (OCaml).
+    Exception,
+    /// An event definition (Solidity).
+    Event,
+
+    // --- Infrastructure / config constructs ---
+    /// A resource definition (Terraform, Bicep).
+    Resource,
+    /// A data source (Terraform).
+    Data,
+    /// An output declaration (Terraform, Bicep).
+    Output,
+    /// A config block (Prisma).
+    Config,
+    /// A rule definition (Starlark/Bazel).
+    Rule,
+    /// A stage (Dockerfile).
+    Stage,
+    /// A label (Dockerfile).
+    Label,
+    /// A route or location block (nginx).
+    Route,
+    /// A generic block or section.
+    Block,
+    /// A service definition (protobuf, gRPC).
+    Service,
+    /// A message type (protobuf).
+    Message,
+
+    // --- Document / markup constructs ---
+    /// A section or heading (Markdown, LaTeX, Org, Svelte, ini).
+    Section,
+    /// An XML/HTML element.
+    Element,
+    /// An environment (LaTeX).
+    Environment,
+    /// A property (Org).
+    Property,
+    /// A table (SQL).
+    Table,
+    /// A view (SQL).
+    View,
+    /// A stored procedure (SQL).
+    Procedure,
+    /// An index (SQL).
+    Index,
+    /// A field (CSV).
+    Field,
+    /// A file reference (diff).
+    File,
+    /// A diff hunk.
+    Hunk,
+    /// An alias.
+    Alias,
 }
 
 impl fmt::Display for SymbolKind {
@@ -84,6 +159,40 @@ impl fmt::Display for SymbolKind {
             Self::Impl => "impl",
             Self::Test => "test",
             Self::Macro => "macro",
+            Self::Variable => "variable",
+            Self::Namespace => "namespace",
+            Self::Package => "package",
+            Self::Record => "record",
+            Self::Signature => "signature",
+            Self::Mixin => "mixin",
+            Self::Extension => "extension",
+            Self::Export => "export",
+            Self::Port => "port",
+            Self::Exception => "exception",
+            Self::Event => "event",
+            Self::Resource => "resource",
+            Self::Data => "data",
+            Self::Output => "output",
+            Self::Config => "config",
+            Self::Rule => "rule",
+            Self::Stage => "stage",
+            Self::Label => "label",
+            Self::Route => "route",
+            Self::Block => "block",
+            Self::Service => "service",
+            Self::Message => "message",
+            Self::Section => "section",
+            Self::Element => "element",
+            Self::Environment => "environment",
+            Self::Property => "property",
+            Self::Table => "table",
+            Self::View => "view",
+            Self::Procedure => "procedure",
+            Self::Index => "index",
+            Self::Field => "field",
+            Self::File => "file",
+            Self::Hunk => "hunk",
+            Self::Alias => "alias",
         };
         write!(f, "{s}")
     }

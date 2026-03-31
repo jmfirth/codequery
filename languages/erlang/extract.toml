@@ -10,7 +10,7 @@ extensions = [".erl", ".hrl"]
 # Function definitions (clause-based)
 [[symbols]]
 kind = "function"
-query = '(function_clause name: (atom) @name) @def'
+query = '(function_clause name: (_) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -18,21 +18,21 @@ doc = "preceding_comment"
 # Module attribute: -module(foo).
 [[symbols]]
 kind = "module"
-query = '(module_attribute name: (atom) @name) @def'
+query = '(module_attribute name: (_) @name) @def'
 name = "@name"
 body = "@def"
 
 # Type definitions: -type foo() :: ...
 [[symbols]]
 kind = "type"
-query = '(type_attribute name: (atom) @name) @def'
+query = '(type_alias name: (type_name name: (_) @name)) @def'
 name = "@name"
 body = "@def"
 
 # Record definitions: -record(foo, { ... }).
 [[symbols]]
 kind = "record"
-query = '(record_attribute name: (atom) @name) @def'
+query = '(record_decl name: (_) @name) @def'
 name = "@name"
 body = "@def"
 

@@ -23,14 +23,14 @@ body = "@def"
 # Labels: \label{fig:example}
 [[symbols]]
 kind = "label"
-query = '(label_definition (curly_group_text (text) @name)) @def'
+query = '(label_definition name: (curly_group_label (label) @name)) @def'
 name = "@name"
 body = "@def"
 
 # New command definitions: \newcommand{\foo}{...}
 [[symbols]]
 kind = "macro"
-query = '(new_command_definition command: (curly_group_command_name (command_name) @name)) @def'
+query = '(new_command_definition (curly_group_command_name (command_name) @name)) @def'
 name = "@name"
 body = "@def"
 

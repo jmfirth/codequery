@@ -7,10 +7,18 @@
 name = "fsharp"
 extensions = [".fs", ".fsi"]
 
-# Let bindings: let foo x = ...
+# Function let bindings: let foo x y = ...
 [[symbols]]
 kind = "function"
-query = '(value_declaration (function_or_value_defn (value_declaration_left (identifier_pattern) @name))) @def'
+query = '(function_or_value_defn (function_declaration_left (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Value let bindings: let foo = ...
+[[symbols]]
+kind = "function"
+query = '(function_or_value_defn (value_declaration_left (identifier_pattern) @name)) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -18,7 +26,7 @@ doc = "preceding_comment"
 # Type definitions: type Foo = ...
 [[symbols]]
 kind = "type"
-query = '(type_definition (type_name (identifier) @name)) @def'
+query = '(type_definition (_ (type_name type_name: (identifier) @name))) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"

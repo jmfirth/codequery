@@ -449,6 +449,217 @@ pub fn run_info(language: &str) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::Success)
 }
 
+/// `cq grammar validate <lang>` — validate a grammar's extract.toml.
+///
+/// Loads the grammar (compiled-in or WASM) and the extract.toml, then
+/// checks that all queries compile against the grammar and all symbol
+/// kinds are recognized.
+///
+/// # Errors
+///
+/// Returns an error if the grammar or config cannot be loaded.
+pub fn run_validate(language: &str) -> anyhow::Result<ExitCode> {
+    match validate_language(language)? {
+        ValidateResult::CompiledIn => {
+            println!("{language}: ok (compiled-in extractor)");
+            Ok(ExitCode::Success)
+        }
+        ValidateResult::Checked(errors, warnings) => {
+            if errors.is_empty() && warnings.is_empty() {
+                println!("{language}: ok");
+                return Ok(ExitCode::Success);
+            }
+            for w in &warnings {
+                println!("{language}: warning: {w}");
+            }
+            for e in &errors {
+                println!("{language}: error: {e}");
+            }
+            let status = if errors.is_empty() {
+                "warnings"
+            } else {
+                "FAILED"
+            };
+            println!(
+                "{language}: {status} ({} errors, {} warnings)",
+                errors.len(),
+                warnings.len()
+            );
+            if errors.is_empty() {
+                Ok(ExitCode::Success)
+            } else {
+                Ok(ExitCode::NoResults)
+            }
+        }
+    }
+}
+
+/// `cq grammar validate --all` — validate all installed grammars.
+///
+/// # Errors
+///
+/// Returns an error if the registry cannot be loaded.
+pub fn run_validate_all() -> anyhow::Result<ExitCode> {
+    let registry = load_registry()?;
+    let languages_dir = codequery_core::dirs::languages_dir();
+    let installed = languages_dir
+        .as_ref()
+        .map(|d| find_installed(d))
+        .unwrap_or_default();
+
+    // Validate built-in languages + all installed
+    let mut all_langs: Vec<String> = BUILTIN_LANGUAGES.iter().map(|s| (*s).to_string()).collect();
+    for name in &installed {
+        if !all_langs.contains(name) {
+            all_langs.push(name.clone());
+        }
+    }
+    // Also include registry languages not yet installed but available in source
+    for pkg in &registry.languages {
+        if !all_langs.contains(&pkg.name) {
+            // Only validate if we can load the grammar (installed or built-in)
+            if codequery_core::Language::from_name(&pkg.name).is_some()
+                || installed.contains(&pkg.name)
+            {
+                all_langs.push(pkg.name.clone());
+            }
+        }
+    }
+
+    all_langs.sort();
+
+    let mut total_errors = 0;
+    let mut total_warnings = 0;
+    let mut failed = Vec::new();
+    let mut warned = Vec::new();
+
+    for lang in &all_langs {
+        match validate_language(lang) {
+            Ok(ValidateResult::CompiledIn) => {
+                println!("{lang}: ok (compiled-in extractor)");
+            }
+            Ok(ValidateResult::Checked(errors, warnings)) => {
+                if errors.is_empty() && warnings.is_empty() {
+                    println!("{lang}: ok");
+                } else {
+                    for w in &warnings {
+                        println!("{lang}: warning: {w}");
+                    }
+                    for e in &errors {
+                        println!("{lang}: error: {e}");
+                    }
+                    total_errors += errors.len();
+                    total_warnings += warnings.len();
+                    if errors.is_empty() {
+                        warned.push(lang.as_str());
+                    } else {
+                        failed.push(lang.as_str());
+                    }
+                }
+            }
+            Err(e) => {
+                println!("{lang}: skip ({e})");
+            }
+        }
+    }
+
+    println!();
+    println!(
+        "Validated {} languages: {} ok, {} warned, {} failed",
+        all_langs.len(),
+        all_langs.len() - failed.len() - warned.len(),
+        warned.len(),
+        failed.len(),
+    );
+    if !failed.is_empty() {
+        println!("Failed: {}", failed.join(", "));
+    }
+    if total_errors > 0 {
+        println!("Total: {total_errors} errors, {total_warnings} warnings");
+    }
+
+    if failed.is_empty() {
+        Ok(ExitCode::Success)
+    } else {
+        Ok(ExitCode::NoResults)
+    }
+}
+
+/// Validation result for a language.
+enum ValidateResult {
+    /// Validated with errors and warnings.
+    Checked(Vec<String>, Vec<String>),
+    /// Language uses a compiled-in extractor, no extract.toml to validate.
+    CompiledIn,
+}
+
+/// Validate a single language's extract.toml against its grammar.
+///
+/// Returns validation results. Languages with compiled-in extractors
+/// and no extract.toml are reported as `CompiledIn`.
+fn validate_language(name: &str) -> anyhow::Result<ValidateResult> {
+    // Load extract.toml — if not found, check for compiled-in extractor
+    let Ok(config_str) = load_extract_toml(name) else {
+        // If the language has a compiled-in extractor, that's fine
+        if codequery_core::Language::from_name(name).is_some() {
+            return Ok(ValidateResult::CompiledIn);
+        }
+        anyhow::bail!("no extract.toml found for '{name}'");
+    };
+
+    let config = codequery_core::load_extract_config(&config_str)
+        .map_err(|e| anyhow::anyhow!("invalid extract.toml: {e}"))?;
+
+    // Load grammar
+    let ts_lang = codequery_parse::grammar_for_name(name)
+        .map_err(|e| anyhow::anyhow!("grammar not available: {e}"))?;
+
+    // Check symbol kinds
+    let mut warnings = Vec::new();
+    for rule in &config.symbols {
+        if codequery_core::extract_config::parse_symbol_kind(&rule.kind).is_none() {
+            warnings.push(format!("unknown symbol kind '{}'", rule.kind));
+        }
+    }
+
+    // Compile queries
+    let errors: Vec<String> = codequery_parse::validate_config(&config, &ts_lang)
+        .into_iter()
+        .map(|(i, msg)| {
+            let kind = &config.symbols[i].kind;
+            format!("rule {i} ({kind}): {msg}")
+        })
+        .collect();
+
+    Ok(ValidateResult::Checked(errors, warnings))
+}
+
+/// Load extract.toml for a language from source tree or installed package.
+///
+/// Source tree takes priority during development so edits are validated
+/// immediately without reinstalling the grammar package.
+fn load_extract_toml(name: &str) -> anyhow::Result<String> {
+    // Try source tree first (for development — languages/<name>/extract.toml)
+    let source_path = std::path::Path::new("languages")
+        .join(name)
+        .join("extract.toml");
+    if source_path.exists() {
+        return std::fs::read_to_string(&source_path)
+            .map_err(|e| anyhow::anyhow!("cannot read {}: {e}", source_path.display()));
+    }
+
+    // Fall back to installed package
+    if let Some(dir) = codequery_core::dirs::languages_dir() {
+        let path = dir.join(name).join("extract.toml");
+        if path.exists() {
+            return std::fs::read_to_string(&path)
+                .map_err(|e| anyhow::anyhow!("cannot read {}: {e}", path.display()));
+        }
+    }
+
+    anyhow::bail!("no extract.toml found for '{name}'")
+}
+
 /// Look up a file extension in the registry and return the package name if found.
 ///
 /// Used for suggesting installations when a file's language is unknown.

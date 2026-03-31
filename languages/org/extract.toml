@@ -16,6 +16,6 @@ body = "@def"
 # Property drawers
 [[symbols]]
 kind = "property"
-query = '(property (name) @name) @def'
+query = '(property name: (expr) @name) @def'
 name = "@name"
 body = "@def"

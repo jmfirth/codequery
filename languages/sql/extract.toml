@@ -1,8 +1,8 @@
 # SQL symbol extraction rules for cq.
 #
-# Covers CREATE TABLE, CREATE VIEW, CREATE FUNCTION, and CREATE PROCEDURE.
-# Uses tree-sitter-sql grammar. SQL grammars vary; these patterns target
-# the most common node types.
+# Covers CREATE TABLE, CREATE VIEW, CREATE FUNCTION, CREATE PROCEDURE, and CREATE INDEX.
+# Uses tree-sitter-sql grammar. Node children are mostly anonymous; the name is
+# typically the third anonymous child (after CREATE and the keyword).
 
 [language]
 name = "sql"
@@ -11,34 +11,34 @@ extensions = [".sql"]
 # CREATE TABLE statements
 [[symbols]]
 kind = "table"
-query = '(create_table name: (object_reference name: (identifier) @name)) @def'
+query = '(create_table _ _ . _ @name) @def'
 name = "@name"
 body = "@def"
 
 # CREATE VIEW statements
 [[symbols]]
 kind = "view"
-query = '(create_view name: (object_reference name: (identifier) @name)) @def'
+query = '(create_view (object_reference (identifier) @name)) @def'
 name = "@name"
 body = "@def"
 
 # CREATE FUNCTION statements
 [[symbols]]
 kind = "function"
-query = '(create_function name: (object_reference name: (identifier) @name)) @def'
+query = '(create_function _ _ . _ @name) @def'
 name = "@name"
 body = "@def"
 
 # CREATE PROCEDURE statements
 [[symbols]]
 kind = "procedure"
-query = '(create_procedure name: (object_reference name: (identifier) @name)) @def'
+query = '(create_procedure _ _ . _ @name) @def'
 name = "@name"
 body = "@def"
 
 # CREATE INDEX statements
 [[symbols]]
 kind = "index"
-query = '(create_index name: (object_reference name: (identifier) @name)) @def'
+query = '(create_index (identifier) @name) @def'
 name = "@name"
 body = "@def"

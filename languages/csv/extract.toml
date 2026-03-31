@@ -1,14 +1,15 @@
 # CSV symbol extraction rules for cq.
 #
 # CSV has minimal structure; extract column headers from the first row.
+# The grammar has no "header" node; first row is matched via anchor (.).
 
 [language]
 name = "csv"
 extensions = [".csv", ".tsv"]
 
-# Column headers from the header row
+# Column headers from the first row (anchored to first child of document)
 [[symbols]]
 kind = "field"
-query = '(header (field) @name) @def'
+query = '(document . (row (field) @name) @def)'
 name = "@name"
 body = "@def"

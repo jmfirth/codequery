@@ -34,7 +34,7 @@ doc = "preceding_comment"
 # Type definitions: type Foo is ...
 [[symbols]]
 kind = "type"
-query = '(full_type_declaration name: (identifier) @name) @def'
+query = '(full_type_declaration (identifier) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"

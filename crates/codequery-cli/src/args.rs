@@ -548,6 +548,14 @@ pub enum GrammarAction {
         /// Language name
         language: String,
     },
+    /// Validate extract.toml queries compile against the grammar
+    Validate {
+        /// Language name (omit for --all)
+        language: Option<String>,
+        /// Validate all installed grammars
+        #[arg(long)]
+        all: bool,
+    },
 }
 
 /// Process exit codes following SPECIFICATION.md section 12.

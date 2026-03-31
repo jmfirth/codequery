@@ -2,13 +2,16 @@
 name = "zig"
 extensions = [".zig"]
 
+# Function declarations: pub fn foo(...) type { ... }
 [[symbols]]
 kind = "function"
-query = '(FnProto fn_name: (IDENTIFIER) @name) @def'
+query = '(function_declaration (identifier) @name) @def'
 name = "@name"
 body = "@def"
 
+# Variable/constant declarations: const foo = ...; var foo = ...;
 [[symbols]]
 kind = "variable"
-query = '(VarDecl var_name: (IDENTIFIER) @name) @def'
+query = '(variable_declaration (identifier) @name) @def'
 name = "@name"
+body = "@def"

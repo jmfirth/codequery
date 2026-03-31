@@ -10,7 +10,7 @@ extensions = [".jl"]
 # Long-form function definitions: function foo(...) ... end
 [[symbols]]
 kind = "function"
-query = '(function_definition name: (identifier) @name) @def'
+query = '(function_definition (signature (call_expression (identifier) @name))) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -18,7 +18,7 @@ doc = "preceding_comment"
 # Short-form function definitions: foo(x) = x + 1
 [[symbols]]
 kind = "function"
-query = '(short_function_definition name: (identifier) @name) @def'
+query = '(assignment (call_expression (identifier) @name)) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -26,7 +26,7 @@ doc = "preceding_comment"
 # Struct definitions: struct Foo ... end / mutable struct Foo ... end
 [[symbols]]
 kind = "struct"
-query = '(struct_definition name: (identifier) @name) @def'
+query = '(struct_definition (type_head (identifier) @name)) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -42,7 +42,7 @@ doc = "preceding_comment"
 # Macro definitions: macro foo(...) ... end
 [[symbols]]
 kind = "macro"
-query = '(macro_definition name: (identifier) @name) @def'
+query = '(macro_definition (signature (call_expression (identifier) @name))) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -50,7 +50,7 @@ doc = "preceding_comment"
 # Abstract type definitions: abstract type Foo end
 [[symbols]]
 kind = "type"
-query = '(abstract_definition name: (identifier) @name) @def'
+query = '(abstract_definition (type_head (identifier) @name)) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"

@@ -8,17 +8,19 @@ name = "scss"
 extensions = [".scss"]
 
 # Mixin definitions: @mixin foo { ... }
+# mixin_statement has no "name" field; the identifier is the first child
 [[symbols]]
 kind = "mixin"
-query = '(mixin_statement name: (identifier) @name) @def'
+query = '(mixin_statement . (_) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
 
 # Function definitions: @function foo() { ... }
+# function_statement has no "name" field; the identifier is the first child
 [[symbols]]
 kind = "function"
-query = '(function_statement name: (identifier) @name) @def'
+query = '(function_statement . (_) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"

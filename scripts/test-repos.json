@@ -1,0 +1,430 @@
+{
+  "repos": {
+    "rust": {
+      "repo": "BurntSushi/ripgrep",
+      "file": "crates/core/main.rs",
+      "symbol": "main",
+      "search_pattern": "(function_item) @cap"
+    },
+    "typescript": {
+      "repo": "sindresorhus/got",
+      "file": "source/index.ts",
+      "symbol": "got",
+      "search_pattern": "(function_declaration) @cap"
+    },
+    "javascript": {
+      "repo": "expressjs/express",
+      "file": "lib/application.js",
+      "symbol": "init",
+      "search_pattern": "(function_declaration) @cap"
+    },
+    "python": {
+      "repo": "pallets/click",
+      "file": "src/click/core.py",
+      "symbol": "BaseCommand",
+      "search_pattern": "(class_definition) @cap"
+    },
+    "go": {
+      "repo": "cli/cli",
+      "file": "pkg/cmd/root/root.go",
+      "symbol": "NewCmdRoot",
+      "search_pattern": "(function_declaration) @cap"
+    },
+    "c": {
+      "repo": "antirez/sds",
+      "file": "sds.c",
+      "symbol": "sdsnewlen",
+      "search_pattern": "(function_definition) @cap"
+    },
+    "cpp": {
+      "repo": "google/leveldb",
+      "file": "db/db_impl.cc",
+      "symbol": "DBImpl",
+      "search_pattern": "(function_definition) @cap"
+    },
+    "java": {
+      "repo": "google/guava",
+      "file": "guava/src/com/google/common/collect/ImmutableList.java",
+      "symbol": "ImmutableList",
+      "search_pattern": "(class_declaration) @cap"
+    },
+    "ruby": {
+      "repo": "sinatra/sinatra",
+      "file": "lib/sinatra/base.rb",
+      "symbol": "Base",
+      "search_pattern": "(class) @cap"
+    },
+    "php": {
+      "repo": "laravel/framework",
+      "file": "src/Illuminate/Support/Collection.php",
+      "symbol": "Collection",
+      "search_pattern": "(class_declaration) @cap"
+    },
+    "csharp": {
+      "repo": "JamesNK/Newtonsoft.Json",
+      "file": "Src/Newtonsoft.Json/JsonConvert.cs",
+      "symbol": "JsonConvert",
+      "search_pattern": "(class_declaration) @cap"
+    },
+    "swift": {
+      "repo": "Alamofire/Alamofire",
+      "file": "Source/Core/Session.swift",
+      "symbol": "Session",
+      "search_pattern": "(class_declaration) @cap"
+    },
+    "kotlin": {
+      "repo": "square/okhttp",
+      "file": "okhttp/src/main/kotlin/okhttp3/OkHttpClient.kt",
+      "symbol": "OkHttpClient",
+      "search_pattern": "(class_declaration) @cap"
+    },
+    "scala": {
+      "repo": "scalaz/scalaz",
+      "file": "core/src/main/scala/scalaz/Functor.scala",
+      "symbol": "Functor",
+      "search_pattern": "(class_definition) @cap"
+    },
+    "zig": {
+      "repo": "ziglang/zig",
+      "file": "lib/std/mem.zig",
+      "symbol": "Allocator",
+      "search_pattern": "(fn_decl) @cap"
+    },
+    "lua": {
+      "repo": "LuaLS/lua-language-server",
+      "file": "script/core/diagnostics.lua",
+      "symbol": "check",
+      "search_pattern": "(function_declaration) @cap"
+    },
+    "bash": {
+      "repo": "nvm-sh/nvm",
+      "file": "nvm.sh",
+      "symbol": "nvm_install",
+      "search_pattern": "(function_definition) @cap"
+    },
+    "html": {
+      "repo": "h5bp/html5-boilerplate",
+      "file": "src/index.html",
+      "symbol": "html",
+      "search_pattern": "(element) @cap"
+    },
+    "css": {
+      "repo": "necolas/normalize.css",
+      "file": "normalize.css",
+      "symbol": "html",
+      "search_pattern": "(rule_set) @cap"
+    },
+    "json": {
+      "repo": "expressjs/express",
+      "file": "package.json",
+      "symbol": "name",
+      "search_pattern": "(pair) @cap"
+    },
+    "yaml": {
+      "repo": "prometheus/prometheus",
+      "file": ".github/workflows/go.yml",
+      "symbol": "jobs",
+      "search_pattern": "(block_mapping_pair) @cap"
+    },
+    "toml": {
+      "repo": "BurntSushi/ripgrep",
+      "file": "Cargo.toml",
+      "symbol": "package",
+      "search_pattern": "(table) @cap"
+    },
+    "elixir": {
+      "repo": "phoenixframework/phoenix",
+      "file": "lib/phoenix/router.ex",
+      "symbol": "Router",
+      "search_pattern": "(call) @cap"
+    },
+    "haskell": {
+      "repo": "xmonad/xmonad",
+      "file": "src/XMonad/Core.hs",
+      "symbol": "WorkspaceId",
+      "search_pattern": "(function) @cap"
+    },
+    "dart": {
+      "repo": "dart-lang/http",
+      "file": "pkgs/http/lib/src/client.dart",
+      "symbol": "Client",
+      "search_pattern": "(class_definition) @cap"
+    },
+    "sql": {
+      "repo": "flyway/flyway",
+      "file": "flyway-core/src/main/resources/org/flywaydb/core/internal/database/h2/createMetaDataTable.sql",
+      "symbol": "CREATE",
+      "search_pattern": "(create_table_statement) @cap"
+    },
+    "ocaml": {
+      "repo": "janestreet/core",
+      "file": "core/src/hashtbl.ml",
+      "symbol": "create",
+      "search_pattern": "(let_binding) @cap"
+    },
+    "r": {
+      "repo": "tidyverse/ggplot2",
+      "file": "R/geom-point.R",
+      "symbol": "geom_point",
+      "search_pattern": "(function_definition) @cap"
+    },
+    "perl": {
+      "repo": "exiftool/exiftool",
+      "file": "lib/Image/ExifTool.pm",
+      "symbol": "new",
+      "search_pattern": "(subroutine_declaration_statement) @cap"
+    },
+    "clojure": {
+      "repo": "clojure/clojure",
+      "file": "src/clj/clojure/core.clj",
+      "symbol": "defn",
+      "search_pattern": "(list_lit) @cap"
+    },
+    "erlang": {
+      "repo": "erlang/otp",
+      "file": "lib/stdlib/src/lists.erl",
+      "symbol": "map",
+      "search_pattern": "(function) @cap"
+    },
+    "julia": {
+      "repo": "JuliaLang/julia",
+      "file": "base/array.jl",
+      "symbol": "push!",
+      "search_pattern": "(function_definition) @cap"
+    },
+    "objective-c": {
+      "repo": "AFNetworking/AFNetworking",
+      "file": "AFNetworking/AFURLSessionManager.m",
+      "symbol": "initWithSessionConfiguration",
+      "search_pattern": "(method_declaration) @cap"
+    },
+    "fsharp": {
+      "repo": "dotnet/fsharp",
+      "file": "src/Compiler/Utilities/illib.fs",
+      "symbol": "denormalizeDirectorySeparator",
+      "search_pattern": "(function_or_value_defn) @cap"
+    },
+    "groovy": {
+      "repo": "gradle/gradle",
+      "file": "subprojects/core/src/main/groovy/org/gradle/api/Project.groovy",
+      "symbol": "apply",
+      "search_pattern": "(method_definition) @cap"
+    },
+    "dockerfile": {
+      "repo": "docker-library/official-images",
+      "file": "library/ubuntu",
+      "symbol": "FROM",
+      "search_pattern": "(from_instruction) @cap"
+    },
+    "terraform": {
+      "repo": "hashicorp/terraform-provider-aws",
+      "file": "examples/s3-bucket/main.tf",
+      "symbol": "aws_s3_bucket",
+      "search_pattern": "(block) @cap"
+    },
+    "xml": {
+      "repo": "apache/maven",
+      "file": "pom.xml",
+      "symbol": "groupId",
+      "search_pattern": "(element) @cap"
+    },
+    "markdown": {
+      "repo": "sindresorhus/awesome",
+      "file": "readme.md",
+      "symbol": "Platforms",
+      "search_pattern": "(atx_heading) @cap"
+    },
+    "protobuf": {
+      "repo": "googleapis/googleapis",
+      "file": "google/rpc/status.proto",
+      "symbol": "Status",
+      "search_pattern": "(message_declaration) @cap"
+    },
+    "graphql": {
+      "repo": "octokit/graphql-schema",
+      "file": "schema.graphql",
+      "symbol": "Query",
+      "search_pattern": "(object_type_definition) @cap"
+    },
+    "scss": {
+      "repo": "twbs/bootstrap",
+      "file": "scss/_variables.scss",
+      "symbol": "body-bg",
+      "search_pattern": "(declaration) @cap"
+    },
+    "makefile": {
+      "repo": "redis/redis",
+      "file": "Makefile",
+      "symbol": "all",
+      "search_pattern": "(rule) @cap"
+    },
+    "cmake": {
+      "repo": "google/leveldb",
+      "file": "CMakeLists.txt",
+      "symbol": "project",
+      "search_pattern": "(normal_command) @cap"
+    },
+    "nix": {
+      "repo": "NixOS/nixpkgs",
+      "file": "pkgs/by-name/ri/ripgrep/package.nix",
+      "symbol": "buildRustPackage",
+      "search_pattern": "(function_expression) @cap"
+    },
+    "svelte": {
+      "repo": "sveltejs/examples",
+      "file": "src/routes/hello-world/+page.svelte",
+      "symbol": "script",
+      "search_pattern": "(script_element) @cap"
+    },
+    "elm": {
+      "repo": "elm/core",
+      "file": "src/List.elm",
+      "symbol": "map",
+      "search_pattern": "(function_declaration_left) @cap"
+    },
+    "solidity": {
+      "repo": "OpenZeppelin/openzeppelin-contracts",
+      "file": "contracts/token/ERC20/ERC20.sol",
+      "symbol": "ERC20",
+      "search_pattern": "(contract_declaration) @cap"
+    },
+    "verilog": {
+      "repo": "ZipCPU/zipcpu",
+      "file": "rtl/core/zipcpu.v",
+      "symbol": "zipcpu",
+      "search_pattern": "(module_declaration) @cap"
+    },
+    "glsl": {
+      "repo": "libretro/glsl-shaders",
+      "file": "crt/shaders/crt-lottes.glsl",
+      "symbol": "main",
+      "search_pattern": "(function_definition) @cap"
+    },
+    "cuda": {
+      "repo": "NVIDIA/cuda-samples",
+      "file": "Samples/0_Introduction/vectorAdd/vectorAdd.cu",
+      "symbol": "vectorAdd",
+      "search_pattern": "(function_definition) @cap"
+    },
+    "fortran": {
+      "repo": "fortran-lang/stdlib",
+      "file": "src/stdlib_math.f90",
+      "symbol": "stdlib_math",
+      "search_pattern": "(subroutine) @cap"
+    },
+    "ada": {
+      "repo": "alire-project/alire",
+      "file": "src/alire/alire-roots.adb",
+      "symbol": "Check_Stored",
+      "search_pattern": "(procedure_body) @cap"
+    },
+    "pascal": {
+      "repo": "castle-engine/castle-engine",
+      "file": "src/base/castleutils.pas",
+      "symbol": "CastleUtils",
+      "search_pattern": "(procedure_declaration) @cap"
+    },
+    "ini": {
+      "repo": "BurntSushi/ripgrep",
+      "file": ".editorconfig",
+      "symbol": "root",
+      "search_pattern": "(section) @cap"
+    },
+    "csv": {
+      "repo": "datablist/sample-csv-files",
+      "file": "files/customers/customers-100.csv",
+      "symbol": "First Name",
+      "search_pattern": "(header) @cap"
+    },
+    "latex": {
+      "repo": "pmichaillat/latex-paper",
+      "file": "paper.tex",
+      "symbol": "section",
+      "search_pattern": "(generic_command) @cap"
+    },
+    "restructuredtext": {
+      "repo": "sphinx-doc/sphinx",
+      "file": "doc/usage/configuration.rst",
+      "symbol": "project",
+      "search_pattern": "(section) @cap"
+    },
+    "org": {
+      "repo": "emacs-tw/awesome-emacs",
+      "file": "README.org",
+      "symbol": "Overview",
+      "search_pattern": "(headline) @cap"
+    },
+    "diff": {
+      "repo": "git/git",
+      "file": "t/t4001-diff-rename.sh",
+      "symbol": "hunk",
+      "search_pattern": "(hunk) @cap"
+    },
+    "starlark": {
+      "repo": "bazelbuild/bazel-skylib",
+      "file": "lib/collections.bzl",
+      "symbol": "collections",
+      "search_pattern": "(function_definition) @cap"
+    },
+    "just": {
+      "repo": "casey/just",
+      "file": "justfile",
+      "symbol": "test",
+      "search_pattern": "(recipe) @cap"
+    },
+    "nginx": {
+      "repo": "h5bp/server-configs-nginx",
+      "file": "nginx.conf",
+      "symbol": "http",
+      "search_pattern": "(http) @cap"
+    },
+    "bicep": {
+      "repo": "Azure/azure-docs-bicep-samples",
+      "file": "samples/deploymentTemplate/main.bicep",
+      "symbol": "storageAccount",
+      "search_pattern": "(resource_declaration) @cap"
+    },
+    "prisma": {
+      "repo": "prisma/prisma-examples",
+      "file": "typescript/rest-express/prisma/schema.prisma",
+      "symbol": "User",
+      "search_pattern": "(model_declaration) @cap"
+    },
+    "pkl": {
+      "repo": "apple/pkl-k8s-examples",
+      "file": "src/nginx/NginxDeployment.pkl",
+      "symbol": "NginxDeployment",
+      "search_pattern": "(class_body) @cap"
+    },
+    "cairo": {
+      "repo": "OpenZeppelin/cairo-contracts",
+      "file": "packages/token/src/erc20/erc20.cairo",
+      "symbol": "ERC20",
+      "search_pattern": "(impl_item) @cap"
+    },
+    "purescript": {
+      "repo": "purescript-halogen/purescript-halogen",
+      "file": "src/Halogen/Component.purs",
+      "symbol": "Component",
+      "search_pattern": "(data_declaration) @cap"
+    },
+    "scheme": {
+      "repo": "ashinn/chibi-scheme",
+      "file": "lib/chibi/test.scm",
+      "symbol": "test",
+      "search_pattern": "(define) @cap"
+    },
+    "racket": {
+      "repo": "racket/racket",
+      "file": "collects/racket/list.rkt",
+      "symbol": "filter",
+      "search_pattern": "(define) @cap"
+    },
+    "common-lisp": {
+      "repo": "fukamachi/woo",
+      "file": "src/woo.lisp",
+      "symbol": "run",
+      "search_pattern": "(defun) @cap"
+    }
+  }
+}

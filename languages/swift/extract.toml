@@ -14,8 +14,9 @@ query = '(class_declaration name: (type_identifier) @name) @def'
 name = "@name"
 body = "@def"
 
+# Swift uses class_declaration for structs, classes, and enums
 [[symbols]]
 kind = "struct"
-query = '(struct_declaration name: (type_identifier) @name) @def'
+query = '(class_declaration name: (type_identifier) @name) @def'
 name = "@name"
 body = "@def"

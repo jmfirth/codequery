@@ -1,32 +1,36 @@
 # Verilog/SystemVerilog symbol extraction rules for cq.
 #
-# Covers module declarations, always blocks, task definitions,
-# and function definitions.
+# Covers module declarations, task definitions, and function definitions.
+# This grammar uses simple_identifier inside module_header for module names,
+# and anonymous children for task/function names.
 
 [language]
 name = "verilog"
 extensions = [".v", ".sv"]
 
 # Module declarations: module foo(...); ... endmodule
+# module_header contains simple_identifier as the module name
 [[symbols]]
 kind = "module"
-query = '(module_declaration (module_header (module_identifier (simple_identifier) @name))) @def'
+query = '(module_declaration (module_header (simple_identifier) @name)) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
 
 # Task definitions: task foo; ... endtask
+# Second anonymous child of task_declaration is the task name
 [[symbols]]
 kind = "function"
-query = '(task_declaration (task_identifier (task_identifier (simple_identifier) @name))) @def'
+query = '(task_declaration _ . _ @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
 
 # Function definitions: function foo; ... endfunction
+# Second anonymous child of function_declaration is the name (or return type if present)
 [[symbols]]
 kind = "function"
-query = '(function_declaration (function_identifier (function_identifier (simple_identifier) @name))) @def'
+query = '(function_declaration _ . _ @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"

@@ -236,6 +236,16 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
             GrammarAction::Update => commands::grammar::run_update(),
             GrammarAction::Remove { language } => commands::grammar::run_remove(&language),
             GrammarAction::Info { language } => commands::grammar::run_info(&language),
+            GrammarAction::Validate { language, all } => {
+                if all {
+                    commands::grammar::run_validate_all()
+                } else if let Some(lang) = &language {
+                    commands::grammar::run_validate(lang)
+                } else {
+                    eprintln!("error: provide a language name or use --all");
+                    Ok(args::ExitCode::UsageError)
+                }
+            }
         },
         Command::Upgrade => commands::upgrade::run(),
     }

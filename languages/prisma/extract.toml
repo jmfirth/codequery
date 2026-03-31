@@ -1,6 +1,7 @@
 # Prisma symbol extraction rules for cq.
 #
 # Covers model, enum, datasource, and generator definitions.
+# Uses tree-sitter-prisma grammar (victorhqc/tree-sitter-prisma).
 
 [language]
 name = "prisma"
@@ -9,7 +10,7 @@ extensions = [".prisma"]
 # Model definitions: model User { ... }
 [[symbols]]
 kind = "type"
-query = '(model_declaration name: (identifier) @name) @def'
+query = '(model_declaration (identifier) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -17,7 +18,7 @@ doc = "preceding_comment"
 # Enum definitions: enum Role { ... }
 [[symbols]]
 kind = "enum"
-query = '(enum_declaration name: (identifier) @name) @def'
+query = '(enum_declaration (identifier) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -25,13 +26,13 @@ doc = "preceding_comment"
 # Datasource blocks: datasource db { ... }
 [[symbols]]
 kind = "config"
-query = '(datasource_declaration name: (identifier) @name) @def'
+query = '(datasource_declaration (identifier) @name) @def'
 name = "@name"
 body = "@def"
 
 # Generator blocks: generator client { ... }
 [[symbols]]
 kind = "config"
-query = '(generator_declaration name: (identifier) @name) @def'
+query = '(generator_declaration (identifier) @name) @def'
 name = "@name"
 body = "@def"

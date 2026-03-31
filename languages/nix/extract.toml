@@ -16,6 +16,13 @@ body = "@def"
 # Inherit bindings: inherit foo bar;
 [[symbols]]
 kind = "variable"
-query = '(inherit_from attrs: (identifier) @name) @def'
+query = '(inherit attrs: (inherited_attrs attr: (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Inherit-from bindings: inherit (expr) foo bar;
+[[symbols]]
+kind = "variable"
+query = '(inherit_from attrs: (inherited_attrs attr: (identifier) @name)) @def'
 name = "@name"
 body = "@def"

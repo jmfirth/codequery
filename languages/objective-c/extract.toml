@@ -25,7 +25,7 @@ body = "@def"
 # Method declarations: - (void)foo:(int)bar
 [[symbols]]
 kind = "method"
-query = '(method_declaration selector: (identifier) @name) @def'
+query = '(method_declaration (identifier) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -38,9 +38,6 @@ name = "@name"
 body = "@def"
 doc = "preceding_comment"
 
-# Category declarations: @interface Foo (Bar)
-[[symbols]]
-kind = "category"
-query = '(category_interface name: (identifier) @name) @def'
-name = "@name"
-body = "@def"
+# Note: Objective-C categories parse as class_interface nodes in tree-sitter-objc.
+# The class_interface rule above captures them. A dedicated category rule would
+# need grammar-specific node type inspection to distinguish from plain interfaces.

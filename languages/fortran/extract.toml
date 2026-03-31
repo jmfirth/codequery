@@ -10,14 +10,14 @@ extensions = [".f90", ".f95", ".f03", ".f08", ".F90"]
 # Program definitions: program foo ... end program
 [[symbols]]
 kind = "module"
-query = '(program (program_statement name: (name) @name)) @def'
+query = '(program (program_statement (name) @name)) @def'
 name = "@name"
 body = "@def"
 
 # Module definitions: module foo ... end module
 [[symbols]]
 kind = "module"
-query = '(module (module_statement name: (name) @name)) @def'
+query = '(module (module_statement (name) @name)) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -41,7 +41,7 @@ doc = "preceding_comment"
 # Derived type definitions: type :: foo ... end type
 [[symbols]]
 kind = "type"
-query = '(derived_type_definition (derived_type_statement name: (name) @name)) @def'
+query = '(derived_type_definition (derived_type_statement (type_name) @name)) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"

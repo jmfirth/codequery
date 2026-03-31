@@ -18,7 +18,7 @@ doc = "preceding_comment"
 # Data type declarations: data Foo = ...
 [[symbols]]
 kind = "type"
-query = '(adt name: (type) @name) @def'
+query = '(data_type name: (name) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -26,15 +26,16 @@ doc = "preceding_comment"
 # Newtype declarations: newtype Foo = ...
 [[symbols]]
 kind = "type"
-query = '(newtype name: (type) @name) @def'
+query = '(newtype name: (name) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
 
 # Type synonyms: type Foo = ...
+# Note: the tree-sitter-haskell grammar uses "type_synomym" (with typo)
 [[symbols]]
 kind = "type"
-query = '(type_alias name: (type) @name) @def'
+query = '(type_synomym name: (name) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -42,7 +43,7 @@ doc = "preceding_comment"
 # Type classes: class Foo where ...
 [[symbols]]
 kind = "class"
-query = '(class name: (type) @name) @def'
+query = '(class name: (name) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"

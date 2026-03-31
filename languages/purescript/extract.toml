@@ -1,16 +1,17 @@
 # PureScript symbol extraction rules for cq.
 #
-# Covers value declarations, data type definitions, type class definitions,
-# and module declarations. Grammar similar to Haskell.
+# Covers function definitions, data types, type classes, newtypes,
+# type aliases, and module declarations.
+# Uses tree-sitter-purescript grammar (postsolar/tree-sitter-purescript).
 
 [language]
 name = "purescript"
 extensions = [".purs"]
 
-# Value/function declarations: foo :: Type\nfoo x = ...
+# Function definitions: greet name = ...
 [[symbols]]
 kind = "function"
-query = '(value_declaration (identifier) @name) @def'
+query = '(function name: (_) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -18,7 +19,7 @@ doc = "preceding_comment"
 # Data type definitions: data Foo = ...
 [[symbols]]
 kind = "type"
-query = '(data_declaration name: (proper_name) @name) @def'
+query = '(data name: (_) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -26,7 +27,7 @@ doc = "preceding_comment"
 # Type class definitions: class Foo where ...
 [[symbols]]
 kind = "class"
-query = '(class_declaration name: (proper_name) @name) @def'
+query = '(class_declaration (class_head (class_name) @name)) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -34,7 +35,7 @@ doc = "preceding_comment"
 # Newtype definitions: newtype Foo = ...
 [[symbols]]
 kind = "type"
-query = '(newtype_declaration name: (proper_name) @name) @def'
+query = '(newtype name: (_) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -42,7 +43,7 @@ doc = "preceding_comment"
 # Type synonym: type Foo = ...
 [[symbols]]
 kind = "type"
-query = '(type_synonym_declaration name: (proper_name) @name) @def'
+query = '(type_alias name: (_) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -50,6 +51,6 @@ doc = "preceding_comment"
 # Module declarations: module Foo where
 [[symbols]]
 kind = "module"
-query = '(module_declaration name: (module_name) @name) @def'
+query = '(purescript name: (qualified_module) @name) @def'
 name = "@name"
 body = "@def"

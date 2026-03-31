@@ -26,7 +26,7 @@ doc = "preceding_comment"
 # Module definitions: module Foo = ...
 [[symbols]]
 kind = "module"
-query = '(module_definition (module_binding name: (module_name) @name)) @def'
+query = '(module_definition (module_binding (module_name) @name)) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -42,6 +42,6 @@ doc = "preceding_comment"
 # Exception definitions: exception Foo of ...
 [[symbols]]
 kind = "exception"
-query = '(exception_definition (constructor_name) @name) @def'
+query = '(exception_definition (constructor_declaration (constructor_name) @name)) @def'
 name = "@name"
 body = "@def"

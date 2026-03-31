@@ -10,7 +10,7 @@ extensions = [".graphql", ".gql"]
 # Type definitions: type Foo { ... }
 [[symbols]]
 kind = "type"
-query = '(object_type_definition name: (name) @name) @def'
+query = '(object_type_definition (name) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -18,7 +18,7 @@ doc = "preceding_comment"
 # Interface definitions: interface Foo { ... }
 [[symbols]]
 kind = "interface"
-query = '(interface_type_definition name: (name) @name) @def'
+query = '(interface_type_definition (name) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -26,7 +26,7 @@ doc = "preceding_comment"
 # Enum definitions: enum Foo { ... }
 [[symbols]]
 kind = "enum"
-query = '(enum_type_definition name: (name) @name) @def'
+query = '(enum_type_definition (name) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -34,7 +34,7 @@ doc = "preceding_comment"
 # Input type definitions: input Foo { ... }
 [[symbols]]
 kind = "type"
-query = '(input_object_type_definition name: (name) @name) @def'
+query = '(input_object_type_definition (name) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -42,7 +42,7 @@ doc = "preceding_comment"
 # Union definitions: union Foo = ...
 [[symbols]]
 kind = "type"
-query = '(union_type_definition name: (name) @name) @def'
+query = '(union_type_definition (name) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -50,7 +50,7 @@ doc = "preceding_comment"
 # Scalar definitions: scalar Foo
 [[symbols]]
 kind = "type"
-query = '(scalar_type_definition name: (name) @name) @def'
+query = '(scalar_type_definition (name) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"

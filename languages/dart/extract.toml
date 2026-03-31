@@ -26,7 +26,7 @@ doc = "preceding_comment"
 # Method declarations inside classes
 [[symbols]]
 kind = "method"
-query = '(method_signature name: (identifier) @name) @def'
+query = '(method_signature (function_signature name: (identifier) @name)) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"
@@ -42,7 +42,7 @@ doc = "preceding_comment"
 # Mixin declarations: mixin Foo { ... }
 [[symbols]]
 kind = "mixin"
-query = '(mixin_declaration name: (identifier) @name) @def'
+query = '(mixin_declaration (identifier) @name) @def'
 name = "@name"
 body = "@def"
 doc = "preceding_comment"

@@ -14,8 +14,9 @@ name = "@name"
 body = "@def"
 
 # Settings: key = value
+# setting has no "name" field; setting_name is a positional child
 [[symbols]]
 kind = "variable"
-query = '(setting name: (setting_name) @name) @def'
+query = '(setting (setting_name) @name) @def'
 name = "@name"
 body = "@def"
