@@ -499,10 +499,11 @@ fn call_cq(cmd_args: &[String], tool_args: &serde_json::Value) -> Result<String,
 
     args.extend_from_slice(cmd_args);
 
-    let output = Command::new("cq")
+    let cq_bin = std::env::var("CQ_BIN").unwrap_or_else(|_| "cq".to_string());
+    let output = Command::new(&cq_bin)
         .args(&args)
         .output()
-        .map_err(|e| format!("Failed to execute cq: {e}"))?;
+        .map_err(|e| format!("Failed to execute {cq_bin}: {e}"))?;
 
     // Exit code 0 = success, 1 = no results (valid empty response).
     // Both are non-error outcomes for the MCP consumer.
