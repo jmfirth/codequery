@@ -1,20 +1,18 @@
-//! Search command: structural AST pattern matching across a project.
+//! Search command: structural AST pattern matching using tree-sitter S-expressions.
 
 use std::path::Path;
 
-use codequery_core::{detect_project_root_or, language_for_file};
+use codequery_core::{detect_project_root_or, Language};
 use codequery_index::scan_project_cached;
-use codequery_parse::{search_file, search_file_raw, SearchMatch};
+use codequery_parse::{search_file, SearchMatch};
 
 use crate::args::{ExitCode, OutputMode};
 use crate::output::format_search;
 
 /// Run the search command: find AST patterns across the project.
 ///
-/// Scans the project in parallel, then runs the pattern against each file.
-/// When `mode` is `OutputMode::Raw`, the pattern is treated as a raw
-/// tree-sitter S-expression query and [`search_file_raw`] is used instead
-/// of the structural [`search_file`].
+/// Scans the project in parallel, then runs the S-expression query against
+/// each file. Use `cq tree <file>` to explore node types for a language.
 ///
 /// # Errors
 ///
@@ -30,6 +28,7 @@ pub fn run(
     pretty: bool,
     limit: Option<usize>,
     use_cache: bool,
+    lang_filter: Option<Language>,
 ) -> anyhow::Result<ExitCode> {
     // 1. Resolve project root
     let cwd = std::env::current_dir()?;
@@ -38,46 +37,40 @@ pub fn run(
     // 2. Parallel scan all source files
     let scan = scan_project_cached(&project_root, scope, use_cache)?;
 
-    // 3. Run pattern against each file, collecting matches
-    let is_raw = mode == OutputMode::Raw;
+    // 3. Run query against each file, collecting matches
     let mut all_matches: Vec<SearchMatch> = Vec::new();
     let mut files_searched = 0usize;
     let mut last_query_error: Option<String> = None;
 
     for file_entry in &scan {
-        let absolute = project_root.join(&file_entry.file);
-        let matches_result = if is_raw {
-            search_file_raw(
-                pattern,
-                &file_entry.source,
-                &file_entry.tree,
-                &file_entry.file,
-            )
-        } else {
-            let Some(language) = language_for_file(&absolute) else {
+        // Apply language filter if provided
+        if let Some(lang) = lang_filter {
+            let absolute = project_root.join(&file_entry.file);
+            if let Some(file_lang) = codequery_core::language_for_file(&absolute) {
+                if file_lang != lang {
+                    continue;
+                }
+            } else {
                 continue;
-            };
-            search_file(
-                pattern,
-                &file_entry.source,
-                &file_entry.tree,
-                &file_entry.file,
-                language,
-            )
-        };
+            }
+        }
+
+        let matches_result = search_file(
+            pattern,
+            &file_entry.source,
+            &file_entry.tree,
+            &file_entry.file,
+        );
 
         match matches_result {
             Ok(matches) => {
                 files_searched += 1;
                 all_matches.extend(matches);
             }
-            Err(
-                codequery_parse::ParseError::PatternError(ref msg)
-                | codequery_parse::ParseError::QueryError(ref msg),
-            ) => {
-                // Pattern or query is invalid for this language's grammar.
+            Err(codequery_parse::ParseError::QueryError(ref msg)) => {
+                // Query is invalid for this language's grammar.
                 // Expected when searching a multi-language project — a Rust
-                // pattern/query won't compile against TOML/JSON/YAML grammars.
+                // query won't compile against TOML/JSON/YAML grammars.
                 // Track the error in case it fails on ALL files.
                 last_query_error = Some(msg.clone());
             }
@@ -92,10 +85,10 @@ pub fn run(
         }
     }
 
-    // If the pattern/query failed for every file, it's likely invalid — report as error
+    // If the query failed for every file, it's likely invalid — report as error
     if files_searched == 0 {
         if let Some(err) = last_query_error {
-            return Err(anyhow::anyhow!("pattern error: {err}"));
+            return Err(anyhow::anyhow!("query error: {err}"));
         }
     }
 
@@ -113,14 +106,10 @@ pub fn run(
     }
 
     // 6. Format and output
-    //    For search, --raw means S-expression mode, so we format as Framed
-    //    unless --json was specified
-    let output_mode = if is_raw { OutputMode::Framed } else { mode };
-
-    if all_matches.is_empty() && output_mode != OutputMode::Json {
+    if all_matches.is_empty() && mode != OutputMode::Json {
         Ok(ExitCode::NoResults)
     } else {
-        let output = format_search(&all_matches, pattern, output_mode, pretty);
+        let output = format_search(&all_matches, pattern, mode, pretty);
         if !output.is_empty() {
             println!("{output}");
         }
@@ -148,75 +137,58 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // Structural search
+    // S-expression search
     // -----------------------------------------------------------------------
 
     #[test]
-    fn test_search_structural_finds_functions_in_rust_project() {
-        let project = fixture_project();
-        let result = run(
-            "fn $NAME($ARGS) -> String { $BODY }",
-            Some(&project),
-            None,
-            OutputMode::Framed,
-            false,
-            None,
-            false,
-        );
-        assert!(result.is_ok());
-        // The fixture has at least one function returning String
-    }
-
-    #[test]
-    fn test_search_structural_no_match_returns_no_results() {
-        let project = fixture_project();
-        let result = run(
-            "fn zzz_nonexistent_function_xyz() {}",
-            Some(&project),
-            None,
-            OutputMode::Framed,
-            false,
-            None,
-            false,
-        );
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
-    }
-
-    // -----------------------------------------------------------------------
-    // Raw S-expression search
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn test_search_raw_finds_function_names_in_rust_project() {
+    fn test_search_finds_function_names_in_rust_project() {
         let project = fixture_project();
         let result = run(
             "(function_item name: (identifier) @name)",
             Some(&project),
             None,
-            OutputMode::Raw,
+            OutputMode::Framed,
             false,
             None,
             false,
+            None,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     #[test]
-    fn test_search_raw_finds_functions_in_python_project() {
+    fn test_search_finds_functions_in_python_project() {
         let project = fixture_python_project();
         let result = run(
             "(function_definition name: (identifier) @name)",
             Some(&project),
             None,
-            OutputMode::Raw,
+            OutputMode::Framed,
             false,
             None,
             false,
+            None,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
+    }
+
+    #[test]
+    fn test_search_no_match_returns_no_results() {
+        let project = fixture_project();
+        let result = run(
+            "(function_item name: (identifier) @name (#eq? @name \"zzz_nonexistent_xyz\"))",
+            Some(&project),
+            None,
+            OutputMode::Framed,
+            false,
+            None,
+            false,
+            None,
+        );
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ExitCode::NoResults);
     }
 
     // -----------------------------------------------------------------------
@@ -227,13 +199,14 @@ mod tests {
     fn test_search_json_mode_returns_success() {
         let project = fixture_project();
         let result = run(
-            "fn $NAME() {}",
+            "(function_item name: (identifier) @name)",
             Some(&project),
             None,
             OutputMode::Json,
             true,
             None,
             false,
+            None,
         );
         assert!(result.is_ok());
     }
@@ -249,10 +222,11 @@ mod tests {
             "(function_item name: (identifier) @name)",
             Some(&project),
             None,
-            OutputMode::Raw,
+            OutputMode::Framed,
             false,
             Some(1),
             false,
+            None,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -263,18 +237,18 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn test_search_raw_invalid_query_returns_error() {
+    fn test_search_invalid_query_returns_error() {
         let project = fixture_project();
         let result = run(
             "(not_a_real_node @name)",
             Some(&project),
             None,
-            OutputMode::Raw,
+            OutputMode::Framed,
             false,
             None,
             false,
+            None,
         );
-        // Should error because query is invalid for Rust grammar
         assert!(result.is_err());
     }
 
@@ -288,13 +262,14 @@ mod tests {
         std::fs::create_dir(tmp.path().join(".git")).unwrap();
 
         let result = run(
-            "fn $NAME() {}",
+            "(function_item) @func",
             Some(tmp.path()),
             None,
             OutputMode::Framed,
             false,
             None,
             false,
+            None,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::NoResults);
@@ -311,11 +286,33 @@ mod tests {
             "(function_item name: (identifier) @name)",
             Some(&project),
             Some(Path::new("src")),
-            OutputMode::Raw,
+            OutputMode::Framed,
             false,
             None,
             false,
+            None,
         );
         assert!(result.is_ok());
+    }
+
+    // -----------------------------------------------------------------------
+    // Language filter
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_search_with_lang_filter() {
+        let project = fixture_project();
+        let result = run(
+            "(function_item name: (identifier) @name)",
+            Some(&project),
+            None,
+            OutputMode::Framed,
+            false,
+            None,
+            false,
+            Some(Language::Rust),
+        );
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 }

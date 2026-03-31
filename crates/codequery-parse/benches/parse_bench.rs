@@ -1,13 +1,13 @@
 //! Criterion benchmarks for codequery-parse.
 //!
-//! Covers single-file parsing, symbol extraction, and structural search.
+//! Covers single-file parsing, symbol extraction, and S-expression search.
 
 use std::path::Path;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use codequery_core::Language;
-use codequery_parse::{extract_symbols, search_file, search_file_raw, Parser};
+use codequery_parse::{extract_symbols, search_file, Parser};
 
 /// Path to the Rust fixture project's lib.rs.
 fn fixture_path() -> &'static Path {
@@ -49,36 +49,15 @@ fn bench_extract_symbols_rust(c: &mut Criterion) {
     });
 }
 
-/// Benchmark: structural pattern search against a Rust file.
-fn bench_search_pattern_rust(c: &mut Criterion) {
+/// Benchmark: S-expression query search against a Rust file.
+fn bench_search_sexp_rust(c: &mut Criterion) {
     let path = fixture_path();
     let mut parser = Parser::for_language(Language::Rust).expect("rust parser");
     let (source, tree) = parser.parse_file(path).expect("parse");
 
-    c.bench_function("search_pattern_rust", |b| {
+    c.bench_function("search_sexp_rust", |b| {
         b.iter(|| {
             let matches = search_file(
-                black_box("fn $NAME($ARGS) -> $RET { $BODY }"),
-                black_box(&source),
-                black_box(&tree),
-                black_box(path),
-                Language::Rust,
-            )
-            .expect("search");
-            black_box(matches);
-        });
-    });
-}
-
-/// Benchmark: raw S-expression query search against a Rust file.
-fn bench_search_raw_rust(c: &mut Criterion) {
-    let path = fixture_path();
-    let mut parser = Parser::for_language(Language::Rust).expect("rust parser");
-    let (source, tree) = parser.parse_file(path).expect("parse");
-
-    c.bench_function("search_raw_sexp_rust", |b| {
-        b.iter(|| {
-            let matches = search_file_raw(
                 black_box("(function_item name: (identifier) @name)"),
                 black_box(&source),
                 black_box(&tree),
@@ -94,7 +73,6 @@ criterion_group!(
     benches,
     bench_parse_rust_file,
     bench_extract_symbols_rust,
-    bench_search_pattern_rust,
-    bench_search_raw_rust,
+    bench_search_sexp_rust,
 );
 criterion_main!(benches);

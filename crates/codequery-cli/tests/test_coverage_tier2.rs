@@ -213,11 +213,7 @@ fn test_symbols_csharp_lists_all_symbols() {
 fn test_search_csharp_raw_finds_classes() {
     let output = run_cq_project(
         &csharp_project(),
-        &[
-            "--raw",
-            "search",
-            "(class_declaration name: (identifier) @name)",
-        ],
+        &["search", "(class_declaration name: (identifier) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
@@ -355,11 +351,7 @@ fn test_symbols_swift_lists_all_symbols() {
 fn test_search_swift_raw_finds_functions() {
     let output = run_cq_project(
         &swift_project(),
-        &[
-            "--raw",
-            "search",
-            "(function_declaration name: (simple_identifier) @name)",
-        ],
+        &["search", "(function_declaration name: (simple_identifier) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
@@ -490,10 +482,13 @@ fn test_symbols_kotlin_lists_all_symbols() {
 
 #[test]
 fn test_search_kotlin_finds_functions_by_pattern() {
-    let output = run_cq_project(&kotlin_project(), &["search", "fun $NAME(): $RET"]);
+    let output = run_cq_project(
+        &kotlin_project(),
+        &["search", "(function_declaration name: (identifier) @name)"],
+    );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
-    assert!(out.contains("fun reset()"), "should find reset: {out}");
+    assert!(out.contains("reset"), "should find reset: {out}");
 }
 
 // ===========================================================================
@@ -629,11 +624,7 @@ fn test_symbols_scala_lists_all_symbols() {
 fn test_search_scala_raw_finds_classes() {
     let output = run_cq_project(
         &scala_project(),
-        &[
-            "--raw",
-            "search",
-            "(class_definition name: (identifier) @name)",
-        ],
+        &["search", "(class_definition name: (identifier) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
@@ -776,11 +767,7 @@ fn test_symbols_lua_lists_all_symbols() {
 fn test_search_lua_raw_finds_functions() {
     let output = run_cq_project(
         &lua_project(),
-        &[
-            "--raw",
-            "search",
-            "(function_declaration name: (identifier) @name)",
-        ],
+        &["search", "(function_declaration name: (identifier) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
@@ -915,11 +902,7 @@ fn test_symbols_bash_lists_all_symbols() {
 fn test_search_bash_raw_finds_functions() {
     let output = run_cq_project(
         &bash_project(),
-        &[
-            "--raw",
-            "search",
-            "(function_definition name: (word) @name)",
-        ],
+        &["search", "(function_definition name: (word) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
@@ -1043,11 +1026,7 @@ fn test_symbols_php_lists_all_symbols() {
 fn test_search_php_raw_finds_functions() {
     let output = run_cq_project(
         &php_project(),
-        &[
-            "--raw",
-            "search",
-            "(function_definition name: (name) @name)",
-        ],
+        &["search", "(function_definition name: (name) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
@@ -1124,7 +1103,7 @@ fn test_symbols_ruby_lists_all_project_symbols() {
 fn test_search_ruby_raw_finds_classes() {
     let output = run_cq_project(
         &ruby_project(),
-        &["--raw", "search", "(class name: (constant) @name)"],
+        &["search", "(class name: (constant) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
@@ -1160,7 +1139,7 @@ fn test_symbols_zig_lists_all_project_symbols() {
 fn test_search_zig_raw_finds_functions() {
     let output = run_cq_project(
         &zig_project(),
-        &["--raw", "search", "(function_declaration) @fn"],
+        &["search", "(function_declaration) @fn"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);

@@ -385,11 +385,7 @@ fn test_lsp_regression_tree_exit_code_0() {
 fn test_lsp_regression_search_exit_code_0() {
     let output = run_cq_project(
         &rust_project(),
-        &[
-            "--raw",
-            "search",
-            "(function_item name: (identifier) @name)",
-        ],
+        &["search", "(function_item name: (identifier) @name)"],
     );
     assert_exit_code(&output, 0);
 }
@@ -444,7 +440,6 @@ fn test_lsp_semantic_flag_does_not_break_search() {
         &rust_project(),
         &[
             "--semantic",
-            "--raw",
             "search",
             "(function_item name: (identifier) @name)",
         ],

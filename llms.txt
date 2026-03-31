@@ -15,7 +15,13 @@ symbols [--kind K]    All symbols in project
 imports <file>        Imports/dependencies of a file
 context <file>:<line> Enclosing symbol for a line number
 tree [path]           Hierarchical symbol tree
-search <pattern>      Structural pattern matching ($NAME metavariables)
+search <pattern>      Structural search using tree-sitter S-expression queries
+hover <file>:<line>:<col>  Type info, docs, and signature at a location
+diagnostics [file]         Syntax errors and semantic diagnostics
+rename <old> <new>         Rename a symbol (dry-run at syntactic precision)
+dead [--kind K]            Find unreferenced symbols
+callchain <symbol>         Multi-level call hierarchy (--depth N)
+hierarchy <type>           Type hierarchy (supertypes and subtypes)
 grammar list          Show installed and available languages
 grammar install <L>   Install a language (or --all for everything)
 
@@ -63,11 +69,12 @@ completeness: "exhaustive" | "best_effort"
 - resolved > syntactic: follows imports and qualified names across files
 - semantic > resolved: full type system (generics, traits, macros)
 
-## Pattern syntax (search command)
-$NAME matches any single AST node
-$$$ matches zero or more nodes
-Pattern is parsed as source code with wildcards
---raw flag: tree-sitter S-expression queries instead
+## Search command (S-expression queries)
+Patterns use tree-sitter S-expression syntax directly.
+Use `cq tree <file>` to explore node types for a language.
+Example: cq search '(function_item name: (identifier) @name)'
+Example: cq search '(function_item name: (identifier) @name (#eq? @name "main"))'
+Captures (@name) control which part of the match is returned.
 
 ## Global flags
 --project <path>  Explicit project root (default: auto-detect via .git, Cargo.toml, etc.)

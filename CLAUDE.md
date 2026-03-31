@@ -7,7 +7,7 @@ Semantic code query tool for the command line. Tree-sitter-powered structural na
 
 ## Project State
 
-Release-ready. 2050+ tests, 7 crates, 12 commands, 22 languages. Stack graphs for 10 languages (all Tier 1 + Ruby, C#), hardened against 24 real-world open-source projects. LSP defaults for all 22 languages. MCP server ships as `cq-mcp`.
+Release-ready. 2050+ tests, 7 crates, 18 commands, 22 languages. Stack graphs for 10 languages (all Tier 1 + Ruby, C#), hardened against 24 real-world open-source projects. LSP defaults for all 22 languages. MCP server ships as `cq-mcp`.
 
 ## Key Documents
 
@@ -24,7 +24,7 @@ Release-ready. 2050+ tests, 7 crates, 12 commands, 22 languages. Stack graphs fo
 | `codequery-index` | Parallel scanning (rayon), grep pre-filter (memchr), symbol index, reference extraction, caching |
 | `codequery-resolve` | Stack graph resolution (10 languages), TSG rules, resolver facade |
 | `codequery-lsp` | LSP client, JSON-RPC transport, server lifecycle, daemon, cascade |
-| `codequery-cli` | Binary entry point (`cq`), 12 commands, output formatting |
+| `codequery-cli` | Binary entry point (`cq`), 18 commands, output formatting |
 | `codequery-mcp` | MCP server (`cq-mcp`), exposes all commands as AI-callable tools |
 
 ## Query Pipeline

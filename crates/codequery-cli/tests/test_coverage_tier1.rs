@@ -319,11 +319,7 @@ fn test_symbols_cpp_finds_all_expected_symbols() {
 fn test_search_cpp_finds_classes_by_sexpr() {
     let output = run_cq_project(
         &cpp_project(),
-        &[
-            "--raw",
-            "search",
-            "(class_specifier name: (type_identifier) @name)",
-        ],
+        &["search", "(class_specifier name: (type_identifier) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
@@ -518,11 +514,7 @@ fn test_symbols_js_finds_expected_symbols() {
 fn test_search_js_finds_functions_by_sexpr() {
     let output = run_cq_project(
         &typescript_project(),
-        &[
-            "--raw",
-            "search",
-            "(function_declaration name: (identifier) @name)",
-        ],
+        &["search", "(function_declaration name: (identifier) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
@@ -643,11 +635,7 @@ fn test_deps_c_finds_main_dependencies() {
 fn test_search_c_finds_function_definitions() {
     let output = run_cq_project(
         &c_project(),
-        &[
-            "--raw",
-            "search",
-            "(function_definition declarator: (function_declarator declarator: (identifier) @name))",
-        ],
+        &["search", "(function_definition declarator: (function_declarator declarator: (identifier) @name))"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
@@ -664,11 +652,7 @@ fn test_search_c_finds_function_definitions() {
 fn test_search_go_finds_function_declarations() {
     let output = run_cq_project(
         &go_project(),
-        &[
-            "--raw",
-            "search",
-            "(function_declaration name: (identifier) @name)",
-        ],
+        &["search", "(function_declaration name: (identifier) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
@@ -742,11 +726,7 @@ fn test_deps_java_finds_main_method_dependencies() {
 fn test_search_java_finds_class_declarations() {
     let output = run_cq_project(
         &java_project(),
-        &[
-            "--raw",
-            "search",
-            "(class_declaration name: (identifier) @name)",
-        ],
+        &["search", "(class_declaration name: (identifier) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);

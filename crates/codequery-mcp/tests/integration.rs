@@ -53,7 +53,7 @@ fn initialize_returns_protocol_version_and_server_info() {
 }
 
 #[test]
-fn tools_list_returns_all_twelve_tools() {
+fn tools_list_returns_all_eighteen_tools() {
     let responses = run_mcp(&[
         r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
         r#"{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}"#,
@@ -68,7 +68,7 @@ fn tools_list_returns_all_twelve_tools() {
     let tools = list_resp["result"]["tools"]
         .as_array()
         .expect("tools should be array");
-    assert_eq!(tools.len(), 12);
+    assert_eq!(tools.len(), 18);
 
     // Verify each tool has required fields
     for tool in tools {

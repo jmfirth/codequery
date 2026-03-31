@@ -179,12 +179,12 @@ mod tests {
     }
 
     #[test]
-    fn tools_list_returns_twelve_tools() {
+    fn tools_list_returns_eighteen_tools() {
         let msg = r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#;
         let resp = handle_message(msg).expect("should return response");
         let result = resp.result.expect("should be success");
         let tools = result["tools"].as_array().expect("tools should be array");
-        assert_eq!(tools.len(), 12);
+        assert_eq!(tools.len(), 18);
     }
 
     #[test]

@@ -511,7 +511,7 @@ fn test_tree_zig_project_shows_files_and_symbols() {
 fn test_search_raw_ruby_finds_methods() {
     let output = run_cq_project(
         &ruby_project(),
-        &["--raw", "search", "(method name: (identifier) @name)"],
+        &["search", "(method name: (identifier) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);

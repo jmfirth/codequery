@@ -4,6 +4,8 @@
 //! result was obtained (syntactic vs. resolved) and whether it covers all possible
 //! matches (exhaustive vs. best-effort).
 
+use std::fmt;
+
 use serde::Serialize;
 
 /// How the results were obtained.
@@ -16,6 +18,16 @@ pub enum Resolution {
     Resolved,
     /// LSP type resolution (future).
     Semantic,
+}
+
+impl fmt::Display for Resolution {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Syntactic => write!(f, "syntactic"),
+            Self::Resolved => write!(f, "resolved"),
+            Self::Semantic => write!(f, "semantic"),
+        }
+    }
 }
 
 /// Whether the result set is complete.

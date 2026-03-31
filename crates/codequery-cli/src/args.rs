@@ -26,7 +26,7 @@ pub enum OutputMode {
                    cq body Router::add_route       Extract the full source of a method\n  \
                    cq refs Config --semantic       Find all references using LSP precision\n  \
                    cq outline src/main.rs          List all symbols in a file\n  \
-                   cq search 'fn $NAME() -> Result' Find functions returning Result"
+                   cq search '(function_item) @f'   Find Rust functions via S-expression"
 )]
 #[allow(clippy::struct_excessive_bools)]
 // CLI flag structs naturally use booleans for each flag; refactoring would hurt clarity
@@ -69,8 +69,8 @@ pub struct CqArgs {
         conflicts_with = "json",
         long_help = "Emit raw output without @@ framing delimiters.\n\
                      Produces plain source text suitable for piping into other tools.\n\
-                     For the `search` command, --raw switches the pattern language from\n\
-                     template syntax to tree-sitter S-expressions."
+                     For the `search` command, --raw emits raw matched text\n\
+                     without framing delimiters."
     )]
     pub raw: bool,
 
@@ -356,19 +356,103 @@ pub enum Command {
         /// Root path to display (defaults to project root)
         path: Option<PathBuf>,
     },
-    /// Structural search using AST patterns
+    /// Structural search using tree-sitter S-expression queries
     #[command(
-        long_about = "Search for code matching a structural pattern across the project.\n\
-                      Patterns use a template syntax with $NAME placeholders for wildcards:\n\
-                      `fn $NAME() -> Result` matches any function returning Result.\n\
-                      With --raw, accepts tree-sitter S-expression queries directly.",
-        after_help = "Examples:\n  cq search 'fn $NAME() -> Result'\n  \
-                     cq search 'for $VAR in $ITER'\n  \
-                     cq --raw search '(function_item name: (identifier) @fn)'"
+        long_about = "Search for code matching a tree-sitter S-expression query.\n\
+                      S-expressions match against the AST — use `cq tree <file>` to\n\
+                      explore node types for a language. Captures (@name) control\n\
+                      which part of the match is returned.",
+        after_help = "Examples:\n  \
+                     cq search '(function_item name: (identifier) @name)'\n  \
+                     cq search '(function_item name: (identifier) @name (#eq? @name \"main\"))'\n  \
+                     cq search '(class_declaration name: (identifier) @name)' --lang typescript\n  \
+                     cq search '(if_statement condition: (_) @cond) @match'"
     )]
     Search {
-        /// Pattern to search for (template syntax, or S-expression with --raw)
+        /// Tree-sitter S-expression query pattern
         pattern: String,
+    },
+    /// Find unreferenced (dead) symbols in the project
+    #[command(
+        long_about = "Find symbols with zero references across the project.\n\
+                      Scans all files for symbols and references, then reports symbols\n\
+                      whose name never appears as a reference. Useful for finding dead\n\
+                      code during refactoring. Focuses on private symbols by default;\n\
+                      public symbols are flagged with a warning since they may have\n\
+                      external callers.",
+        after_help = "Examples:\n  cq dead\n  \
+                     cq dead --kind function\n  \
+                     cq dead --in src/legacy/"
+    )]
+    Dead,
+    /// Show syntax errors and language server diagnostics
+    #[command(
+        long_about = "Show syntax errors and semantic diagnostics for a file or project.\n\
+                      Always shows tree-sitter parse errors (syntax layer). When the daemon\n\
+                      is running or --semantic is used, also shows language server diagnostics.",
+        after_help = "Examples:\n  cq diagnostics src/main.rs\n  \
+                     cq diagnostics\n  \
+                     cq diagnostics --in src/"
+    )]
+    Diagnostics {
+        /// File to check (omit for whole project)
+        file: Option<PathBuf>,
+    },
+    /// Show type info, docs, and signature at a source location
+    #[command(
+        long_about = "Show type information, documentation, and signature for the symbol\n\
+                      at a given source location. Uses AST analysis by default; with\n\
+                      --semantic or a running daemon, uses the language server for\n\
+                      precise type resolution.",
+        after_help = "Examples:\n  cq hover src/main.rs:42:8\n  \
+                     cq hover src/lib.rs:10"
+    )]
+    Hover {
+        /// Location as file:line[:column] (e.g. src/main.rs:42:8)
+        location: String,
+    },
+    /// Rename a symbol across the project
+    #[command(
+        long_about = "Rename a symbol across the project. Finds all references and\n\
+                      replaces them with the new name. Applies immediately when using\n\
+                      semantic or resolved precision; shows a preview diff when using\n\
+                      syntactic precision (use --dry-run to always preview).",
+        after_help = "Examples:\n  cq rename OldName NewName\n  \
+                     cq rename foo bar --in src/\n  \
+                     cq rename Handler Router --dry-run"
+    )]
+    Rename {
+        /// Current symbol name
+        old: String,
+        /// New symbol name
+        new: String,
+        /// Force preview mode (don't apply changes)
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Trace multi-level call hierarchy for a symbol
+    #[command(
+        long_about = "Trace the call hierarchy for a symbol, recursively finding\n\
+                      callers up to a configurable depth. Shows who calls the target\n\
+                      symbol, who calls those callers, and so on.",
+        after_help = "Examples:\n  cq callchain handle_request\n  \
+                     cq callchain process --depth 5"
+    )]
+    Callchain {
+        /// Symbol name to trace call hierarchy for
+        symbol: String,
+    },
+    /// Show type hierarchy (supertypes and subtypes)
+    #[command(
+        long_about = "Show the type hierarchy for a type — what it extends/implements\n\
+                      and what extends/implements it. Uses structural AST matching\n\
+                      by default; with --semantic, uses the language server.",
+        after_help = "Examples:\n  cq hierarchy Iterator\n  \
+                     cq hierarchy Animal --lang typescript"
+    )]
+    Hierarchy {
+        /// Type name to show hierarchy for
+        symbol: String,
     },
     /// Manage the disk cache
     #[command(
@@ -714,20 +798,11 @@ mod tests {
 
     #[test]
     fn test_search_command_captures_pattern() {
-        let args = CqArgs::parse_from(["cq", "search", "fn $NAME() {}"]);
-        match args.command {
-            Command::Search { pattern } => assert_eq!(pattern, "fn $NAME() {}"),
-            _ => panic!("expected Search command"),
-        }
-    }
-
-    #[test]
-    fn test_search_command_with_raw_flag() {
-        let args = CqArgs::parse_from(["cq", "--raw", "search", "(function_item) @func"]);
-        assert!(args.raw);
+        let args =
+            CqArgs::parse_from(["cq", "search", "(function_item name: (identifier) @name)"]);
         match args.command {
             Command::Search { pattern } => {
-                assert_eq!(pattern, "(function_item) @func");
+                assert_eq!(pattern, "(function_item name: (identifier) @name)");
             }
             _ => panic!("expected Search command"),
         }

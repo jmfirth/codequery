@@ -51,63 +51,58 @@ fn parse_json(output: &std::process::Output) -> serde_json::Value {
 
 #[test]
 fn test_search_fn_pattern_finds_rust_functions() {
-    // Structural search requires complete valid syntax. The fixture has functions
-    // returning String, so use a pattern that matches them.
+    // Use an S-expression pattern to find Rust function items.
     let output = run_cq_project(
         &rust_project(),
-        &["search", "fn $NAME($ARGS) -> String { $BODY }"],
-    );
-    assert_exit_code(&output, 0);
-    let out = stdout(&output);
-    assert!(
-        out.contains("fn "),
-        "search should find functions returning String, got: {out}"
-    );
-}
-
-#[test]
-fn test_search_def_pattern_finds_python_functions() {
-    // Python structural search needs complete function syntax
-    let output = run_cq_project(&python_project(), &["search", "def $NAME():\n    pass"]);
-    // Pattern may not exactly match fixture functions (they have args/bodies),
-    // but the search engine should parse and run without error.
-    // Exit code 0 means matches found, 1 means no matches (both valid).
-    let code = output.status.code().unwrap();
-    assert!(
-        code == 0 || code == 1,
-        "search 'def $NAME():...' should return 0 or 1, got {code}\nstderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-#[test]
-fn test_search_raw_sexpr_finds_rust_function_items() {
-    let output = run_cq_project(
-        &rust_project(),
-        &[
-            "--raw",
-            "search",
-            "(function_item name: (identifier) @name)",
-        ],
+        &["search", "(function_item name: (identifier) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
         out.contains("greet"),
-        "raw S-expression search should find greet, got: {out}"
+        "search should find greet function, got: {out}"
+    );
+}
+
+#[test]
+fn test_search_def_pattern_finds_python_functions() {
+    // Use an S-expression pattern to find Python function definitions.
+    let output = run_cq_project(
+        &python_project(),
+        &["search", "(function_definition name: (identifier) @name)"],
+    );
+    assert_exit_code(&output, 0);
+    let out = stdout(&output);
+    assert!(
+        out.contains("greet"),
+        "search should find greet function, got: {out}"
+    );
+}
+
+#[test]
+fn test_search_sexpr_finds_rust_function_items() {
+    let output = run_cq_project(
+        &rust_project(),
+        &["search", "(function_item name: (identifier) @name)"],
+    );
+    assert_exit_code(&output, 0);
+    let out = stdout(&output);
+    assert!(
+        out.contains("greet"),
+        "S-expression search should find greet, got: {out}"
     );
 }
 
 #[test]
 fn test_search_fn_pattern_json_produces_valid_json() {
-    // Use a structural pattern that matches fixture functions
+    // Use an S-expression pattern to find Rust function items.
     let output = run_cq_project(
         &rust_project(),
         &[
             "--json",
             "--pretty",
             "search",
-            "fn $NAME($ARGS) -> String { $BODY }",
+            "(function_item name: (identifier) @name)",
         ],
     );
     assert_exit_code(&output, 0);
@@ -133,10 +128,13 @@ fn test_search_fn_pattern_json_produces_valid_json() {
 
 #[test]
 fn test_search_no_matches_returns_exit_code_1() {
-    // Use a valid but non-matching function name as a structural pattern
+    // Use a valid S-expression query that matches no symbols
     let output = run_cq_project(
         &rust_project(),
-        &["search", "fn zzz_nonexistent_symbol_abc_xyz() {}"],
+        &[
+            "search",
+            "(function_item name: (identifier) @name (#eq? @name \"zzz_nonexistent_xyz\"))",
+        ],
     );
     assert_exit_code(&output, 1);
 }
@@ -409,14 +407,9 @@ fn test_regression_deps_returns_success() {
 
 #[test]
 fn test_regression_search_returns_success() {
-    // Use raw S-expression for reliable structural search
     let output = run_cq_project(
         &rust_project(),
-        &[
-            "--raw",
-            "search",
-            "(function_item name: (identifier) @name)",
-        ],
+        &["search", "(function_item name: (identifier) @name)"],
     );
     assert_exit_code(&output, 0);
 }
@@ -432,7 +425,7 @@ fn test_search_class_pattern_finds_typescript_classes() {
     // specific node type varies between grammars.
     let output = run_cq_project(
         &typescript_project(),
-        &["--raw", "search", "(class_declaration name: (_) @name)"],
+        &["search", "(class_declaration name: (_) @name)"],
     );
     assert_exit_code(&output, 0);
     let out = stdout(&output);

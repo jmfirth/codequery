@@ -4,7 +4,10 @@
 //! formats defined in SPECIFICATION.md section 9. It is pure formatting:
 //! no I/O, no parsing, only string construction from typed symbol data.
 
-use codequery_core::{Completeness, QueryResult, Reference, Resolution, Symbol};
+use codequery_core::{
+    Completeness, Diagnostic, DiagnosticSeverity, QueryResult, Reference, Resolution, Symbol,
+    Visibility,
+};
 use codequery_index::FileSymbols;
 use codequery_parse::{ImportInfo, SearchMatch};
 use serde::Serialize;
@@ -1377,6 +1380,408 @@ fn format_search_raw(matches: &[SearchMatch]) -> String {
     output
 }
 
+// ---------------------------------------------------------------------------
+// Dead code formatting
+// ---------------------------------------------------------------------------
+
+/// JSON payload for the `dead` command.
+#[derive(Debug, Serialize)]
+pub struct DeadResult {
+    /// Symbols with zero references.
+    pub dead_symbols: Vec<Symbol>,
+    /// Total number of dead symbols.
+    pub total: usize,
+}
+
+/// Format dead code results in the requested mode.
+pub fn format_dead(
+    symbols: &[Symbol],
+    has_public: bool,
+    mode: OutputMode,
+    pretty: bool,
+) -> String {
+    match mode {
+        OutputMode::Framed => format_dead_framed(symbols),
+        OutputMode::Json => format_dead_json(symbols, has_public, pretty),
+        OutputMode::Raw => format_dead_raw(symbols),
+    }
+}
+
+/// Format dead symbols as framed output.
+fn format_dead_framed(symbols: &[Symbol]) -> String {
+    use std::fmt::Write;
+    let mut output = String::new();
+    for (i, symbol) in symbols.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+        let vis = if symbol.visibility == Visibility::Public {
+            " (pub)"
+        } else {
+            ""
+        };
+        let _ = write!(
+            output,
+            "@@ {}:{}:{} {} {}{} — zero references @@",
+            symbol.file.display(),
+            symbol.line,
+            symbol.column,
+            symbol.kind,
+            symbol.name,
+            vis,
+        );
+    }
+    output
+}
+
+/// Format dead symbols as JSON wrapped in `QueryResult`.
+fn format_dead_json(symbols: &[Symbol], has_public: bool, force_pretty: bool) -> String {
+    let data = DeadResult {
+        total: symbols.len(),
+        dead_symbols: symbols.to_vec(),
+    };
+    let note = if has_public {
+        Some(
+            "structural analysis; public symbols may have external callers not visible to cq"
+                .to_string(),
+        )
+    } else {
+        None
+    };
+    let result = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::BestEffort,
+        note,
+        data,
+    };
+    serialize_json(&result, force_pretty)
+}
+
+/// Format dead symbols as raw text.
+fn format_dead_raw(symbols: &[Symbol]) -> String {
+    use std::fmt::Write;
+    let mut output = String::new();
+    for (i, symbol) in symbols.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+        let _ = write!(
+            output,
+            "{}:{}:{} {} {}",
+            symbol.file.display(),
+            symbol.line,
+            symbol.column,
+            symbol.kind,
+            symbol.name,
+        );
+    }
+    output
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostics formatting
+// ---------------------------------------------------------------------------
+
+/// JSON payload for the `diagnostics` command.
+#[derive(Debug, Serialize)]
+pub struct DiagnosticsResult {
+    /// All diagnostics collected.
+    pub diagnostics: Vec<Diagnostic>,
+    /// Total number of diagnostics.
+    pub total: usize,
+}
+
+/// Format diagnostics results in the requested mode.
+pub fn format_diagnostics(diagnostics: &[Diagnostic], mode: OutputMode, pretty: bool) -> String {
+    match mode {
+        OutputMode::Framed => format_diagnostics_framed(diagnostics),
+        OutputMode::Json => format_diagnostics_json(diagnostics, pretty),
+        OutputMode::Raw => format_diagnostics_raw(diagnostics),
+    }
+}
+
+/// Format diagnostics as framed output.
+///
+/// Each diagnostic produces one line: `@@ file:line:col severity source message @@`
+fn format_diagnostics_framed(diagnostics: &[Diagnostic]) -> String {
+    use std::fmt::Write;
+    let mut output = String::new();
+    for (i, diag) in diagnostics.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+        let severity = format_severity(diag.severity);
+        let _ = write!(
+            output,
+            "@@ {}:{}:{} {} {} {} @@",
+            diag.file.display(),
+            diag.line,
+            diag.column,
+            severity,
+            format_source(diag.source),
+            diag.message,
+        );
+    }
+    output
+}
+
+/// Format diagnostics as JSON wrapped in `QueryResult`.
+fn format_diagnostics_json(diagnostics: &[Diagnostic], force_pretty: bool) -> String {
+    let data = DiagnosticsResult {
+        total: diagnostics.len(),
+        diagnostics: diagnostics.to_vec(),
+    };
+    let result = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::Exhaustive,
+        note: None,
+        data,
+    };
+    serialize_json(&result, force_pretty)
+}
+
+/// Format diagnostics as raw text: `file:line:col severity message`.
+fn format_diagnostics_raw(diagnostics: &[Diagnostic]) -> String {
+    use std::fmt::Write;
+    let mut output = String::new();
+    for (i, diag) in diagnostics.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+        let _ = write!(
+            output,
+            "{}:{}:{} {} {}",
+            diag.file.display(),
+            diag.line,
+            diag.column,
+            format_severity(diag.severity),
+            diag.message,
+        );
+    }
+    output
+}
+
+/// Convert a `DiagnosticSeverity` to its lowercase display string.
+fn format_severity(severity: DiagnosticSeverity) -> &'static str {
+    match severity {
+        DiagnosticSeverity::Error => "error",
+        DiagnosticSeverity::Warning => "warning",
+        DiagnosticSeverity::Information => "info",
+        DiagnosticSeverity::Hint => "hint",
+    }
+}
+
+/// Convert a `DiagnosticSource` to its lowercase display string.
+fn format_source(source: codequery_core::DiagnosticSource) -> &'static str {
+    match source {
+        codequery_core::DiagnosticSource::Syntax => "syntax",
+        codequery_core::DiagnosticSource::Lsp => "lsp",
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Callchain formatting
+// ---------------------------------------------------------------------------
+
+/// JSON payload for the `callchain` command.
+#[derive(Debug, Serialize)]
+pub struct CallchainResult {
+    /// The root of the call chain tree.
+    pub root: codequery_core::CallChainNode,
+    /// Maximum depth searched.
+    pub depth: usize,
+}
+
+/// Format call chain results in the requested mode.
+pub fn format_callchain(
+    root: &codequery_core::CallChainNode,
+    depth: usize,
+    mode: OutputMode,
+    pretty: bool,
+) -> String {
+    match mode {
+        OutputMode::Framed => format_callchain_framed(root, 0),
+        OutputMode::Json => format_callchain_json(root, depth, pretty),
+        OutputMode::Raw => format_callchain_framed(root, 0),
+    }
+}
+
+fn format_callchain_framed(node: &codequery_core::CallChainNode, indent: usize) -> String {
+    use std::fmt::Write;
+    let mut output = String::new();
+    let prefix = "  ".repeat(indent);
+    let arrow = if indent > 0 { "← " } else { "" };
+    let _ = write!(
+        output,
+        "{prefix}{arrow}{} ({}) {}:{}",
+        node.name,
+        node.kind,
+        node.file.display(),
+        node.line,
+    );
+    for caller in &node.callers {
+        output.push('\n');
+        output.push_str(&format_callchain_framed(caller, indent + 1));
+    }
+    output
+}
+
+fn format_callchain_json(
+    root: &codequery_core::CallChainNode,
+    depth: usize,
+    force_pretty: bool,
+) -> String {
+    let data = CallchainResult {
+        root: root.clone(),
+        depth,
+    };
+    let result = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::BestEffort,
+        note: Some("recursive caller analysis; may miss indirect calls".to_string()),
+        data,
+    };
+    serialize_json(&result, force_pretty)
+}
+
+// ---------------------------------------------------------------------------
+// Hierarchy formatting
+// ---------------------------------------------------------------------------
+
+/// JSON payload for the `hierarchy` command.
+#[derive(Debug, Serialize)]
+pub struct HierarchyResult {
+    /// The type hierarchy result.
+    #[serde(flatten)]
+    pub hierarchy: codequery_core::TypeHierarchyResult,
+}
+
+/// Format type hierarchy results in the requested mode.
+pub fn format_hierarchy(
+    result: &codequery_core::TypeHierarchyResult,
+    mode: OutputMode,
+    pretty: bool,
+) -> String {
+    match mode {
+        OutputMode::Framed => format_hierarchy_framed(result),
+        OutputMode::Json => format_hierarchy_json(result, pretty),
+        OutputMode::Raw => format_hierarchy_framed(result),
+    }
+}
+
+fn format_hierarchy_framed(result: &codequery_core::TypeHierarchyResult) -> String {
+    use std::fmt::Write;
+    let mut output = String::new();
+    let _ = write!(
+        output,
+        "@@ {} ({}) {}:{} @@",
+        result.target.name,
+        result.target.kind,
+        result.target.file.display(),
+        result.target.line,
+    );
+    if !result.supertypes.is_empty() {
+        output.push_str("\n\nSupertypes:");
+        for st in &result.supertypes {
+            let _ = write!(output, "\n  ↑ {} ({}) {}:{}", st.name, st.kind, st.file.display(), st.line);
+        }
+    }
+    if !result.subtypes.is_empty() {
+        output.push_str("\n\nSubtypes:");
+        for st in &result.subtypes {
+            let _ = write!(output, "\n  ↓ {} ({}) {}:{}", st.name, st.kind, st.file.display(), st.line);
+        }
+    }
+    output
+}
+
+fn format_hierarchy_json(
+    result: &codequery_core::TypeHierarchyResult,
+    force_pretty: bool,
+) -> String {
+    let data = HierarchyResult {
+        hierarchy: result.clone(),
+    };
+    let qr = QueryResult {
+        resolution: Resolution::Syntactic,
+        completeness: Completeness::BestEffort,
+        note: Some("structural AST matching; may miss complex generic relationships".to_string()),
+        data,
+    };
+    serialize_json(&qr, force_pretty)
+}
+
+// ---------------------------------------------------------------------------
+// Rename formatting
+// ---------------------------------------------------------------------------
+
+/// Format rename results in the requested mode.
+pub fn format_rename(
+    result: &codequery_core::RenameResult,
+    mode: OutputMode,
+    pretty: bool,
+) -> String {
+    match mode {
+        OutputMode::Framed | OutputMode::Raw => format_rename_framed(result),
+        OutputMode::Json => format_rename_json(result, pretty),
+    }
+}
+
+fn format_rename_framed(result: &codequery_core::RenameResult) -> String {
+    use std::fmt::Write;
+    let mut output = String::new();
+    if result.applied {
+        let _ = write!(
+            output,
+            "Renamed {} → {} across {} files ({} edits) [{}]",
+            result.old_name,
+            result.new_name,
+            result.files_affected,
+            result.edits.len(),
+            result.resolution,
+        );
+    } else {
+        let _ = write!(
+            output,
+            "Rename {} → {}: {} edits across {} files [{} — preview only]\n\
+             Run with --apply or use a higher precision tier (daemon) to apply.",
+            result.old_name,
+            result.new_name,
+            result.edits.len(),
+            result.files_affected,
+            result.resolution,
+        );
+        // Show a simple diff
+        let mut current_file: Option<&Path> = None;
+        for edit in &result.edits {
+            if current_file != Some(edit.file.as_path()) {
+                let _ = write!(output, "\n\n--- {}\n+++ {}", edit.file.display(), edit.file.display());
+                current_file = Some(&edit.file);
+            }
+            let _ = write!(
+                output,
+                "\n@@ -{}:{} @@\n-{}\n+{}",
+                edit.line, edit.column, result.old_name, edit.new_text,
+            );
+        }
+    }
+    output
+}
+
+fn format_rename_json(result: &codequery_core::RenameResult, force_pretty: bool) -> String {
+    let qr = QueryResult {
+        resolution: result.resolution,
+        completeness: Completeness::BestEffort,
+        note: if result.resolution == Resolution::Syntactic {
+            Some("syntactic name matching; may include false positives".to_string())
+        } else {
+            None
+        },
+        data: result,
+    };
+    serialize_json(&qr, force_pretty)
+}
+
 /// Serialize a value to JSON, choosing pretty or compact based on TTY and flags.
 fn serialize_json<T: Serialize>(value: &T, force_pretty: bool) -> String {
     let use_pretty = force_pretty || std::io::stdout().is_terminal();
@@ -2367,5 +2772,95 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
         assert_eq!(parsed["total"], 0);
         assert!(parsed["matches"].as_array().unwrap().is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // Diagnostics formatting
+    // -----------------------------------------------------------------------
+
+    fn make_diagnostic(file: &str, line: usize, column: usize, message: &str) -> Diagnostic {
+        use codequery_core::{DiagnosticSource};
+        Diagnostic {
+            file: PathBuf::from(file),
+            line,
+            column,
+            end_line: line,
+            end_column: column + 5,
+            severity: DiagnosticSeverity::Error,
+            message: message.to_string(),
+            source: DiagnosticSource::Syntax,
+            code: None,
+        }
+    }
+
+    #[test]
+    fn test_format_diagnostics_framed_empty_returns_empty_string() {
+        let output = format_diagnostics(&[], OutputMode::Framed, false);
+        assert_eq!(output, "");
+    }
+
+    #[test]
+    fn test_format_diagnostics_framed_single_diagnostic() {
+        let diag = make_diagnostic("src/main.rs", 10, 4, "unexpected syntax");
+        let output = format_diagnostics(&[diag], OutputMode::Framed, false);
+        assert!(output.starts_with("@@"));
+        assert!(output.contains("src/main.rs:10:4"));
+        assert!(output.contains("error"));
+        assert!(output.contains("syntax"));
+        assert!(output.contains("unexpected syntax"));
+        assert!(output.ends_with("@@"));
+    }
+
+    #[test]
+    fn test_format_diagnostics_framed_multiple_separated_by_newline() {
+        let diags = vec![
+            make_diagnostic("src/a.rs", 1, 0, "unexpected syntax"),
+            make_diagnostic("src/b.rs", 5, 2, "missing }"),
+        ];
+        let output = format_diagnostics(&diags, OutputMode::Framed, false);
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].contains("src/a.rs"));
+        assert!(lines[1].contains("src/b.rs"));
+    }
+
+    #[test]
+    fn test_format_diagnostics_raw_empty_returns_empty_string() {
+        let output = format_diagnostics(&[], OutputMode::Raw, false);
+        assert_eq!(output, "");
+    }
+
+    #[test]
+    fn test_format_diagnostics_raw_no_framing_delimiters() {
+        let diag = make_diagnostic("src/main.rs", 3, 0, "unexpected syntax");
+        let output = format_diagnostics(&[diag], OutputMode::Raw, false);
+        assert!(!output.contains("@@"));
+        assert!(output.contains("src/main.rs:3:0"));
+        assert!(output.contains("error"));
+        assert!(output.contains("unexpected syntax"));
+    }
+
+    #[test]
+    fn test_format_diagnostics_json_empty_produces_valid_json() {
+        let output = format_diagnostics(&[], OutputMode::Json, true);
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(parsed["total"], 0);
+        assert_eq!(parsed["resolution"], "syntactic");
+        assert_eq!(parsed["completeness"], "exhaustive");
+        assert!(parsed["diagnostics"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_format_diagnostics_json_with_diagnostics() {
+        let diag = make_diagnostic("src/main.rs", 7, 2, "missing ;");
+        let output = format_diagnostics(&[diag], OutputMode::Json, true);
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(parsed["total"], 1);
+        assert_eq!(parsed["diagnostics"][0]["file"], "src/main.rs");
+        assert_eq!(parsed["diagnostics"][0]["line"], 7);
+        assert_eq!(parsed["diagnostics"][0]["column"], 2);
+        assert_eq!(parsed["diagnostics"][0]["severity"], "error");
+        assert_eq!(parsed["diagnostics"][0]["source"], "syntax");
+        assert_eq!(parsed["diagnostics"][0]["message"], "missing ;");
     }
 }

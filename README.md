@@ -113,7 +113,7 @@ system_prompt = open("path/to/cq/llms.txt").read() + "\n\n" + your_instructions
 
 ### Option 2: MCP server (native tool integration)
 
-Add `cq` as an MCP tool server. All 12 commands become native tool calls for Claude, Cursor, and any MCP-compatible harness. No Rust toolchain needed — `npx` downloads the binary automatically.
+Add `cq` as an MCP tool server. All 18 commands become native tool calls for Claude, Cursor, and any MCP-compatible harness. No Rust toolchain needed — `npx` downloads the binary automatically.
 
 ```json
 {
@@ -125,7 +125,7 @@ Add `cq` as an MCP tool server. All 12 commands become native tool calls for Cla
 
 Also available via pip (`uvx codequery-mcp`) or direct binary (`cq-mcp`).
 
-Both options give access to the same 12 commands, 75 languages, and three-tier precision cascade.
+Both options give access to the same 18 commands, 75 languages, and three-tier precision cascade.
 
 ---
 
@@ -158,9 +158,15 @@ $ cq grammar install --all     # pre-download everything (optional)
 | `cq outline [file]` | List all symbols in a file with nesting |
 | `cq symbols [--kind K]` | List all symbols in the project |
 | `cq imports <file>` | List imports and dependencies for a file |
-| `cq search <pattern>` | Structural search using AST patterns |
+| `cq search <pattern>` | Structural search using tree-sitter S-expressions |
 | `cq context <file>:<line>` | Get the enclosing symbol for a line |
 | `cq tree [path]` | Hierarchical symbol tree for a directory |
+| `cq hover <file>:<line>:<col>` | Type info, docs, and signature at a location |
+| `cq diagnostics [file]` | Syntax errors and language server diagnostics |
+| `cq rename <old> <new>` | Rename a symbol across the project |
+| `cq dead` | Find unreferenced symbols |
+| `cq callchain <symbol>` | Multi-level call hierarchy |
+| `cq hierarchy <type>` | Type hierarchy (supertypes and subtypes) |
 
 ### Global Flags
 
