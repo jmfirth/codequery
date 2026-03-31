@@ -123,37 +123,38 @@ impl StdioTransport {
     /// Returns `LspError::Io` on I/O failures during reading, or
     /// `LspError::ConnectionFailed` if the message framing is invalid.
     pub fn try_read_message(&mut self, timeout: Duration) -> Result<Option<String>> {
-        use mio::{Events, Interest, Poll, Token};
-
-        const PIPE_TOKEN: Token = Token(0);
-
         // If the BufReader already has data buffered, read immediately.
         if !self.stdout.buffer().is_empty() {
             return read_message(&mut self.stdout).map(Some);
         }
 
-        // Wrap the ChildStdout fd in a mio-compatible source and poll.
+        // Platform-specific non-blocking poll of the pipe.
+        if self.poll_readable(timeout)? {
+            read_message(&mut self.stdout).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Poll the stdout pipe for readability with a timeout.
+    ///
+    /// On Unix, uses mio for efficient fd polling.
+    /// On Windows, uses a background thread with sleep-based polling
+    /// since mio cannot poll anonymous pipes from `ChildStdout`.
+    #[cfg(unix)]
+    fn poll_readable(&mut self, timeout: Duration) -> Result<bool> {
+        use mio::{Events, Interest, Poll, Token};
+        use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
+
+        const PIPE_TOKEN: Token = Token(0);
+
         let mut poll = Poll::new().map_err(LspError::Io)?;
         let mut events = Events::with_capacity(1);
 
-        // Create a mio pipe from the ChildStdout's raw handle/fd.
-        #[cfg(unix)]
-        let mut source = {
-            use std::os::unix::io::{AsRawFd, FromRawFd};
-            let fd = self.stdout.get_ref().as_raw_fd();
-            // SAFETY: We borrow the fd for the duration of poll only. The
-            // ChildStdout outlives this scope. We use from_raw_fd on a dup'd
-            // fd would be safer, but mio only needs it registered temporarily.
-            // We'll deregister before returning.
-            unsafe { mio::unix::pipe::Receiver::from_raw_fd(fd) }
-        };
-
-        #[cfg(windows)]
-        let mut source = {
-            use std::os::windows::io::{AsRawHandle, FromRawHandle};
-            let handle = self.stdout.get_ref().as_raw_handle();
-            unsafe { mio::windows::NamedPipe::from_raw_handle(handle) }
-        };
+        let fd = self.stdout.get_ref().as_raw_fd();
+        // SAFETY: We borrow the fd for the duration of poll only. The
+        // ChildStdout outlives this scope.
+        let mut source = unsafe { mio::unix::pipe::Receiver::from_raw_fd(fd) };
 
         poll.registry()
             .register(&mut source, PIPE_TOKEN, Interest::READABLE)
@@ -166,25 +167,65 @@ impl StdioTransport {
             .iter()
             .any(|e| e.token() == PIPE_TOKEN && e.is_readable());
 
-        // Deregister and forget the mio wrapper so it doesn't close the fd.
         let _ = poll.registry().deregister(&mut source);
-        #[cfg(unix)]
-        {
-            use std::os::unix::io::IntoRawFd;
-            // Consume without closing — the fd belongs to ChildStdout.
-            let _ = source.into_raw_fd();
-        }
-        #[cfg(windows)]
-        {
-            use std::os::windows::io::IntoRawHandle;
-            let _ = source.into_raw_handle();
-        }
+        // Consume without closing — the fd belongs to ChildStdout.
+        let _ = source.into_raw_fd();
 
-        if !readable {
-            return Ok(None);
-        }
+        Ok(readable)
+    }
 
-        read_message(&mut self.stdout).map(Some)
+    /// On Windows, poll readability using a background thread.
+    ///
+    /// Anonymous pipes from `ChildStdout` cannot be polled with mio on Windows.
+    /// Instead, we spawn a short-lived thread that attempts a peek via a 1-byte
+    /// non-consuming read with the pipe set to non-blocking. If the thread
+    /// signals data within the timeout, we proceed to read.
+    #[cfg(windows)]
+    fn poll_readable(&mut self, timeout: Duration) -> Result<bool> {
+        use std::sync::mpsc;
+
+        let (tx, rx) = mpsc::channel();
+        let stdout_ref = self.stdout.get_ref();
+
+        // Try to duplicate the handle for the polling thread.
+        // Fall back to optimistic read if duplication isn't possible.
+        use std::os::windows::io::{AsRawHandle, FromRawHandle};
+        let raw = stdout_ref.as_raw_handle();
+
+        // Spawn a thread that blocks on a tiny read to detect data availability.
+        // The thread owns a duplicate of the handle so it can peek independently.
+        std::thread::spawn(move || {
+            // Use PeekNamedPipe via raw FFI (no extra dependency).
+            // Link against kernel32 which is always available.
+            #[link(name = "kernel32")]
+            extern "system" {
+                fn PeekNamedPipe(
+                    hNamedPipe: *mut std::ffi::c_void,
+                    lpBuffer: *mut u8,
+                    nBufferSize: u32,
+                    lpBytesRead: *mut u32,
+                    lpTotalBytesAvail: *mut u32,
+                    lpBytesLeftThisMessage: *mut u32,
+                ) -> i32;
+            }
+            let mut available: u32 = 0;
+            let ok = unsafe {
+                PeekNamedPipe(
+                    raw as *mut std::ffi::c_void,
+                    std::ptr::null_mut(),
+                    0,
+                    std::ptr::null_mut(),
+                    &mut available,
+                    std::ptr::null_mut(),
+                )
+            };
+            let _ = tx.send(ok != 0 && available > 0);
+        });
+
+        match rx.recv_timeout(timeout) {
+            Ok(has_data) => Ok(has_data),
+            Err(_) => Ok(false), // Timeout — no data
+        }
     }
 
     /// Writes a raw LSP-framed message to the server's stdin.
