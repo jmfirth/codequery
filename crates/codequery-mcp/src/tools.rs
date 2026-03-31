@@ -350,9 +350,7 @@ fn run_search_command(args: &serde_json::Value) -> Result<String, String> {
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| "Missing required argument: pattern".to_string())?;
 
-    let mut cmd_args: Vec<String> = Vec::new();
-    cmd_args.push("search".to_string());
-    cmd_args.push(pattern.to_string());
+    let cmd_args: Vec<String> = vec!["search".to_string(), pattern.to_string()];
 
     call_cq(&cmd_args, args)
 }
