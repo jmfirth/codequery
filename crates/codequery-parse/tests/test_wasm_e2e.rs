@@ -70,7 +70,7 @@ mod wasm_e2e {
 
         // 4. Verify results
         let names: Vec<&str> = symbols.iter().map(|s| s.name.as_str()).collect();
-        let kinds: Vec<SymbolKind> = symbols.iter().map(|s| s.kind).collect();
+        let _kinds: Vec<SymbolKind> = symbols.iter().map(|s| s.kind).collect();
 
         eprintln!("Extracted {} symbols:", symbols.len());
         for s in &symbols {

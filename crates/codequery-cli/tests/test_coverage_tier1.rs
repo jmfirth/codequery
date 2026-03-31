@@ -765,7 +765,7 @@ fn test_json_def_cpp_produces_valid_json() {
 fn test_json_symbols_java_produces_valid_json() {
     let output = run_cq_project(&java_project(), &["--json", "--pretty", "symbols"]);
     assert_exit_code(&output, 0);
-    let json = parse_json(&output);
+    let _json = parse_json(&output);
     let text = stdout(&output);
     // Should contain User and Main
     assert!(
