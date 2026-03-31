@@ -43,9 +43,17 @@ pub fn stdout(output: &Output) -> String {
 
 /// Check if a command failed because the language grammar is not installed.
 /// Returns true (and prints a skip message) if the test should be skipped.
+///
+/// Detects three cases:
+/// - Explicit error: "no grammar available"
+/// - Auto-install failure: "auto-install failed"
+/// - Silent auto-install attempt with no results: "auto-installing" in stderr + non-zero exit
 pub fn skip_if_grammar_missing(output: &Output) -> bool {
     let err = String::from_utf8_lossy(&output.stderr);
-    if err.contains("no grammar available") || err.contains("auto-install failed") {
+    if err.contains("no grammar available")
+        || err.contains("auto-install failed")
+        || (err.contains("auto-installing") && !output.status.success())
+    {
         eprintln!("skipping: language grammar not installed");
         true
     } else {

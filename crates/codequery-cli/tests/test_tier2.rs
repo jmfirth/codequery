@@ -106,7 +106,9 @@ fn test_outline_csharp_extracts_symbols() {
     let project = csharp_project();
     let file = project.join("src/Models.cs");
     let output = run_cq_project(&project, &["outline", file.to_str().unwrap()]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -132,7 +134,9 @@ fn test_outline_swift_extracts_symbols() {
     let project = swift_project();
     let file = project.join("main.swift");
     let output = run_cq_project(&project, &["outline", file.to_str().unwrap()]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -153,7 +157,9 @@ fn test_outline_kotlin_extracts_symbols() {
     let project = kotlin_project();
     let file = project.join("Main.kt");
     let output = run_cq_project(&project, &["outline", file.to_str().unwrap()]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -180,7 +186,9 @@ fn test_outline_scala_extracts_symbols() {
     let project = scala_project();
     let file = project.join("Main.scala");
     let output = run_cq_project(&project, &["outline", file.to_str().unwrap()]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("Animal (class, pub)"), "missing Animal: {out}");
@@ -200,7 +208,9 @@ fn test_outline_zig_extracts_symbols() {
     let project = zig_project();
     let file = project.join("main.zig");
     let output = run_cq_project(&project, &["outline", file.to_str().unwrap()]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -221,7 +231,9 @@ fn test_outline_lua_extracts_symbols() {
     let project = lua_project();
     let file = project.join("main.lua");
     let output = run_cq_project(&project, &["outline", file.to_str().unwrap()]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -239,7 +251,9 @@ fn test_outline_bash_extracts_symbols() {
     let project = bash_project();
     let file = project.join("main.sh");
     let output = run_cq_project(&project, &["outline", file.to_str().unwrap()]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -301,7 +315,9 @@ fn test_def_php_finds_class() {
 #[test]
 fn test_def_csharp_finds_class() {
     let output = run_cq_project(&csharp_project(), &["def", "Point"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("struct Point"), "missing struct Point: {out}");
@@ -310,7 +326,9 @@ fn test_def_csharp_finds_class() {
 #[test]
 fn test_def_swift_finds_function() {
     let output = run_cq_project(&swift_project(), &["def", "greet"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -322,7 +340,9 @@ fn test_def_swift_finds_function() {
 #[test]
 fn test_def_kotlin_finds_function() {
     let output = run_cq_project(&kotlin_project(), &["def", "greet"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -334,7 +354,9 @@ fn test_def_kotlin_finds_function() {
 #[test]
 fn test_def_scala_finds_class() {
     let output = run_cq_project(&scala_project(), &["def", "Animal"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("class Animal"), "missing class Animal: {out}");
@@ -343,7 +365,9 @@ fn test_def_scala_finds_class() {
 #[test]
 fn test_def_zig_finds_function() {
     let output = run_cq_project(&zig_project(), &["def", "greet"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -355,7 +379,9 @@ fn test_def_zig_finds_function() {
 #[test]
 fn test_def_lua_finds_function() {
     let output = run_cq_project(&lua_project(), &["def", "global_fn"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -367,7 +393,9 @@ fn test_def_lua_finds_function() {
 #[test]
 fn test_def_bash_finds_function() {
     let output = run_cq_project(&bash_project(), &["def", "greet"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -399,7 +427,9 @@ fn test_body_php_extracts_function_body() {
 #[test]
 fn test_body_zig_extracts_function_body() {
     let output = run_cq_project(&zig_project(), &["body", "greet"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("Hello!"), "body should contain Hello!: {out}");
@@ -431,7 +461,9 @@ fn test_sig_php_extracts_function_signature() {
 #[test]
 fn test_sig_zig_extracts_function_signature() {
     let output = run_cq_project(&zig_project(), &["sig", "greet"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -449,7 +481,9 @@ fn test_imports_zig_extracts_imports() {
     let project = zig_project();
     let file = project.join("main.zig");
     let output = run_cq_project(&project, &["imports", file.to_str().unwrap()]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("std"), "should contain std import: {out}");
@@ -464,7 +498,9 @@ fn test_imports_bash_extracts_source_statements() {
     let project = bash_project();
     let file = project.join("main.sh");
     let output = run_cq_project(&project, &["imports", file.to_str().unwrap()]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -512,7 +548,9 @@ fn test_tree_ruby_project_shows_files_and_symbols() {
 #[test]
 fn test_tree_zig_project_shows_files_and_symbols() {
     let output = run_cq_project(&zig_project(), &["tree"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("main.zig"), "missing main.zig: {out}");
@@ -561,7 +599,9 @@ fn test_context_zig_finds_enclosing_function() {
     let file = project.join("main.zig");
     let location = format!("{}:6", file.display());
     let output = run_cq_project(&project, &["context", &location]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("function greet"), "should find greet: {out}");
@@ -573,7 +613,9 @@ fn test_context_kotlin_finds_enclosing_class() {
     let file = project.join("Main.kt");
     let location = format!("{}:6", file.display());
     let output = run_cq_project(&project, &["context", &location]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -603,7 +645,9 @@ fn test_refs_php_returns_success() {
 #[test]
 fn test_refs_zig_returns_success() {
     let output = run_cq_project(&zig_project(), &["refs", "greet"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("definition"), "should show definition: {out}");
@@ -620,7 +664,9 @@ fn test_callers_ruby_finds_call_sites() {
 #[test]
 fn test_callers_zig_finds_call_sites() {
     let output = run_cq_project(&zig_project(), &["callers", "greet"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
 }
 
@@ -635,7 +681,9 @@ fn test_deps_ruby_returns_success() {
 #[test]
 fn test_deps_zig_returns_success() {
     let output = run_cq_project(&zig_project(), &["deps", "main"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
 }
 
@@ -699,7 +747,9 @@ fn test_outline_zig_extracts_test_declarations() {
     let project = zig_project();
     let file = project.join("main.zig");
     let output = run_cq_project(&project, &["outline", file.to_str().unwrap()]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -721,7 +771,9 @@ fn test_outline_scala_distinguishes_trait_class_object() {
     let project = scala_project();
     let file = project.join("Main.scala");
     let output = run_cq_project(&project, &["outline", file.to_str().unwrap()]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -747,7 +799,9 @@ fn test_outline_swift_protocol_as_interface() {
     let project = swift_project();
     let file = project.join("main.swift");
     let output = run_cq_project(&project, &["outline", file.to_str().unwrap()]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -769,7 +823,9 @@ fn test_outline_kotlin_object_as_module_data_class_as_struct() {
     let project = kotlin_project();
     let file = project.join("Main.kt");
     let output = run_cq_project(&project, &["outline", file.to_str().unwrap()]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(

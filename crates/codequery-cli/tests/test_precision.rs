@@ -513,7 +513,9 @@ fn ruby_resolved() {
 fn kotlin_fallback_syntactic() {
     let project = fixture_base().join("kotlin_project");
     let output = run_cq_project(&project, &["--json", "refs", "Animal"]);
-    if skip_if_grammar_missing(&output) { return; }
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let json = parse_json(&output);
 
