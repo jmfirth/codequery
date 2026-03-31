@@ -128,11 +128,15 @@ mod tests {
     use codequery_core::Language;
     use std::path::PathBuf;
 
+    fn grammar_available() -> bool {
+        Parser::for_language(Language::Bash).is_ok()
+    }
+
     /// Helper: parse source and extract symbols for the given file path.
     fn parse_and_extract(source: &str, file: &str) -> Vec<Symbol> {
         let Ok(mut parser) = Parser::for_language(Language::Bash) else {
             eprintln!("skipping: Bash grammar not installed");
-            return;
+            return Vec::new();
         };
         let tree = parser.parse(source.as_bytes()).unwrap();
         BashExtractor::extract_symbols(source, &tree, Path::new(file))
@@ -148,7 +152,7 @@ mod tests {
         let path = fixture_dir().join(relative_path);
         let Ok(mut parser) = Parser::for_language(Language::Bash) else {
             eprintln!("skipping: Bash grammar not installed");
-            return;
+            return (String::new(), Vec::new());
         };
         let (source, tree) = parser.parse_file(&path).unwrap();
         let symbols = BashExtractor::extract_symbols(&source, &tree, &path);
@@ -160,6 +164,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_bash_function_keyword_syntax() {
+        if !grammar_available() {
+            eprintln!("skipping: Bash grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.sh");
         let greet = symbols
             .iter()
@@ -174,6 +182,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_bash_name_paren_syntax() {
+        if !grammar_available() {
+            eprintln!("skipping: Bash grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.sh");
         let say_hello = symbols
             .iter()
@@ -188,6 +200,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_bash_all_functions_are_public() {
+        if !grammar_available() {
+            eprintln!("skipping: Bash grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.sh");
         for sym in &symbols {
             assert_eq!(
@@ -204,6 +220,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_bash_function_body_contains_source() {
+        if !grammar_available() {
+            eprintln!("skipping: Bash grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.sh");
         let greet = symbols
             .iter()
@@ -216,6 +236,10 @@ mod tests {
 
     #[test]
     fn test_extract_bash_function_keyword_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Bash grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.sh");
         let greet = symbols
             .iter()
@@ -230,6 +254,10 @@ mod tests {
 
     #[test]
     fn test_extract_bash_name_paren_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Bash grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.sh");
         let say_hello = symbols
             .iter()
@@ -247,6 +275,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_bash_doc_comment() {
+        if !grammar_available() {
+            eprintln!("skipping: Bash grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.sh");
         let greet = symbols
             .iter()
@@ -260,6 +292,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_bash_all_fixture_symbols_have_body_and_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Bash grammar not installed");
+            return;
+        }
         for fixture in &["main.sh", "utils.sh"] {
             let (_, symbols) = extract_fixture(fixture);
             assert!(
@@ -288,6 +324,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_bash_utils_functions() {
+        if !grammar_available() {
+            eprintln!("skipping: Bash grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("utils.sh");
         assert_eq!(symbols.len(), 3);
         assert!(symbols.iter().any(|s| s.name == "log_info"));
@@ -300,12 +340,20 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_bash_empty_source_returns_empty_vec() {
+        if !grammar_available() {
+            eprintln!("skipping: Bash grammar not installed");
+            return;
+        }
         let symbols = parse_and_extract("", "empty.sh");
         assert!(symbols.is_empty());
     }
 
     #[test]
     fn test_extract_bash_no_functions_returns_empty_vec() {
+        if !grammar_available() {
+            eprintln!("skipping: Bash grammar not installed");
+            return;
+        }
         let source = "#!/bin/bash\necho hello\n";
         let symbols = parse_and_extract(source, "nofunc.sh");
         assert!(symbols.is_empty());
@@ -313,6 +361,10 @@ mod tests {
 
     #[test]
     fn test_extract_bash_broken_source_no_panic() {
+        if !grammar_available() {
+            eprintln!("skipping: Bash grammar not installed");
+            return;
+        }
         // Bash parser may absorb errors differently; just verify no panic
         let source = "function good() {\n  echo ok\n}\nfunction broken( {\n";
         let symbols = parse_and_extract(source, "broken.sh");
@@ -323,6 +375,10 @@ mod tests {
 
     #[test]
     fn test_extract_bash_line_numbers_are_1_based() {
+        if !grammar_available() {
+            eprintln!("skipping: Bash grammar not installed");
+            return;
+        }
         let source = "first() {\n  echo 1\n}\nsecond() {\n  echo 2\n}\n";
         let symbols = parse_and_extract(source, "test.sh");
         let first = symbols

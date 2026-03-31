@@ -239,11 +239,15 @@ mod tests {
     use codequery_core::Language;
     use std::path::PathBuf;
 
+    fn grammar_available() -> bool {
+        Parser::for_language(Language::Lua).is_ok()
+    }
+
     /// Helper: parse source and extract symbols for the given file path.
     fn parse_and_extract(source: &str, file: &str) -> Vec<Symbol> {
         let Ok(mut parser) = Parser::for_language(Language::Lua) else {
             eprintln!("skipping: Lua grammar not installed");
-            return;
+            return Vec::new();
         };
         let tree = parser.parse(source.as_bytes()).unwrap();
         LuaExtractor::extract_symbols(source, &tree, Path::new(file))
@@ -259,7 +263,7 @@ mod tests {
         let path = fixture_dir().join(relative_path);
         let Ok(mut parser) = Parser::for_language(Language::Lua) else {
             eprintln!("skipping: Lua grammar not installed");
-            return;
+            return (String::new(), Vec::new());
         };
         let (source, tree) = parser.parse_file(&path).unwrap();
         let symbols = LuaExtractor::extract_symbols(&source, &tree, &path);
@@ -271,6 +275,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_lua_global_function_as_public() {
+        if !grammar_available() {
+            eprintln!("skipping: Lua grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.lua");
         let global_fn = symbols
             .iter()
@@ -285,6 +293,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_lua_local_function_as_private() {
+        if !grammar_available() {
+            eprintln!("skipping: Lua grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.lua");
         let private_helper = symbols
             .iter()
@@ -299,6 +311,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_lua_module_function_as_public() {
+        if !grammar_available() {
+            eprintln!("skipping: Lua grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.lua");
         let greet = symbols
             .iter()
@@ -313,6 +329,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_lua_local_table_as_module() {
+        if !grammar_available() {
+            eprintln!("skipping: Lua grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.lua");
         let m = symbols
             .iter()
@@ -326,6 +346,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_lua_function_body_contains_source() {
+        if !grammar_available() {
+            eprintln!("skipping: Lua grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.lua");
         let greet = symbols
             .iter()
@@ -338,6 +362,10 @@ mod tests {
 
     #[test]
     fn test_extract_lua_function_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Lua grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.lua");
         let greet = symbols
             .iter()
@@ -355,6 +383,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_lua_doc_comment() {
+        if !grammar_available() {
+            eprintln!("skipping: Lua grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.lua");
         let greet = symbols
             .iter()
@@ -368,6 +400,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_lua_all_fixture_symbols_have_body_and_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Lua grammar not installed");
+            return;
+        }
         for fixture in &["main.lua", "utils.lua"] {
             let (_, symbols) = extract_fixture(fixture);
             assert!(
@@ -396,6 +432,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_lua_utils_functions() {
+        if !grammar_available() {
+            eprintln!("skipping: Lua grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("utils.lua");
         let format_name = symbols
             .iter()
@@ -417,12 +457,20 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_lua_empty_source_returns_empty_vec() {
+        if !grammar_available() {
+            eprintln!("skipping: Lua grammar not installed");
+            return;
+        }
         let symbols = parse_and_extract("", "empty.lua");
         assert!(symbols.is_empty());
     }
 
     #[test]
     fn test_extract_lua_broken_source_no_panic() {
+        if !grammar_available() {
+            eprintln!("skipping: Lua grammar not installed");
+            return;
+        }
         let source = "function good()\n  return 1\nend\nfunction broken(\nend\n";
         let symbols = parse_and_extract(source, "broken.lua");
         assert!(
@@ -433,6 +481,10 @@ mod tests {
 
     #[test]
     fn test_extract_lua_line_numbers_are_1_based() {
+        if !grammar_available() {
+            eprintln!("skipping: Lua grammar not installed");
+            return;
+        }
         let source = "function first()\nend\nfunction second()\nend\n";
         let symbols = parse_and_extract(source, "test.lua");
         let first = symbols

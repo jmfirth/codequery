@@ -291,11 +291,15 @@ mod tests {
     use codequery_core::Language;
     use std::path::PathBuf;
 
+    fn grammar_available() -> bool {
+        Parser::for_language(Language::Zig).is_ok()
+    }
+
     /// Helper: parse source and extract symbols for the given file path.
     fn parse_and_extract(source: &str, file: &str) -> Vec<Symbol> {
         let Ok(mut parser) = Parser::for_language(Language::Zig) else {
             eprintln!("skipping: Zig grammar not installed");
-            return;
+            return Vec::new();
         };
         let tree = parser.parse(source.as_bytes()).unwrap();
         ZigExtractor::extract_symbols(source, &tree, Path::new(file))
@@ -311,7 +315,7 @@ mod tests {
         let path = fixture_dir().join(relative_path);
         let Ok(mut parser) = Parser::for_language(Language::Zig) else {
             eprintln!("skipping: Zig grammar not installed");
-            return;
+            return (String::new(), Vec::new());
         };
         let (source, tree) = parser.parse_file(&path).unwrap();
         let symbols = ZigExtractor::extract_symbols(&source, &tree, &path);
@@ -323,6 +327,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_zig_pub_fn_as_public_function() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let greet = symbols
             .iter()
@@ -337,6 +345,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_zig_private_fn_as_private_function() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let helper = symbols
             .iter()
@@ -351,6 +363,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_zig_struct_declaration() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let point = symbols
             .iter()
@@ -365,6 +381,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_zig_enum_declaration() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let color = symbols
             .iter()
@@ -379,6 +399,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_zig_union_declaration() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let tagged = symbols
             .iter()
@@ -393,6 +417,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_zig_pub_const_as_const_public() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let max_size = symbols
             .iter()
@@ -407,6 +435,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_zig_private_const_as_const_private() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let limit = symbols
             .iter()
@@ -421,6 +453,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_zig_test_declarations() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let tests: Vec<&Symbol> = symbols
             .iter()
@@ -436,6 +472,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_zig_import_declarations_skipped() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         assert!(
             !symbols.iter().any(|s| s.name == "std"),
@@ -452,6 +492,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_zig_function_body_contains_source() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let greet = symbols
             .iter()
@@ -464,6 +508,10 @@ mod tests {
 
     #[test]
     fn test_extract_zig_function_signature_no_body() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let greet = symbols
             .iter()
@@ -479,6 +527,10 @@ mod tests {
 
     #[test]
     fn test_extract_zig_const_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let max_size = symbols
             .iter()
@@ -496,6 +548,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_zig_doc_comment() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let greet = symbols
             .iter()
@@ -509,6 +565,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_zig_all_fixture_symbols_have_body_and_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         assert!(
             !symbols.is_empty(),
@@ -529,12 +589,20 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn test_extract_zig_empty_source_returns_empty_vec() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let symbols = parse_and_extract("", "empty.zig");
         assert!(symbols.is_empty());
     }
 
     #[test]
     fn test_extract_zig_broken_source_no_panic() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let source = "pub fn good() void {}\npub fn broken( void {}\nconst X: u32 = 1;\n";
         let symbols = parse_and_extract(source, "broken.zig");
         assert!(
@@ -545,6 +613,10 @@ mod tests {
 
     #[test]
     fn test_extract_zig_line_numbers_are_1_based() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let source = "fn first() void {}\nfn second() void {}\n";
         let symbols = parse_and_extract(source, "test.zig");
         let first = symbols
@@ -562,6 +634,10 @@ mod tests {
 
     #[test]
     fn test_extract_zig_struct_body_includes_fields() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let point = symbols
             .iter()
@@ -574,6 +650,10 @@ mod tests {
 
     #[test]
     fn test_extract_zig_enum_body_includes_variants() {
+        if !grammar_available() {
+            eprintln!("skipping: Zig grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.zig");
         let color = symbols
             .iter()

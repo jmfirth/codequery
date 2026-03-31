@@ -410,11 +410,15 @@ mod tests {
     use crate::Parser;
     use codequery_core::Language;
 
+    fn grammar_available() -> bool {
+        Parser::for_language(Language::Scala).is_ok()
+    }
+
     /// Helper: parse source and extract symbols.
     fn parse_and_extract(source: &str, file: &str) -> Vec<Symbol> {
         let Ok(mut parser) = Parser::for_language(Language::Scala) else {
             eprintln!("skipping: Scala grammar not installed");
-            return;
+            return Vec::new();
         };
         let tree = parser.parse(source.as_bytes()).unwrap();
         ScalaExtractor::extract_symbols(source, &tree, Path::new(file))
@@ -426,6 +430,10 @@ mod tests {
 
     #[test]
     fn test_extract_scala_class_with_methods() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let source = "class Animal(val name: String) {\n  def speak(): String = name\n}";
         let symbols = parse_and_extract(source, "test.scala");
         let animal = symbols
@@ -445,6 +453,10 @@ mod tests {
 
     #[test]
     fn test_extract_scala_trait_with_methods() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let source = "trait Drawable {\n  def draw(): Unit\n}";
         let symbols = parse_and_extract(source, "test.scala");
         let drawable = symbols
@@ -462,6 +474,10 @@ mod tests {
 
     #[test]
     fn test_extract_scala_object_with_members() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let source = "object Singleton {\n  val instance = \"singleton\"\n  def greet(name: String): String = name\n}";
         let symbols = parse_and_extract(source, "test.scala");
         let obj = symbols
@@ -492,6 +508,10 @@ mod tests {
 
     #[test]
     fn test_extract_scala_case_class() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let source = "case class Point(x: Double, y: Double)";
         let symbols = parse_and_extract(source, "test.scala");
         let point = symbols
@@ -507,6 +527,10 @@ mod tests {
 
     #[test]
     fn test_extract_scala_private_class() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let source = "private class Secret {}";
         let symbols = parse_and_extract(source, "test.scala");
         let secret = symbols
@@ -518,6 +542,10 @@ mod tests {
 
     #[test]
     fn test_extract_scala_protected_trait() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let source = "protected trait Guarded {}";
         let symbols = parse_and_extract(source, "test.scala");
         let guarded = symbols
@@ -529,6 +557,10 @@ mod tests {
 
     #[test]
     fn test_extract_scala_default_public() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let source = "class Open {}";
         let symbols = parse_and_extract(source, "test.scala");
         let open = symbols
@@ -544,6 +576,10 @@ mod tests {
 
     #[test]
     fn test_extract_scala_def_body_and_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let source = "object Main {\n  def greet(name: String): String = name\n}";
         let symbols = parse_and_extract(source, "test.scala");
         let main = symbols
@@ -569,6 +605,10 @@ mod tests {
 
     #[test]
     fn test_extract_scala_class_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let source = "class Animal(val name: String) {\n  def speak(): String = name\n}";
         let symbols = parse_and_extract(source, "test.scala");
         let animal = symbols
@@ -586,12 +626,20 @@ mod tests {
 
     #[test]
     fn test_extract_scala_empty_source_returns_empty() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let symbols = parse_and_extract("", "empty.scala");
         assert!(symbols.is_empty());
     }
 
     #[test]
     fn test_extract_scala_broken_source_no_panic() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let source = "class Good {}\nclass Broken( {}\ntrait T {}";
         let symbols = parse_and_extract(source, "broken.scala");
         // Should extract at least something without panicking
@@ -604,6 +652,10 @@ mod tests {
 
     #[test]
     fn test_extract_scala_all_symbols_have_body_and_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let source = "class Animal {\n  def speak(): String = \"hi\"\n}\ntrait Drawable {\n  def draw(): Unit\n}\nobject Singleton {\n  val x = 1\n}\ncase class Point(x: Double)";
         let symbols = parse_and_extract(source, "test.scala");
         for sym in &symbols {
@@ -645,7 +697,7 @@ mod tests {
         let path = fixture_dir().join(relative_path);
         let Ok(mut parser) = Parser::for_language(Language::Scala) else {
             eprintln!("skipping: Scala grammar not installed");
-            return;
+            return (String::new(), Vec::new());
         };
         let (source, tree) = parser.parse_file(&path).unwrap();
         let symbols = ScalaExtractor::extract_symbols(&source, &tree, &path);
@@ -654,6 +706,10 @@ mod tests {
 
     #[test]
     fn test_fixture_scala_animal_class_with_methods() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.scala");
         let animal = symbols
             .iter()
@@ -666,6 +722,10 @@ mod tests {
 
     #[test]
     fn test_fixture_scala_drawable_trait() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.scala");
         let drawable = symbols
             .iter()
@@ -677,6 +737,10 @@ mod tests {
 
     #[test]
     fn test_fixture_scala_config_object() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.scala");
         let config = symbols
             .iter()
@@ -688,6 +752,10 @@ mod tests {
 
     #[test]
     fn test_fixture_scala_point_case_class() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.scala");
         let point = symbols
             .iter()
@@ -698,6 +766,10 @@ mod tests {
 
     #[test]
     fn test_fixture_scala_private_class() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.scala");
         let secret = symbols
             .iter()
@@ -708,6 +780,10 @@ mod tests {
 
     #[test]
     fn test_fixture_scala_protected_trait() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.scala");
         let guarded = symbols
             .iter()
@@ -718,6 +794,10 @@ mod tests {
 
     #[test]
     fn test_fixture_scala_all_symbols_have_body_and_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Scala grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.scala");
         for sym in &symbols {
             assert!(sym.body.is_some(), "symbol {} should have body", sym.name);

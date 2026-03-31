@@ -419,11 +419,15 @@ mod tests {
     use crate::Parser;
     use codequery_core::Language;
 
+    fn grammar_available() -> bool {
+        Parser::for_language(Language::Swift).is_ok()
+    }
+
     /// Helper: parse source and extract symbols.
     fn parse_and_extract(source: &str, file: &str) -> Vec<Symbol> {
         let Ok(mut parser) = Parser::for_language(Language::Swift) else {
             eprintln!("skipping: Swift grammar not installed");
-            return;
+            return Vec::new();
         };
         let tree = parser.parse(source.as_bytes()).unwrap();
         SwiftExtractor::extract_symbols(source, &tree, Path::new(file))
@@ -435,6 +439,10 @@ mod tests {
 
     #[test]
     fn test_extract_swift_public_function() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let source = "public func greet(name: String) -> String { return name }";
         let symbols = parse_and_extract(source, "test.swift");
         let greet = symbols
@@ -447,6 +455,10 @@ mod tests {
 
     #[test]
     fn test_extract_swift_private_function() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let source = "private func helper() {}";
         let symbols = parse_and_extract(source, "test.swift");
         let helper = symbols
@@ -459,6 +471,10 @@ mod tests {
 
     #[test]
     fn test_extract_swift_fileprivate_function() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let source = "fileprivate func fileHelper() {}";
         let symbols = parse_and_extract(source, "test.swift");
         let fh = symbols
@@ -470,6 +486,10 @@ mod tests {
 
     #[test]
     fn test_extract_swift_internal_default_function() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let source = "func defaultVisibility() {}";
         let symbols = parse_and_extract(source, "test.swift");
         let f = symbols
@@ -485,6 +505,10 @@ mod tests {
 
     #[test]
     fn test_extract_swift_class_with_methods() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let source = "class Animal {\n  func speak() -> String { return \"\" }\n}";
         let symbols = parse_and_extract(source, "test.swift");
         let animal = symbols
@@ -503,6 +527,10 @@ mod tests {
 
     #[test]
     fn test_extract_swift_struct() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let source = "struct Point {\n  var x: Double\n}";
         let symbols = parse_and_extract(source, "test.swift");
         let point = symbols
@@ -518,6 +546,10 @@ mod tests {
 
     #[test]
     fn test_extract_swift_protocol_with_methods() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let source = "protocol Drawable {\n  func draw()\n}";
         let symbols = parse_and_extract(source, "test.swift");
         let drawable = symbols
@@ -535,6 +567,10 @@ mod tests {
 
     #[test]
     fn test_extract_swift_enum() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let source = "enum Direction {\n  case north\n  case south\n}";
         let symbols = parse_and_extract(source, "test.swift");
         let dir = symbols
@@ -550,6 +586,10 @@ mod tests {
 
     #[test]
     fn test_extract_swift_extension() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let source = "extension String {\n  func greet() -> String { return \"Hello\" }\n}";
         let symbols = parse_and_extract(source, "test.swift");
         let ext = symbols
@@ -567,6 +607,10 @@ mod tests {
 
     #[test]
     fn test_extract_swift_function_body_and_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let source = "public func greet(name: String) -> String {\n  return name\n}";
         let symbols = parse_and_extract(source, "test.swift");
         let greet = symbols
@@ -587,6 +631,10 @@ mod tests {
 
     #[test]
     fn test_extract_swift_class_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let source = "class Animal {\n  func speak() {}\n}";
         let symbols = parse_and_extract(source, "test.swift");
         let animal = symbols
@@ -603,12 +651,20 @@ mod tests {
 
     #[test]
     fn test_extract_swift_empty_source_returns_empty() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let symbols = parse_and_extract("", "empty.swift");
         assert!(symbols.is_empty());
     }
 
     #[test]
     fn test_extract_swift_broken_source_no_panic() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let source = "func good() {}\nfunc broken( {}\nstruct S {}";
         let symbols = parse_and_extract(source, "broken.swift");
         // Should extract at least something without panicking
@@ -621,6 +677,10 @@ mod tests {
 
     #[test]
     fn test_extract_swift_all_symbols_have_body_and_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let source = "public func greet() {}\nclass Animal {\n  func speak() {}\n}\nstruct Point {}\nprotocol Drawable {\n  func draw()\n}\nenum Direction {\n  case north\n}\nextension String {}";
         let symbols = parse_and_extract(source, "test.swift");
         for sym in &symbols {
@@ -662,7 +722,7 @@ mod tests {
         let path = fixture_dir().join(relative_path);
         let Ok(mut parser) = Parser::for_language(Language::Swift) else {
             eprintln!("skipping: Swift grammar not installed");
-            return;
+            return (String::new(), Vec::new());
         };
         let (source, tree) = parser.parse_file(&path).unwrap();
         let symbols = SwiftExtractor::extract_symbols(&source, &tree, &path);
@@ -671,6 +731,10 @@ mod tests {
 
     #[test]
     fn test_fixture_swift_greet_function() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.swift");
         let greet = symbols
             .iter()
@@ -682,6 +746,10 @@ mod tests {
 
     #[test]
     fn test_fixture_swift_animal_class_with_methods() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.swift");
         let animal = symbols
             .iter()
@@ -694,6 +762,10 @@ mod tests {
 
     #[test]
     fn test_fixture_swift_point_struct() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.swift");
         let point = symbols
             .iter()
@@ -704,6 +776,10 @@ mod tests {
 
     #[test]
     fn test_fixture_swift_drawable_protocol() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.swift");
         let drawable = symbols
             .iter()
@@ -715,6 +791,10 @@ mod tests {
 
     #[test]
     fn test_fixture_swift_direction_enum() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.swift");
         let dir = symbols
             .iter()
@@ -725,6 +805,10 @@ mod tests {
 
     #[test]
     fn test_fixture_swift_string_extension() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.swift");
         let ext = symbols
             .iter()
@@ -735,6 +819,10 @@ mod tests {
 
     #[test]
     fn test_fixture_swift_private_helper() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.swift");
         let helper = symbols
             .iter()
@@ -745,6 +833,10 @@ mod tests {
 
     #[test]
     fn test_fixture_swift_all_symbols_have_body_and_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Swift grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("main.swift");
         for sym in &symbols {
             assert!(sym.body.is_some(), "symbol {} should have body", sym.name);

@@ -428,11 +428,15 @@ mod tests {
     use codequery_core::Language;
     use std::path::PathBuf;
 
+    fn grammar_available() -> bool {
+        Parser::for_language(Language::CSharp).is_ok()
+    }
+
     /// Helper: parse C# source and extract symbols.
     fn parse_and_extract(source: &str, file: &str) -> Vec<Symbol> {
         let Ok(mut parser) = Parser::for_language(Language::CSharp) else {
             eprintln!("skipping: CSharp grammar not installed");
-            return;
+            return Vec::new();
         };
         let tree = parser.parse(source.as_bytes()).unwrap();
         CSharpExtractor::extract_symbols(source, &tree, Path::new(file))
@@ -448,7 +452,7 @@ mod tests {
         let path = fixture_dir().join(relative_path);
         let Ok(mut parser) = Parser::for_language(Language::CSharp) else {
             eprintln!("skipping: CSharp grammar not installed");
-            return;
+            return (String::new(), Vec::new());
         };
         let (source, tree) = parser.parse_file(&path).unwrap();
         let symbols = CSharpExtractor::extract_symbols(&source, &tree, &path);
@@ -460,6 +464,10 @@ mod tests {
     // =======================================================================
     #[test]
     fn test_extract_csharp_namespace() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("src/Models.cs");
         let ns = symbols
             .iter()
@@ -473,6 +481,10 @@ mod tests {
     // =======================================================================
     #[test]
     fn test_extract_csharp_class() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("src/Models.cs");
         let user = symbols
             .iter()
@@ -484,6 +496,10 @@ mod tests {
 
     #[test]
     fn test_extract_csharp_class_methods() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("src/Models.cs");
         let user = symbols
             .iter()
@@ -504,6 +520,10 @@ mod tests {
     // =======================================================================
     #[test]
     fn test_extract_csharp_visibility_public() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("src/Models.cs");
         let user = symbols
             .iter()
@@ -519,6 +539,10 @@ mod tests {
 
     #[test]
     fn test_extract_csharp_visibility_private() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("src/Models.cs");
         let user = symbols
             .iter()
@@ -534,6 +558,10 @@ mod tests {
 
     #[test]
     fn test_extract_csharp_visibility_protected() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("src/Models.cs");
         let user = symbols
             .iter()
@@ -549,6 +577,10 @@ mod tests {
 
     #[test]
     fn test_extract_csharp_visibility_internal() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("src/Models.cs");
         let helper = symbols
             .iter()
@@ -559,6 +591,10 @@ mod tests {
 
     #[test]
     fn test_extract_csharp_default_visibility_private() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         // C# default is private for class members without modifiers
         let source = "class Foo {\n    void Bar() {}\n}\n";
         let symbols = parse_and_extract(source, "test.cs");
@@ -579,6 +615,10 @@ mod tests {
     // =======================================================================
     #[test]
     fn test_extract_csharp_interface() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("src/Models.cs");
         let greeter = symbols
             .iter()
@@ -593,6 +633,10 @@ mod tests {
     // =======================================================================
     #[test]
     fn test_extract_csharp_struct() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("src/Models.cs");
         let point = symbols
             .iter()
@@ -607,6 +651,10 @@ mod tests {
     // =======================================================================
     #[test]
     fn test_extract_csharp_enum() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("src/Models.cs");
         let color = symbols
             .iter()
@@ -621,6 +669,10 @@ mod tests {
     // =======================================================================
     #[test]
     fn test_extract_csharp_property() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("src/Models.cs");
         let user = symbols
             .iter()
@@ -640,6 +692,10 @@ mod tests {
     // =======================================================================
     #[test]
     fn test_extract_csharp_method_body() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let source =
             "class Foo {\n    public string Greet() {\n        return \"Hello\";\n    }\n}\n";
         let symbols = parse_and_extract(source, "test.cs");
@@ -658,6 +714,10 @@ mod tests {
 
     #[test]
     fn test_extract_csharp_method_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let source =
             "class Foo {\n    public string Greet() {\n        return \"Hello\";\n    }\n}\n";
         let symbols = parse_and_extract(source, "test.cs");
@@ -679,6 +739,10 @@ mod tests {
 
     #[test]
     fn test_extract_csharp_class_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let source = "public class User {\n}\n";
         let symbols = parse_and_extract(source, "test.cs");
         let user = symbols
@@ -694,6 +758,10 @@ mod tests {
     // =======================================================================
     #[test]
     fn test_extract_symbols_dispatch_csharp() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let source = "public class Foo {}\n";
         let Ok(mut parser) = Parser::for_language(Language::CSharp) else {
             eprintln!("skipping: CSharp grammar not installed");
@@ -711,12 +779,20 @@ mod tests {
     // =======================================================================
     #[test]
     fn test_extract_csharp_empty_source_returns_empty() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let symbols = parse_and_extract("", "empty.cs");
         assert!(symbols.is_empty());
     }
 
     #[test]
     fn test_extract_csharp_broken_source_no_panic() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let source = "public class Good {}\npublic class Broken {\npublic class Valid {}\n";
         let symbols = parse_and_extract(source, "broken.cs");
         assert!(
@@ -727,6 +803,10 @@ mod tests {
 
     #[test]
     fn test_extract_csharp_line_numbers_1_based() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         let source = "public class First {}\npublic class Second {}\n";
         let symbols = parse_and_extract(source, "test.cs");
         let first = symbols
@@ -743,6 +823,10 @@ mod tests {
 
     #[test]
     fn test_extract_csharp_all_fixture_symbols_have_body_and_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: CSharp grammar not installed");
+            return;
+        }
         for fixture in &["src/Models.cs"] {
             let (_, symbols) = extract_fixture(fixture);
             for sym in &symbols {

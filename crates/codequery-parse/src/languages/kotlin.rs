@@ -414,11 +414,15 @@ mod tests {
     use crate::Parser;
     use codequery_core::Language;
 
+    fn grammar_available() -> bool {
+        Parser::for_language(Language::Kotlin).is_ok()
+    }
+
     /// Helper: parse source and extract symbols.
     fn parse_and_extract(source: &str, file: &str) -> Vec<Symbol> {
         let Ok(mut parser) = Parser::for_language(Language::Kotlin) else {
             eprintln!("skipping: Kotlin grammar not installed");
-            return;
+            return Vec::new();
         };
         let tree = parser.parse(source.as_bytes()).unwrap();
         KotlinExtractor::extract_symbols(source, &tree, Path::new(file))
@@ -430,6 +434,10 @@ mod tests {
 
     #[test]
     fn test_extract_kotlin_function_default_public() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let source = "fun greet(name: String): String = \"Hello\"";
         let symbols = parse_and_extract(source, "test.kt");
         let greet = symbols
@@ -442,6 +450,10 @@ mod tests {
 
     #[test]
     fn test_extract_kotlin_private_function() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let source = "private fun helper(): Unit {}";
         let symbols = parse_and_extract(source, "test.kt");
         let helper = symbols
@@ -454,6 +466,10 @@ mod tests {
 
     #[test]
     fn test_extract_kotlin_internal_function() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let source = "internal fun internalHelper(): Unit {}";
         let symbols = parse_and_extract(source, "test.kt");
         let f = symbols
@@ -469,6 +485,10 @@ mod tests {
 
     #[test]
     fn test_extract_kotlin_class_with_methods() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let source = "class Animal(val name: String) {\n  fun speak(): String = name\n}";
         let symbols = parse_and_extract(source, "test.kt");
         let animal = symbols
@@ -488,6 +508,10 @@ mod tests {
 
     #[test]
     fn test_extract_kotlin_object_with_members() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let source =
             "object Singleton {\n  val instance = \"singleton\"\n  fun greet(): String = \"hi\"\n}";
         let symbols = parse_and_extract(source, "test.kt");
@@ -505,6 +529,10 @@ mod tests {
 
     #[test]
     fn test_extract_kotlin_interface() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let source = "interface Drawable {\n  fun draw()\n}";
         let symbols = parse_and_extract(source, "test.kt");
         let drawable = symbols
@@ -522,6 +550,10 @@ mod tests {
 
     #[test]
     fn test_extract_kotlin_data_class() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let source = "data class Point(val x: Double, val y: Double)";
         let symbols = parse_and_extract(source, "test.kt");
         let point = symbols
@@ -537,6 +569,10 @@ mod tests {
 
     #[test]
     fn test_extract_kotlin_enum_class() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let source = "enum class Direction {\n  NORTH, SOUTH\n}";
         let symbols = parse_and_extract(source, "test.kt");
         let dir = symbols
@@ -552,6 +588,10 @@ mod tests {
 
     #[test]
     fn test_extract_kotlin_function_body_and_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let source = "fun greet(name: String): String {\n  return name\n}";
         let symbols = parse_and_extract(source, "test.kt");
         let greet = symbols
@@ -572,6 +612,10 @@ mod tests {
 
     #[test]
     fn test_extract_kotlin_expression_body_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let source = "fun greet(name: String): String = \"Hello\"";
         let symbols = parse_and_extract(source, "test.kt");
         let greet = symbols
@@ -588,6 +632,10 @@ mod tests {
 
     #[test]
     fn test_extract_kotlin_class_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let source = "class Animal(val name: String) {\n  fun speak(): String = name\n}";
         let symbols = parse_and_extract(source, "test.kt");
         let animal = symbols
@@ -605,12 +653,20 @@ mod tests {
 
     #[test]
     fn test_extract_kotlin_empty_source_returns_empty() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let symbols = parse_and_extract("", "empty.kt");
         assert!(symbols.is_empty());
     }
 
     #[test]
     fn test_extract_kotlin_broken_source_no_panic() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let source = "fun good() {}\nfun broken( {}\nclass S {}";
         let symbols = parse_and_extract(source, "broken.kt");
         assert!(!symbols.is_empty());
@@ -622,6 +678,10 @@ mod tests {
 
     #[test]
     fn test_extract_kotlin_all_symbols_have_body_and_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let source = "fun greet() {}\nclass Animal {\n  fun speak() {}\n}\nobject Singleton {}\ninterface Drawable {\n  fun draw()\n}\ndata class Point(val x: Double)\nenum class Direction {\n  NORTH\n}";
         let symbols = parse_and_extract(source, "test.kt");
         for sym in &symbols {
@@ -663,7 +723,7 @@ mod tests {
         let path = fixture_dir().join(relative_path);
         let Ok(mut parser) = Parser::for_language(Language::Kotlin) else {
             eprintln!("skipping: Kotlin grammar not installed");
-            return;
+            return (String::new(), Vec::new());
         };
         let (source, tree) = parser.parse_file(&path).unwrap();
         let symbols = KotlinExtractor::extract_symbols(&source, &tree, &path);
@@ -672,6 +732,10 @@ mod tests {
 
     #[test]
     fn test_fixture_kotlin_greet_function() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.kt");
         let greet = symbols
             .iter()
@@ -682,6 +746,10 @@ mod tests {
 
     #[test]
     fn test_fixture_kotlin_animal_class_with_methods() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.kt");
         let animal = symbols
             .iter()
@@ -694,6 +762,10 @@ mod tests {
 
     #[test]
     fn test_fixture_kotlin_config_object() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.kt");
         let config = symbols
             .iter()
@@ -705,6 +777,10 @@ mod tests {
 
     #[test]
     fn test_fixture_kotlin_drawable_interface() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.kt");
         let drawable = symbols
             .iter()
@@ -716,6 +792,10 @@ mod tests {
 
     #[test]
     fn test_fixture_kotlin_point_data_class() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.kt");
         let point = symbols
             .iter()
@@ -726,6 +806,10 @@ mod tests {
 
     #[test]
     fn test_fixture_kotlin_direction_enum() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.kt");
         let dir = symbols
             .iter()
@@ -736,6 +820,10 @@ mod tests {
 
     #[test]
     fn test_fixture_kotlin_private_helper() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.kt");
         let helper = symbols
             .iter()
@@ -746,6 +834,10 @@ mod tests {
 
     #[test]
     fn test_fixture_kotlin_internal_helper() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.kt");
         let f = symbols
             .iter()
@@ -756,6 +848,10 @@ mod tests {
 
     #[test]
     fn test_fixture_kotlin_all_symbols_have_body_and_signature() {
+        if !grammar_available() {
+            eprintln!("skipping: Kotlin grammar not installed");
+            return;
+        }
         let (_, symbols) = extract_fixture("Main.kt");
         for sym in &symbols {
             assert!(sym.body.is_some(), "symbol {} should have body", sym.name);
