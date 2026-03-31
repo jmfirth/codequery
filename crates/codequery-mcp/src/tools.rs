@@ -310,7 +310,7 @@ fn run_symbol_command(subcommand: &str, args: &serde_json::Value) -> Result<Stri
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| "Missing required argument: symbol".to_string())?;
 
-    let mut cmd_args: Vec<String> = vec!["--json".to_string(), subcommand.to_string()];
+    let mut cmd_args: Vec<String> = vec![subcommand.to_string()];
     cmd_args.push(symbol.to_string());
 
     call_cq(&cmd_args, args)
@@ -323,7 +323,7 @@ fn run_file_command(subcommand: &str, args: &serde_json::Value) -> Result<String
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| "Missing required argument: file".to_string())?;
 
-    let mut cmd_args: Vec<String> = vec!["--json".to_string(), subcommand.to_string()];
+    let mut cmd_args: Vec<String> = vec![subcommand.to_string()];
     cmd_args.push(file.to_string());
 
     call_cq(&cmd_args, args)
@@ -331,7 +331,7 @@ fn run_file_command(subcommand: &str, args: &serde_json::Value) -> Result<String
 
 /// Run the `symbols` command which takes optional `kind` filter.
 fn run_symbols_command(args: &serde_json::Value) -> Result<String, String> {
-    let mut cmd_args: Vec<String> = vec!["--json".to_string()];
+    let mut cmd_args: Vec<String> = Vec::new();
 
     if let Some(kind) = args.get("kind").and_then(serde_json::Value::as_str) {
         cmd_args.push("--kind".to_string());
@@ -350,7 +350,7 @@ fn run_search_command(args: &serde_json::Value) -> Result<String, String> {
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| "Missing required argument: pattern".to_string())?;
 
-    let mut cmd_args: Vec<String> = vec!["--json".to_string()];
+    let mut cmd_args: Vec<String> = Vec::new();
     cmd_args.push("search".to_string());
     cmd_args.push(pattern.to_string());
 
@@ -365,7 +365,6 @@ fn run_context_command(args: &serde_json::Value) -> Result<String, String> {
         .ok_or_else(|| "Missing required argument: location".to_string())?;
 
     let cmd_args: Vec<String> = vec![
-        "--json".to_string(),
         "context".to_string(),
         location.to_string(),
     ];
@@ -375,7 +374,7 @@ fn run_context_command(args: &serde_json::Value) -> Result<String, String> {
 
 /// Run the `tree` command.
 fn run_tree_command(args: &serde_json::Value) -> Result<String, String> {
-    let mut cmd_args: Vec<String> = vec!["--json".to_string(), "tree".to_string()];
+    let mut cmd_args: Vec<String> = vec!["tree".to_string()];
 
     if let Some(path) = args.get("path").and_then(serde_json::Value::as_str) {
         cmd_args.push(path.to_string());
@@ -392,7 +391,6 @@ fn run_hover_command(args: &serde_json::Value) -> Result<String, String> {
         .ok_or_else(|| "Missing required argument: location".to_string())?;
 
     let cmd_args: Vec<String> = vec![
-        "--json".to_string(),
         "hover".to_string(),
         location.to_string(),
     ];
@@ -402,7 +400,7 @@ fn run_hover_command(args: &serde_json::Value) -> Result<String, String> {
 
 /// Run the `diagnostics` command for a file or whole project.
 fn run_diagnostics_command(args: &serde_json::Value) -> Result<String, String> {
-    let mut cmd_args: Vec<String> = vec!["--json".to_string(), "diagnostics".to_string()];
+    let mut cmd_args: Vec<String> = vec!["diagnostics".to_string()];
 
     if let Some(file) = args.get("file").and_then(serde_json::Value::as_str) {
         cmd_args.push(file.to_string());
@@ -424,7 +422,6 @@ fn run_rename_command(args: &serde_json::Value) -> Result<String, String> {
         .ok_or_else(|| "Missing required argument: new".to_string())?;
 
     let mut cmd_args: Vec<String> = vec![
-        "--json".to_string(),
         "rename".to_string(),
         old.to_string(),
         new.to_string(),
@@ -449,7 +446,7 @@ fn run_rename_command(args: &serde_json::Value) -> Result<String, String> {
 
 /// Run the `dead` command to find unreferenced symbols.
 fn run_dead_command(args: &serde_json::Value) -> Result<String, String> {
-    let mut cmd_args: Vec<String> = vec!["--json".to_string()];
+    let mut cmd_args: Vec<String> = Vec::new();
 
     if let Some(kind) = args.get("kind").and_then(serde_json::Value::as_str) {
         cmd_args.push("--kind".to_string());
@@ -469,7 +466,6 @@ fn run_callchain_command(args: &serde_json::Value) -> Result<String, String> {
         .ok_or_else(|| "Missing required argument: symbol".to_string())?;
 
     let mut cmd_args: Vec<String> = vec![
-        "--json".to_string(),
         "callchain".to_string(),
         symbol.to_string(),
     ];
