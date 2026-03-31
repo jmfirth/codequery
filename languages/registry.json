@@ -7,7 +7,8 @@
       "description": "C# / .NET",
       "extensions": [".cs"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "OmniSharp"
+      "lsp_server": "OmniSharp",
+      "grammar_repo": "tree-sitter/tree-sitter-c-sharp"
     },
     {
       "name": "swift",
@@ -15,7 +16,8 @@
       "description": "Swift / Apple platforms",
       "extensions": [".swift"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "sourcekit-lsp"
+      "lsp_server": "sourcekit-lsp",
+      "grammar_repo": "tree-sitter/tree-sitter-swift"
     },
     {
       "name": "kotlin",
@@ -23,7 +25,8 @@
       "description": "Kotlin / JVM",
       "extensions": [".kt"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "kotlin-language-server"
+      "lsp_server": "kotlin-language-server",
+      "grammar_repo": "fwcd/tree-sitter-kotlin"
     },
     {
       "name": "scala",
@@ -31,7 +34,8 @@
       "description": "Scala / JVM",
       "extensions": [".scala"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "metals"
+      "lsp_server": "metals",
+      "grammar_repo": "tree-sitter/tree-sitter-scala"
     },
     {
       "name": "zig",
@@ -39,7 +43,8 @@
       "description": "Zig systems language",
       "extensions": [".zig"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "zls"
+      "lsp_server": "zls",
+      "grammar_repo": "maxxnino/tree-sitter-zig"
     },
     {
       "name": "lua",
@@ -47,7 +52,8 @@
       "description": "Lua scripting language",
       "extensions": [".lua"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "lua-language-server"
+      "lsp_server": "lua-language-server",
+      "grammar_repo": "tree-sitter-grammars/tree-sitter-lua"
     },
     {
       "name": "bash",
@@ -55,7 +61,8 @@
       "description": "Bash / shell scripting",
       "extensions": [".sh", ".bash"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "bash-language-server"
+      "lsp_server": "bash-language-server",
+      "grammar_repo": "tree-sitter/tree-sitter-bash"
     },
     {
       "name": "elixir",
@@ -63,7 +70,8 @@
       "description": "Elixir/Phoenix",
       "extensions": [".ex", ".exs"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "elixir-ls"
+      "lsp_server": "elixir-ls",
+      "grammar_repo": "elixir-lang/tree-sitter-elixir"
     },
     {
       "name": "haskell",
@@ -71,7 +79,8 @@
       "description": "Haskell",
       "extensions": [".hs"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "haskell-language-server"
+      "lsp_server": "haskell-language-server",
+      "grammar_repo": "tree-sitter/tree-sitter-haskell"
     },
     {
       "name": "dart",
@@ -79,14 +88,16 @@
       "description": "Dart/Flutter",
       "extensions": [".dart"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "dart language-server"
+      "lsp_server": "dart language-server",
+      "grammar_repo": "UserNobody14/tree-sitter-dart"
     },
     {
       "name": "sql",
       "display_name": "SQL",
       "description": "SQL",
       "extensions": [".sql"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "DerekStride/tree-sitter-sql"
     },
     {
       "name": "ocaml",
@@ -94,35 +105,40 @@
       "description": "OCaml",
       "extensions": [".ml", ".mli"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "ocamllsp"
+      "lsp_server": "ocamllsp",
+      "grammar_repo": "tree-sitter/tree-sitter-ocaml"
     },
     {
       "name": "r",
       "display_name": "R",
       "description": "R",
       "extensions": [".r", ".R"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "r-lib/tree-sitter-r"
     },
     {
       "name": "perl",
       "display_name": "Perl",
       "description": "Perl",
       "extensions": [".pl", ".pm"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "tree-sitter-perl/tree-sitter-perl"
     },
     {
       "name": "clojure",
       "display_name": "Clojure",
       "description": "Clojure",
       "extensions": [".clj", ".cljs", ".cljc"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "sogaiu/tree-sitter-clojure"
     },
     {
       "name": "erlang",
       "display_name": "Erlang",
       "description": "Erlang/OTP",
       "extensions": [".erl", ".hrl"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "WhatsApp/tree-sitter-erlang"
     },
     {
       "name": "julia",
@@ -130,7 +146,8 @@
       "description": "Julia",
       "extensions": [".jl"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "julia --project=@. -e 'using LanguageServer; runserver()'"
+      "lsp_server": "julia --project=@. -e 'using LanguageServer; runserver()'",
+      "grammar_repo": "tree-sitter/tree-sitter-julia"
     },
     {
       "name": "objective-c",
@@ -138,7 +155,8 @@
       "description": "Objective-C / iOS legacy",
       "extensions": [".m", ".h"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "clangd"
+      "lsp_server": "clangd",
+      "grammar_repo": "amaanq/tree-sitter-objc"
     },
     {
       "name": "fsharp",
@@ -146,7 +164,8 @@
       "description": "F# / .NET functional",
       "extensions": [".fs", ".fsi"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "fsautocomplete"
+      "lsp_server": "fsautocomplete",
+      "grammar_repo": "ionide/tree-sitter-fsharp"
     },
     {
       "name": "groovy",
@@ -154,7 +173,8 @@
       "description": "Groovy / Gradle",
       "extensions": [".groovy", ".gradle"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "groovy-language-server"
+      "lsp_server": "groovy-language-server",
+      "grammar_repo": "murtaza64/tree-sitter-groovy"
     },
     {
       "name": "dockerfile",
@@ -162,7 +182,8 @@
       "description": "Dockerfile",
       "extensions": [".dockerfile"],
       "filenames": ["Dockerfile"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "camdencheek/tree-sitter-dockerfile"
     },
     {
       "name": "terraform",
@@ -170,14 +191,16 @@
       "description": "Terraform/HCL",
       "extensions": [".tf", ".hcl"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "terraform-ls"
+      "lsp_server": "terraform-ls",
+      "grammar_repo": "MichaHoffmann/tree-sitter-hcl"
     },
     {
       "name": "xml",
       "display_name": "XML",
       "description": "XML / XSL / XSD / SVG",
       "extensions": [".xml", ".xsl", ".xsd", ".svg", ".plist"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "tree-sitter-grammars/tree-sitter-xml"
     },
     {
       "name": "markdown",
@@ -185,7 +208,8 @@
       "description": "Markdown",
       "extensions": [".md", ".markdown"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "marksman"
+      "lsp_server": "marksman",
+      "grammar_repo": "tree-sitter-grammars/tree-sitter-markdown"
     },
     {
       "name": "protobuf",
@@ -193,7 +217,8 @@
       "description": "Protocol Buffers",
       "extensions": [".proto"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "buf"
+      "lsp_server": "buf",
+      "grammar_repo": "mitchellh/tree-sitter-proto"
     },
     {
       "name": "graphql",
@@ -201,14 +226,16 @@
       "description": "GraphQL",
       "extensions": [".graphql", ".gql"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "graphql-lsp"
+      "lsp_server": "graphql-lsp",
+      "grammar_repo": "bkegley/tree-sitter-graphql"
     },
     {
       "name": "scss",
       "display_name": "SCSS",
       "description": "SCSS / Sass",
       "extensions": [".scss"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "serenadeai/tree-sitter-scss"
     },
     {
       "name": "makefile",
@@ -216,7 +243,8 @@
       "description": "Make build files",
       "extensions": [".mk"],
       "filenames": ["Makefile", "GNUmakefile"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "alemuller/tree-sitter-make"
     },
     {
       "name": "cmake",
@@ -225,7 +253,8 @@
       "extensions": [".cmake"],
       "filenames": ["CMakeLists.txt"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "cmake-language-server"
+      "lsp_server": "cmake-language-server",
+      "grammar_repo": "uyha/tree-sitter-cmake"
     },
     {
       "name": "nix",
@@ -233,7 +262,8 @@
       "description": "Nix package manager",
       "extensions": [".nix"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "nil"
+      "lsp_server": "nil",
+      "grammar_repo": "nix-community/tree-sitter-nix"
     },
     {
       "name": "vue",
@@ -241,7 +271,8 @@
       "description": "Vue.js single-file components",
       "extensions": [".vue"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "vue-language-server"
+      "lsp_server": "vue-language-server",
+      "grammar_repo": "ikatyang/tree-sitter-vue"
     },
     {
       "name": "svelte",
@@ -249,7 +280,8 @@
       "description": "Svelte components",
       "extensions": [".svelte"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "svelteserver"
+      "lsp_server": "svelteserver",
+      "grammar_repo": "Himujjal/tree-sitter-svelte"
     },
     {
       "name": "elm",
@@ -257,7 +289,8 @@
       "description": "Elm functional frontend",
       "extensions": [".elm"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "elm-language-server"
+      "lsp_server": "elm-language-server",
+      "grammar_repo": "elm-tooling/tree-sitter-elm"
     },
     {
       "name": "solidity",
@@ -265,7 +298,8 @@
       "description": "Solidity / EVM smart contracts",
       "extensions": [".sol"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "nomicfoundation-solidity-language-server"
+      "lsp_server": "nomicfoundation-solidity-language-server",
+      "grammar_repo": "JoranHonig/tree-sitter-solidity"
     },
     {
       "name": "verilog",
@@ -273,14 +307,16 @@
       "description": "Verilog / SystemVerilog HDL",
       "extensions": [".v", ".sv"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "verible-verilog-ls"
+      "lsp_server": "verible-verilog-ls",
+      "grammar_repo": "tree-sitter/tree-sitter-verilog"
     },
     {
       "name": "glsl",
       "display_name": "GLSL",
       "description": "OpenGL Shading Language",
       "extensions": [".glsl", ".vert", ".frag", ".geom", ".comp", ".tesc", ".tese"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "theHamsta/tree-sitter-glsl"
     },
     {
       "name": "cuda",
@@ -288,7 +324,8 @@
       "description": "CUDA / GPU computing",
       "extensions": [".cu", ".cuh"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "clangd"
+      "lsp_server": "clangd",
+      "grammar_repo": "theHamsta/tree-sitter-cuda"
     },
     {
       "name": "fortran",
@@ -296,14 +333,16 @@
       "description": "Fortran scientific computing",
       "extensions": [".f90", ".f95", ".f03", ".f08", ".F90"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "fortls"
+      "lsp_server": "fortls",
+      "grammar_repo": "stadelmanma/tree-sitter-fortran"
     },
     {
       "name": "cobol",
       "display_name": "COBOL",
       "description": "COBOL",
       "extensions": [".cob", ".cbl", ".CBL", ".COB"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "yutaro-sakamoto/tree-sitter-cobol"
     },
     {
       "name": "ada",
@@ -311,7 +350,8 @@
       "description": "Ada",
       "extensions": [".adb", ".ads"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "ada_language_server"
+      "lsp_server": "ada_language_server",
+      "grammar_repo": "briot/tree-sitter-ada"
     },
     {
       "name": "pascal",
@@ -319,7 +359,8 @@
       "description": "Pascal / Object Pascal",
       "extensions": [".pas", ".pp", ".lpr"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "pasls"
+      "lsp_server": "pasls",
+      "grammar_repo": "Isopod/tree-sitter-pascal"
     },
     {
       "name": "d",
@@ -327,21 +368,24 @@
       "description": "D programming language",
       "extensions": [".d"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "serve-d"
+      "lsp_server": "serve-d",
+      "grammar_repo": "CyberShadow/tree-sitter-d"
     },
     {
       "name": "ini",
       "display_name": "INI",
       "description": "INI configuration files",
       "extensions": [".ini", ".cfg", ".conf"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "justinmk/tree-sitter-ini"
     },
     {
       "name": "csv",
       "display_name": "CSV",
       "description": "CSV / TSV data files",
       "extensions": [".csv", ".tsv"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "amaanq/tree-sitter-csv"
     },
     {
       "name": "latex",
@@ -349,35 +393,40 @@
       "description": "LaTeX typesetting",
       "extensions": [".tex", ".sty", ".cls"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "texlab"
+      "lsp_server": "texlab",
+      "grammar_repo": "latex-lsp/tree-sitter-latex"
     },
     {
       "name": "restructuredtext",
       "display_name": "reStructuredText",
       "description": "reStructuredText documentation",
       "extensions": [".rst"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "stsewd/tree-sitter-rst"
     },
     {
       "name": "org",
       "display_name": "Org",
       "description": "Emacs Org-mode",
       "extensions": [".org"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "milisims/tree-sitter-org"
     },
     {
       "name": "diff",
       "display_name": "Diff",
       "description": "Unified diff / patch files",
       "extensions": [".diff", ".patch"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "the-mikedavis/tree-sitter-diff"
     },
     {
       "name": "llvm-ir",
       "display_name": "LLVM IR",
       "description": "LLVM intermediate representation",
       "extensions": [".ll"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "benwilliamgraham/tree-sitter-llvm"
     },
     {
       "name": "starlark",
@@ -385,7 +434,8 @@
       "description": "Starlark / Bazel BUILD files",
       "extensions": [".bzl", ".star"],
       "filenames": ["BUILD", "BUILD.bazel", "WORKSPACE"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "amaanq/tree-sitter-starlark"
     },
     {
       "name": "just",
@@ -393,7 +443,8 @@
       "description": "Just command runner",
       "extensions": [".just"],
       "filenames": ["justfile", "Justfile"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "IndianBoy42/tree-sitter-just"
     },
     {
       "name": "nginx",
@@ -401,7 +452,8 @@
       "description": "Nginx configuration",
       "extensions": [".nginx"],
       "filenames": ["nginx.conf"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "opa-oz/tree-sitter-nginx"
     },
     {
       "name": "bicep",
@@ -409,7 +461,8 @@
       "description": "Azure Bicep IaC",
       "extensions": [".bicep"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "bicep-langserver"
+      "lsp_server": "bicep-langserver",
+      "grammar_repo": "amaanq/tree-sitter-bicep"
     },
     {
       "name": "prisma",
@@ -417,14 +470,16 @@
       "description": "Prisma ORM schema",
       "extensions": [".prisma"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "prisma-language-server"
+      "lsp_server": "prisma-language-server",
+      "grammar_repo": "victorhqc/tree-sitter-prisma"
     },
     {
       "name": "pkl",
       "display_name": "PKL",
       "description": "Apple PKL configuration language",
       "extensions": [".pkl"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "apple/tree-sitter-pkl"
     },
     {
       "name": "cairo",
@@ -432,7 +487,8 @@
       "description": "Cairo / Starknet smart contracts",
       "extensions": [".cairo"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "cairo-language-server"
+      "lsp_server": "cairo-language-server",
+      "grammar_repo": "amaanq/tree-sitter-cairo"
     },
     {
       "name": "purescript",
@@ -440,14 +496,16 @@
       "description": "PureScript functional language",
       "extensions": [".purs"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "purescript-language-server"
+      "lsp_server": "purescript-language-server",
+      "grammar_repo": "postsolar/tree-sitter-purescript"
     },
     {
       "name": "scheme",
       "display_name": "Scheme",
       "description": "Scheme Lisp dialect",
       "extensions": [".scm", ".ss"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "6cdh/tree-sitter-scheme"
     },
     {
       "name": "racket",
@@ -455,14 +513,16 @@
       "description": "Racket programming language",
       "extensions": [".rkt"],
       "capabilities": ["grammar", "extract", "lsp"],
-      "lsp_server": "racket-langserver"
+      "lsp_server": "racket-langserver",
+      "grammar_repo": "6cdh/tree-sitter-racket"
     },
     {
       "name": "common-lisp",
       "display_name": "Common Lisp",
       "description": "Common Lisp",
       "extensions": [".lisp", ".cl", ".lsp", ".asd"],
-      "capabilities": ["grammar", "extract"]
+      "capabilities": ["grammar", "extract"],
+      "grammar_repo": "theHamsta/tree-sitter-commonlisp"
     }
   ]
 }

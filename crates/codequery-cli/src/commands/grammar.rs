@@ -70,6 +70,11 @@ pub struct LanguagePackage {
     /// LSP server command, if the package supports LSP.
     #[serde(default)]
     pub lsp_server: Option<String>,
+    /// GitHub repo containing the tree-sitter grammar (e.g., "tree-sitter/tree-sitter-bash").
+    /// Used by the grammar packaging pipeline to build WASM grammars.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub grammar_repo: Option<String>,
 }
 
 /// Parse the baked-in registry JSON.

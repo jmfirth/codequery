@@ -1,0 +1,98 @@
+name: Grammar Packages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to upload assets to (e.g., v0.1.0)"
+        required: true
+        type: string
+      languages:
+        description: "Space-separated list of languages to build (empty = all)"
+        required: false
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  build-grammars:
+    name: Build grammar packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install tree-sitter CLI
+        run: npm install -g tree-sitter-cli
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq emscripten
+
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build grammar packages
+        run: |
+          if [[ -n "${{ inputs.languages }}" ]]; then
+            ./scripts/build-grammars.sh ${{ inputs.languages }}
+          else
+            ./scripts/build-grammars.sh
+          fi
+
+      - name: Generate checksums
+        working-directory: dist
+        run: |
+          for f in lang-*.tar.gz; do
+            sha256sum "$f" > "$f.sha256"
+          done
+          cat *.sha256 > grammar-SHA256SUMS.txt
+
+      - name: Upload grammar packages to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          echo "Uploading grammar packages to release $TAG..."
+
+          # Upload each package and its checksum
+          for f in dist/lang-*.tar.gz dist/lang-*.tar.gz.sha256; do
+            if [[ -f "$f" ]]; then
+              echo "  uploading $(basename "$f")..."
+              gh release upload "$TAG" "$f" --clobber || echo "  warning: failed to upload $(basename "$f")"
+            fi
+          done
+
+          # Upload combined checksum file
+          if [[ -f dist/grammar-SHA256SUMS.txt ]]; then
+            gh release upload "$TAG" dist/grammar-SHA256SUMS.txt --clobber || true
+          fi
+
+          echo "Done."
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grammar-packages
+          path: |
+            dist/lang-*.tar.gz
+            dist/grammar-SHA256SUMS.txt
+          retention-days: 7
