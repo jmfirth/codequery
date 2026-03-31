@@ -1,6 +1,5 @@
 #!/bin/sh
-# Pre-commit: format check + clippy + tests (skipping daemon status test
-# which fails when a daemon is running, e.g. via cq-mcp)
+# Pre-commit: fast checks only (fmt + clippy, ~5s).
+# Full test suite runs in CI.
 set -e
 just check
-cargo test --workspace -- --skip test_run_status_when_daemon_not_running

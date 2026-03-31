@@ -164,15 +164,17 @@ mod tests {
 
     #[test]
     fn test_run_stop_when_daemon_not_running_succeeds() {
-        // When no daemon is running, run_stop should print a message and return success.
-        let result = run_stop(None).unwrap();
+        // Use a temp dir so we never collide with a real running daemon.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let result = run_stop(Some(tmp.path())).unwrap();
         assert_eq!(result, ExitCode::Success);
     }
 
     #[test]
     fn test_run_status_when_daemon_not_running_returns_no_results() {
-        // When no daemon is running, run_status should return NoResults.
-        let result = run_status(None).unwrap();
+        // Use a temp dir so we never collide with a real running daemon.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let result = run_status(Some(tmp.path())).unwrap();
         assert_eq!(result, ExitCode::NoResults);
     }
 
