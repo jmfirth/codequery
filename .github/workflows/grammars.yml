@@ -1,5 +1,10 @@
 name: Grammar Packages
 
+# Don't cancel grammar builds when other workflows run
+concurrency:
+  group: grammars
+  cancel-in-progress: false
+
 on:
   release:
     types: [published]

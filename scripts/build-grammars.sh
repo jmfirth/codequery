@@ -114,6 +114,11 @@ build_grammar() {
     grammar_dir="$clone_dir"
   fi
 
+  # markdown: grammar is in tree-sitter-markdown/tree-sitter-markdown/
+  if [[ "$name" == "markdown" && -f "$clone_dir/tree-sitter-markdown/grammar.js" ]]; then
+    grammar_dir="$clone_dir/tree-sitter-markdown"
+  fi
+
   # For terraform, the HCL repo has the grammar at the root or in dialects/
   if [[ "$name" == "terraform" ]]; then
     if [[ -f "$clone_dir/dialects/terraform/grammar.js" ]]; then
