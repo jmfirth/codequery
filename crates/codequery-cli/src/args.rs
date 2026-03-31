@@ -416,9 +416,10 @@ pub enum Command {
         long_about = "Rename a symbol across the project. Finds all references and\n\
                       replaces them with the new name. Applies immediately when using\n\
                       semantic or resolved precision; shows a preview diff when using\n\
-                      syntactic precision (use --dry-run to always preview).",
+                      syntactic precision. Use --apply to force write at any tier,\n\
+                      or --dry-run to force preview.",
         after_help = "Examples:\n  cq rename OldName NewName\n  \
-                     cq rename foo bar --in src/\n  \
+                     cq rename foo bar --apply\n  \
                      cq rename Handler Router --dry-run"
     )]
     Rename {
@@ -426,8 +427,11 @@ pub enum Command {
         old: String,
         /// New symbol name
         new: String,
+        /// Force apply changes regardless of precision tier
+        #[arg(long, conflicts_with = "dry_run")]
+        apply: bool,
         /// Force preview mode (don't apply changes)
-        #[arg(long)]
+        #[arg(long, conflicts_with = "apply")]
         dry_run: bool,
     },
     /// Trace multi-level call hierarchy for a symbol

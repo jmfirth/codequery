@@ -35,6 +35,7 @@ use crate::output::format_rename;
 pub fn run(
     old_name: &str,
     new_name: &str,
+    force_apply: bool,
     dry_run: bool,
     project: Option<&Path>,
     scope: Option<&Path>,
@@ -100,20 +101,33 @@ pub fn run(
         }
     }
 
-    // Also include the definition sites
+    // Also include the definition sites — find the name's actual column
+    // within the definition line (def.column is the symbol start, not the name)
+    let source_map: std::collections::HashMap<&Path, &str> = scan
+        .iter()
+        .map(|fs| (fs.file.as_path(), fs.source.as_str()))
+        .collect();
+
     for def in &definitions {
         // Skip impl blocks
         if def.kind == SymbolKind::Impl {
             continue;
         }
-        edits.push(TextEdit {
-            file: def.file.clone(),
-            line: def.line,
-            column: def.column,
-            end_line: def.line,
-            end_column: def.column + old_name.len(),
-            new_text: new_name.to_string(),
-        });
+        // Find the actual column of the name in the source line
+        if let Some(source) = source_map.get(def.file.as_path()) {
+            if let Some(line_text) = source.lines().nth(def.line.saturating_sub(1)) {
+                if let Some(name_col) = line_text.find(old_name) {
+                    edits.push(TextEdit {
+                        file: def.file.clone(),
+                        line: def.line,
+                        column: name_col,
+                        end_line: def.line,
+                        end_column: name_col + old_name.len(),
+                        new_text: new_name.to_string(),
+                    });
+                }
+            }
+        }
     }
 
     // Deduplicate edits by location
@@ -133,9 +147,15 @@ pub fn run(
     let files_affected = files.len();
 
     // 5. Determine whether to apply or dry-run
-    // Semantic/resolved → apply by default. Syntactic → dry-run by default.
-    let should_apply = !dry_run
-        && matches!(resolution, Resolution::Semantic | Resolution::Resolved);
+    // --apply → always apply. --dry-run → always preview.
+    // Neither → semantic/resolved applies, syntactic previews.
+    let should_apply = if force_apply {
+        true
+    } else if dry_run {
+        false
+    } else {
+        matches!(resolution, Resolution::Semantic | Resolution::Resolved)
+    };
 
     // 6. Apply edits if not dry-run
     if should_apply {
@@ -243,6 +263,7 @@ mod tests {
         let result = run(
             "NonexistentSymbol",
             "NewName",
+            false,
             false,
             Some(tmp.path()),
             None,

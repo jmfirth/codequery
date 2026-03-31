@@ -198,7 +198,8 @@ pub fn all_tools() -> Vec<ToolDefinition> {
                 "properties": {
                     "old": {"type": "string", "description": "Current symbol name"},
                     "new": {"type": "string", "description": "New symbol name"},
-                    "dry_run": {"type": "boolean", "description": "Preview changes without applying them"},
+                    "apply": {"type": "boolean", "description": "Force apply changes regardless of precision tier"},
+                    "dry_run": {"type": "boolean", "description": "Force preview mode without applying"},
                     "scope": {"type": "string", "description": "Restrict search to a subdirectory or file"},
                     "lang": {"type": "string", "description": "Filter by language (e.g. rust, python, typescript)"},
                     "project": {"type": "string", "description": "Project root directory (defaults to cwd)"}
@@ -430,6 +431,12 @@ fn run_rename_command(args: &serde_json::Value) -> Result<String, String> {
     ];
 
     if args
+        .get("apply")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+    {
+        cmd_args.push("--apply".to_string());
+    } else if args
         .get("dry_run")
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(false)
