@@ -9,7 +9,7 @@ fn test_version_flag_prints_version() {
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
-        out.contains("0.1.0"),
+        out.contains("1.0.0"),
         "expected version number in output, got: {out}"
     );
 }
