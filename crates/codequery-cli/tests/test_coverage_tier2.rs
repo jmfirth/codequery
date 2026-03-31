@@ -7,7 +7,7 @@
 
 mod common;
 
-use common::{assert_exit_code, run_cq, stdout};
+use common::{assert_exit_code, run_cq, skip_if_grammar_missing, stdout};
 use std::path::PathBuf;
 
 // ---------------------------------------------------------------------------
@@ -69,6 +69,7 @@ fn parse_json(output: &std::process::Output) -> serde_json::Value {
 #[test]
 fn test_body_csharp_extracts_method_body() {
     let output = run_cq_project(&csharp_project(), &["body", "Greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -84,6 +85,7 @@ fn test_body_csharp_extracts_method_body() {
 #[test]
 fn test_sig_csharp_extracts_method_signature() {
     let output = run_cq_project(&csharp_project(), &["sig", "Greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -95,6 +97,7 @@ fn test_sig_csharp_extracts_method_signature() {
 #[test]
 fn test_refs_csharp_finds_definitions() {
     let output = run_cq_project(&csharp_project(), &["refs", "Greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -110,6 +113,7 @@ fn test_refs_csharp_finds_definitions() {
 #[test]
 fn test_callers_csharp_finds_call_site() {
     let output = run_cq_project(&csharp_project(), &["callers", "ValidateAge"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -125,6 +129,7 @@ fn test_callers_csharp_finds_call_site() {
 #[test]
 fn test_deps_csharp_finds_callees() {
     let output = run_cq_project(&csharp_project(), &["deps", "Greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -138,6 +143,7 @@ fn test_imports_csharp_finds_using_directive() {
     let project = csharp_project();
     let file = project.join("src/Models.cs");
     let output = run_cq_project(&project, &["imports", file.to_str().unwrap()]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("System"), "should find using System: {out}");
@@ -149,6 +155,7 @@ fn test_context_csharp_finds_enclosing_method() {
     let file = project.join("src/Models.cs");
     let location = format!("{}:18", file.display());
     let output = run_cq_project(&project, &["context", &location]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -164,6 +171,7 @@ fn test_context_csharp_finds_enclosing_method() {
 #[test]
 fn test_tree_csharp_shows_structure() {
     let output = run_cq_project(&csharp_project(), &["tree"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -191,6 +199,7 @@ fn test_tree_csharp_shows_structure() {
 #[test]
 fn test_symbols_csharp_lists_all_symbols() {
     let output = run_cq_project(&csharp_project(), &["symbols"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("class User"), "should list User: {out}");
@@ -215,6 +224,7 @@ fn test_search_csharp_raw_finds_classes() {
         &csharp_project(),
         &["search", "(class_declaration name: (identifier) @name)"],
     );
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("User"), "should find User class: {out}");
@@ -231,6 +241,7 @@ fn test_search_csharp_raw_finds_classes() {
 #[test]
 fn test_body_swift_extracts_function_body() {
     let output = run_cq_project(&swift_project(), &["body", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -242,6 +253,7 @@ fn test_body_swift_extracts_function_body() {
 #[test]
 fn test_sig_swift_extracts_function_signature() {
     let output = run_cq_project(&swift_project(), &["sig", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -253,6 +265,7 @@ fn test_sig_swift_extracts_function_signature() {
 #[test]
 fn test_refs_swift_finds_definitions() {
     let output = run_cq_project(&swift_project(), &["refs", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("definition"), "should list definition: {out}");
@@ -267,6 +280,7 @@ fn test_callers_swift_runs_without_error() {
     // Swift callers don't detect named-argument call sites in the current
     // implementation, so we just verify the command runs and shows the definition.
     let output = run_cq_project(&swift_project(), &["callers", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -278,6 +292,7 @@ fn test_callers_swift_runs_without_error() {
 #[test]
 fn test_deps_swift_returns_success() {
     let output = run_cq_project(&swift_project(), &["deps", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -291,6 +306,7 @@ fn test_imports_swift_finds_foundation() {
     let project = swift_project();
     let file = project.join("main.swift");
     let output = run_cq_project(&project, &["imports", file.to_str().unwrap()]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -305,6 +321,7 @@ fn test_context_swift_finds_enclosing_function() {
     let file = project.join("main.swift");
     let location = format!("{}:5", file.display());
     let output = run_cq_project(&project, &["context", &location]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -316,6 +333,7 @@ fn test_context_swift_finds_enclosing_function() {
 #[test]
 fn test_tree_swift_shows_structure() {
     let output = run_cq_project(&swift_project(), &["tree"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("main.swift"), "should list main.swift: {out}");
@@ -338,6 +356,7 @@ fn test_tree_swift_shows_structure() {
 #[test]
 fn test_symbols_swift_lists_all_symbols() {
     let output = run_cq_project(&swift_project(), &["symbols"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("function greet"), "should list greet: {out}");
@@ -356,6 +375,7 @@ fn test_search_swift_raw_finds_functions() {
             "(function_declaration name: (simple_identifier) @name)",
         ],
     );
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("greet"), "should find greet: {out}");
@@ -370,6 +390,7 @@ fn test_search_swift_raw_finds_functions() {
 #[test]
 fn test_body_kotlin_extracts_method_body() {
     let output = run_cq_project(&kotlin_project(), &["body", "speak"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -381,6 +402,7 @@ fn test_body_kotlin_extracts_method_body() {
 #[test]
 fn test_sig_kotlin_extracts_method_signature() {
     let output = run_cq_project(&kotlin_project(), &["sig", "speak"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -392,6 +414,7 @@ fn test_sig_kotlin_extracts_method_signature() {
 #[test]
 fn test_refs_kotlin_finds_call_sites() {
     let output = run_cq_project(&kotlin_project(), &["refs", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("definition"), "should show definitions: {out}");
@@ -401,6 +424,7 @@ fn test_refs_kotlin_finds_call_sites() {
 #[test]
 fn test_callers_kotlin_finds_call_site() {
     let output = run_cq_project(&kotlin_project(), &["callers", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -416,6 +440,7 @@ fn test_callers_kotlin_finds_call_site() {
 #[test]
 fn test_deps_kotlin_shows_callees() {
     let output = run_cq_project(&kotlin_project(), &["deps", "speak"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -431,6 +456,7 @@ fn test_imports_kotlin_empty_for_current_grammar() {
     let project = kotlin_project();
     let file = project.join("Main.kt");
     let output = run_cq_project(&project, &["imports", file.to_str().unwrap()]);
+    if skip_if_grammar_missing(&output) { return; }
     // Exit code 1 = no imports found (known limitation)
     let code = output.status.code().unwrap_or(-1);
     assert!(
@@ -442,6 +468,7 @@ fn test_imports_kotlin_empty_for_current_grammar() {
 #[test]
 fn test_tree_kotlin_shows_structure() {
     let output = run_cq_project(&kotlin_project(), &["tree"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("Main.kt"), "should list Main.kt: {out}");
@@ -466,6 +493,7 @@ fn test_tree_kotlin_shows_structure() {
 #[test]
 fn test_symbols_kotlin_lists_all_symbols() {
     let output = run_cq_project(&kotlin_project(), &["symbols"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("function greet"), "should list greet: {out}");
@@ -489,6 +517,7 @@ fn test_search_kotlin_finds_functions_by_pattern() {
         &kotlin_project(),
         &["search", "(function_declaration name: (identifier) @name)"],
     );
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("reset"), "should find reset: {out}");
@@ -501,6 +530,7 @@ fn test_search_kotlin_finds_functions_by_pattern() {
 #[test]
 fn test_body_scala_extracts_method_body() {
     let output = run_cq_project(&scala_project(), &["body", "speak"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -512,6 +542,7 @@ fn test_body_scala_extracts_method_body() {
 #[test]
 fn test_sig_scala_extracts_method_signature() {
     let output = run_cq_project(&scala_project(), &["sig", "speak"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -523,6 +554,7 @@ fn test_sig_scala_extracts_method_signature() {
 #[test]
 fn test_refs_scala_finds_call_sites() {
     let output = run_cq_project(&scala_project(), &["refs", "speak"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("definition"), "should show definition: {out}");
@@ -536,6 +568,7 @@ fn test_refs_scala_finds_call_sites() {
 #[test]
 fn test_callers_scala_finds_call_site() {
     let output = run_cq_project(&scala_project(), &["callers", "speak"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("1 caller"), "should find 1 caller: {out}");
@@ -548,6 +581,7 @@ fn test_callers_scala_finds_call_site() {
 #[test]
 fn test_deps_scala_shows_callees() {
     let output = run_cq_project(&scala_project(), &["deps", "run"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("speak"), "run should depend on speak: {out}");
@@ -558,6 +592,7 @@ fn test_imports_scala_finds_import() {
     let project = scala_project();
     let file = project.join("Main.scala");
     let output = run_cq_project(&project, &["imports", file.to_str().unwrap()]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -572,6 +607,7 @@ fn test_context_scala_finds_enclosing_method() {
     let file = project.join("Main.scala");
     let location = format!("{}:5", file.display());
     let output = run_cq_project(&project, &["context", &location]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -583,6 +619,7 @@ fn test_context_scala_finds_enclosing_method() {
 #[test]
 fn test_tree_scala_shows_structure() {
     let output = run_cq_project(&scala_project(), &["tree"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("Main.scala"), "should list Main.scala: {out}");
@@ -607,6 +644,7 @@ fn test_tree_scala_shows_structure() {
 #[test]
 fn test_symbols_scala_lists_all_symbols() {
     let output = run_cq_project(&scala_project(), &["symbols"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("class Animal"), "should list Animal: {out}");
@@ -629,6 +667,7 @@ fn test_search_scala_raw_finds_classes() {
         &scala_project(),
         &["search", "(class_definition name: (identifier) @name)"],
     );
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("Animal"), "should find Animal: {out}");
@@ -642,6 +681,7 @@ fn test_search_scala_raw_finds_classes() {
 #[test]
 fn test_body_lua_extracts_function_body() {
     let output = run_cq_project(&lua_project(), &["body", "M.greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -657,6 +697,7 @@ fn test_body_lua_extracts_function_body() {
 #[test]
 fn test_sig_lua_extracts_function_signature() {
     let output = run_cq_project(&lua_project(), &["sig", "M.greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -668,6 +709,7 @@ fn test_sig_lua_extracts_function_signature() {
 #[test]
 fn test_refs_lua_finds_references() {
     let output = run_cq_project(&lua_project(), &["refs", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -683,6 +725,7 @@ fn test_refs_lua_finds_references() {
 #[test]
 fn test_callers_lua_finds_call_sites() {
     let output = run_cq_project(&lua_project(), &["callers", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("2 callers"), "should find 2 callers: {out}");
@@ -691,6 +734,7 @@ fn test_callers_lua_finds_call_sites() {
 #[test]
 fn test_deps_lua_returns_success() {
     let output = run_cq_project(&lua_project(), &["deps", "global_fn"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -704,6 +748,7 @@ fn test_imports_lua_finds_require() {
     let project = lua_project();
     let file = project.join("utils.lua");
     let output = run_cq_project(&project, &["imports", file.to_str().unwrap()]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -718,6 +763,7 @@ fn test_context_lua_finds_enclosing_function() {
     let file = project.join("main.lua");
     let location = format!("{}:5", file.display());
     let output = run_cq_project(&project, &["context", &location]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -729,6 +775,7 @@ fn test_context_lua_finds_enclosing_function() {
 #[test]
 fn test_tree_lua_shows_structure() {
     let output = run_cq_project(&lua_project(), &["tree"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("main.lua"), "should list main.lua: {out}");
@@ -746,6 +793,7 @@ fn test_tree_lua_shows_structure() {
 #[test]
 fn test_symbols_lua_lists_all_symbols() {
     let output = run_cq_project(&lua_project(), &["symbols"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -772,6 +820,7 @@ fn test_search_lua_raw_finds_functions() {
         &lua_project(),
         &["search", "(function_declaration name: (identifier) @name)"],
     );
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -788,6 +837,7 @@ fn test_search_lua_raw_finds_functions() {
 #[test]
 fn test_body_bash_extracts_function_body() {
     let output = run_cq_project(&bash_project(), &["body", "say_hello"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -799,6 +849,7 @@ fn test_body_bash_extracts_function_body() {
 #[test]
 fn test_sig_bash_extracts_function_signature() {
     let output = run_cq_project(&bash_project(), &["sig", "say_hello"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -810,6 +861,7 @@ fn test_sig_bash_extracts_function_signature() {
 #[test]
 fn test_refs_bash_finds_definition() {
     let output = run_cq_project(&bash_project(), &["refs", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("definition"), "should show definition: {out}");
@@ -823,6 +875,7 @@ fn test_refs_bash_finds_definition() {
 fn test_callers_bash_runs_without_error() {
     // Bash callers don't detect function invocations (known limitation).
     let output = run_cq_project(&bash_project(), &["callers", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -834,6 +887,7 @@ fn test_callers_bash_runs_without_error() {
 #[test]
 fn test_deps_bash_returns_success() {
     let output = run_cq_project(&bash_project(), &["deps", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -848,6 +902,7 @@ fn test_context_bash_finds_enclosing_function() {
     let file = project.join("main.sh");
     let location = format!("{}:8", file.display());
     let output = run_cq_project(&project, &["context", &location]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -859,6 +914,7 @@ fn test_context_bash_finds_enclosing_function() {
 #[test]
 fn test_tree_bash_shows_structure() {
     let output = run_cq_project(&bash_project(), &["tree"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("main.sh"), "should list main.sh: {out}");
@@ -876,6 +932,7 @@ fn test_tree_bash_shows_structure() {
 #[test]
 fn test_symbols_bash_lists_all_symbols() {
     let output = run_cq_project(&bash_project(), &["symbols"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("function greet"), "should list greet: {out}");
@@ -907,6 +964,7 @@ fn test_search_bash_raw_finds_functions() {
         &bash_project(),
         &["search", "(function_definition name: (word) @name)"],
     );
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("greet"), "should find greet: {out}");
@@ -1121,6 +1179,7 @@ fn test_search_ruby_raw_finds_classes() {
 #[test]
 fn test_symbols_zig_lists_all_project_symbols() {
     let output = run_cq_project(&zig_project(), &["symbols"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(out.contains("function greet"), "should list greet: {out}");
@@ -1141,6 +1200,7 @@ fn test_symbols_zig_lists_all_project_symbols() {
 #[test]
 fn test_search_zig_raw_finds_functions() {
     let output = run_cq_project(&zig_project(), &["search", "(function_declaration) @fn"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -1165,6 +1225,7 @@ fn test_search_zig_raw_finds_functions() {
 fn test_json_output_csharp_symbols() {
     let project = csharp_project();
     let output = run_cq_project(&project, &["--json", "symbols"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let json = parse_json(&output);
     assert!(json.is_object(), "JSON output should be an object");
@@ -1182,6 +1243,7 @@ fn test_json_output_csharp_symbols() {
 fn test_json_output_swift_def() {
     let project = swift_project();
     let output = run_cq_project(&project, &["--json", "def", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let json = parse_json(&output);
     assert!(json.is_object(), "JSON output should be an object");
@@ -1199,6 +1261,7 @@ fn test_json_output_swift_def() {
 fn test_json_output_scala_tree() {
     let project = scala_project();
     let output = run_cq_project(&project, &["--json", "tree"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let json = parse_json(&output);
     let text = stdout(&output);
@@ -1221,6 +1284,7 @@ fn test_json_output_scala_tree() {
 fn test_json_output_kotlin_body() {
     let project = kotlin_project();
     let output = run_cq_project(&project, &["--json", "body", "speak"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let json = parse_json(&output);
     assert!(json.is_object(), "JSON output should be an object");
@@ -1240,6 +1304,7 @@ fn test_json_output_lua_outline() {
     let project = lua_project();
     let file = project.join("main.lua");
     let output = run_cq_project(&project, &["--json", "outline", file.to_str().unwrap()]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let json = parse_json(&output);
     assert!(json.is_object(), "JSON output should be an object");
@@ -1256,6 +1321,7 @@ fn test_json_output_lua_outline() {
 fn test_json_output_bash_refs() {
     let project = bash_project();
     let output = run_cq_project(&project, &["--json", "refs", "greet"]);
+    if skip_if_grammar_missing(&output) { return; }
     assert_exit_code(&output, 0);
     let json = parse_json(&output);
     let text = stdout(&output);

@@ -40,3 +40,15 @@ pub fn assert_exit_code(output: &Output, expected: i32) {
 pub fn stdout(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).to_string()
 }
+
+/// Check if a command failed because the language grammar is not installed.
+/// Returns true (and prints a skip message) if the test should be skipped.
+pub fn skip_if_grammar_missing(output: &Output) -> bool {
+    let err = String::from_utf8_lossy(&output.stderr);
+    if err.contains("no grammar available") || err.contains("auto-install failed") {
+        eprintln!("skipping: language grammar not installed");
+        true
+    } else {
+        false
+    }
+}
