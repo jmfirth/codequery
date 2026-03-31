@@ -76,9 +76,10 @@ jobs:
           $BIN --version
           $BIN def greet --project tests/fixtures/rust_project
           $BIN refs greet --project tests/fixtures/rust_project
-          $BIN diagnostics tests/fixtures/rust_project/src/lib.rs
           $BIN search '(function_item name: (identifier) @name)' --project tests/fixtures/rust_project
-          $BIN dead --project tests/fixtures/rust_project
+          # diagnostics and dead return exit code 1 when no results (clean code / no dead symbols)
+          $BIN diagnostics tests/fixtures/rust_project/src/lib.rs || [ $? -eq 1 ]
+          $BIN dead --project tests/fixtures/rust_project || [ $? -eq 1 ]
           echo "Smoke tests passed"
 
       - name: Determine archive name
