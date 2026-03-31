@@ -97,7 +97,9 @@ pub fn find_first_symbol_with_source(
                 continue;
             }
 
-            let parser = get_or_create_runtime_parser(&mut runtime_parser, &lang_name)?;
+            let Ok(parser) = get_or_create_runtime_parser(&mut runtime_parser, &lang_name) else {
+                continue;
+            };
             let Ok(tree) = parser.parse(source.as_bytes()) else {
                 continue;
             };
