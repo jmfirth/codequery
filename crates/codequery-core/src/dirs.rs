@@ -90,64 +90,46 @@ pub fn runtime_dir() -> Option<PathBuf> {
 mod tests {
     use super::*;
 
+    // All dir env var tests in one function to prevent parallel races.
+    // set_var/remove_var is process-global and not thread-safe.
     #[test]
-    fn data_dir_respects_cq_data_dir_env() {
+    fn dir_env_var_behavior() {
+        // CQ_DATA_DIR overrides data_dir
         std::env::set_var("CQ_DATA_DIR", "/custom/data");
         assert_eq!(data_dir(), Some(PathBuf::from("/custom/data")));
-        std::env::remove_var("CQ_DATA_DIR");
-    }
 
-    #[test]
-    fn cache_dir_respects_cq_cache_dir_env() {
-        std::env::set_var("CQ_CACHE_DIR", "/custom/cache");
-        assert_eq!(cache_dir(), Some(PathBuf::from("/custom/cache")));
-        std::env::remove_var("CQ_CACHE_DIR");
-    }
-
-    #[test]
-    fn languages_dir_is_under_data_dir() {
-        std::env::set_var("CQ_DATA_DIR", "/custom/data");
+        // languages_dir is under data_dir
         assert_eq!(
             languages_dir(),
             Some(PathBuf::from("/custom/data/languages"))
         );
         std::env::remove_var("CQ_DATA_DIR");
-    }
 
-    #[test]
-    fn cwasm_dir_is_under_cache_dir() {
+        // CQ_CACHE_DIR overrides cache_dir
         std::env::set_var("CQ_CACHE_DIR", "/custom/cache");
+        assert_eq!(cache_dir(), Some(PathBuf::from("/custom/cache")));
+
+        // cwasm_dir is under cache_dir
         assert_eq!(cwasm_dir(), Some(PathBuf::from("/custom/cache/cwasm")));
-        std::env::remove_var("CQ_CACHE_DIR");
-    }
 
-    #[test]
-    fn registry_cache_path_is_under_cache_dir() {
-        std::env::set_var("CQ_CACHE_DIR", "/custom/cache");
+        // registry_cache_path is under cache_dir
         assert_eq!(
             registry_cache_path(),
             Some(PathBuf::from("/custom/cache/registry.json"))
         );
         std::env::remove_var("CQ_CACHE_DIR");
-    }
 
-    #[test]
-    fn runtime_dir_respects_cq_runtime_dir_env() {
+        // CQ_RUNTIME_DIR overrides runtime_dir
         std::env::set_var("CQ_RUNTIME_DIR", "/custom/runtime");
         assert_eq!(runtime_dir(), Some(PathBuf::from("/custom/runtime")));
         std::env::remove_var("CQ_RUNTIME_DIR");
-    }
 
-    #[test]
-    fn data_dir_falls_back_to_xdg() {
+        // XDG fallbacks
         std::env::remove_var("CQ_DATA_DIR");
         std::env::set_var("XDG_DATA_HOME", "/xdg/data");
         assert_eq!(data_dir(), Some(PathBuf::from("/xdg/data/cq")));
         std::env::remove_var("XDG_DATA_HOME");
-    }
 
-    #[test]
-    fn cache_dir_falls_back_to_xdg() {
         std::env::remove_var("CQ_CACHE_DIR");
         std::env::set_var("XDG_CACHE_HOME", "/xdg/cache");
         assert_eq!(cache_dir(), Some(PathBuf::from("/xdg/cache/cq")));

@@ -631,26 +631,6 @@ mod tests {
     }
 
     #[test]
-    fn test_install_fails_gracefully_when_release_missing() {
-        let tmp = tempfile::tempdir().unwrap();
-        std::env::set_var("CQ_DATA_DIR", tmp.path().to_str().unwrap());
-
-        // Install will fail because GitHub release doesn't exist yet.
-        // It should return an error code, not panic.
-        let result = run_install("elixir");
-        assert!(result.is_ok()); // function didn't panic
-
-        // The directory should NOT exist since download failed
-        let pkg_dir = tmp.path().join("languages").join("elixir");
-        assert!(
-            !pkg_dir.exists(),
-            "package dir should not exist after failed download"
-        );
-
-        std::env::remove_var("CQ_DATA_DIR");
-    }
-
-    #[test]
     fn test_install_builtin_rejected() {
         let result = run_install("rust").unwrap();
         assert_eq!(result, ExitCode::UsageError);
@@ -658,39 +638,8 @@ mod tests {
 
     #[test]
     fn test_install_unknown_language_rejected() {
-        // Does not need a real data dir since it fails before directory creation
         let result = run_install("klingon").unwrap();
         assert_eq!(result, ExitCode::UsageError);
-    }
-
-    #[test]
-    fn test_remove_installed_package() {
-        let tmp = tempfile::tempdir().unwrap();
-        // Manually create the package directory to avoid env var race conditions
-        let pkg_dir = tmp.path().join("languages").join("elixir");
-        std::fs::create_dir_all(&pkg_dir).unwrap();
-        std::fs::write(pkg_dir.join("grammar.wasm"), "placeholder").unwrap();
-        assert!(pkg_dir.exists());
-
-        std::env::set_var("CQ_DATA_DIR", tmp.path().to_str().unwrap());
-        let result = run_remove("elixir").unwrap();
-        std::env::remove_var("CQ_DATA_DIR");
-
-        assert_eq!(result, ExitCode::Success);
-        assert!(!pkg_dir.exists());
-    }
-
-    #[test]
-    fn test_remove_not_installed() {
-        let tmp = tempfile::tempdir().unwrap();
-        // Create the languages dir but not the package
-        std::fs::create_dir_all(tmp.path().join("languages")).unwrap();
-
-        std::env::set_var("CQ_DATA_DIR", tmp.path().to_str().unwrap());
-        let result = run_remove("elixir").unwrap();
-        std::env::remove_var("CQ_DATA_DIR");
-
-        assert_eq!(result, ExitCode::NoResults);
     }
 
     #[test]
@@ -722,5 +671,36 @@ mod tests {
         let result = run_list();
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
+    }
+
+    // CQ_DATA_DIR env var tests consolidated to prevent parallel races.
+    #[test]
+    fn test_grammar_operations_with_data_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_var("CQ_DATA_DIR", tmp.path().to_str().unwrap());
+
+        // Install fails gracefully when GitHub release doesn't exist
+        let result = run_install("elixir");
+        assert!(result.is_ok());
+        let pkg_dir = tmp.path().join("languages").join("elixir");
+        assert!(
+            !pkg_dir.exists(),
+            "package dir should not exist after failed download"
+        );
+
+        // Remove on installed package works
+        let pkg_dir = tmp.path().join("languages").join("elixir");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(pkg_dir.join("grammar.wasm"), "placeholder").unwrap();
+        let result = run_remove("elixir").unwrap();
+        assert_eq!(result, ExitCode::Success);
+        assert!(!pkg_dir.exists());
+
+        // Remove on not-installed returns NoResults
+        std::fs::create_dir_all(tmp.path().join("languages")).unwrap();
+        let result = run_remove("elixir").unwrap();
+        assert_eq!(result, ExitCode::NoResults);
+
+        std::env::remove_var("CQ_DATA_DIR");
     }
 }
