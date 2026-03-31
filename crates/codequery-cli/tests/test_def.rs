@@ -64,11 +64,11 @@ fn test_def_multiple_matches_helper() {
         out.contains("src/utils/helpers.rs"),
         "expected utils/helpers.rs match in output, got: {out}"
     );
-    // Verify there are two frame headers
+    // Verify there are two result frame headers (plus 1 meta header)
     let frame_count = out.matches("@@ ").count();
     assert_eq!(
-        frame_count, 2,
-        "expected 2 frame headers for 2 matches, got {frame_count} in: {out}"
+        frame_count, 3,
+        "expected 3 frame headers (1 meta + 2 results) for 2 matches, got {frame_count} in: {out}"
     );
 }
 
@@ -98,11 +98,11 @@ fn test_def_scoped_search_limits_to_subdirectory() {
         !out.contains("src/services.rs"),
         "scoped search should NOT include services.rs, got: {out}"
     );
-    // Only one frame header
+    // One result frame header (plus 1 meta header)
     let frame_count = out.matches("@@ ").count();
     assert_eq!(
-        frame_count, 1,
-        "expected 1 frame header for scoped search, got {frame_count} in: {out}"
+        frame_count, 2,
+        "expected 2 frame headers (1 meta + 1 result) for scoped search, got {frame_count} in: {out}"
     );
 }
 

@@ -233,8 +233,8 @@ fn test_def_helper_returns_two_results() {
     let out = stdout(&output);
     let frame_count = out.matches("@@ ").count();
     assert_eq!(
-        frame_count, 2,
-        "expected 2 frame headers for 2 helper definitions, got {frame_count} in: {out}"
+        frame_count, 3,
+        "expected 3 frame headers (1 meta + 2 results) for 2 helper definitions, got {frame_count} in: {out}"
     );
 }
 
