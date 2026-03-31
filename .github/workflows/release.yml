@@ -67,6 +67,20 @@ jobs:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: ${{ matrix.target == 'aarch64-unknown-linux-gnu' && 'aarch64-linux-gnu-gcc' || '' }}
         run: cargo build --release --target ${{ matrix.target }}
 
+      - name: Smoke test
+        # Skip for cross-compiled targets (can't run aarch64 binary on x86 runner)
+        if: matrix.target != 'aarch64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          BIN="target/${{ matrix.target }}/release/${{ matrix.binary }}"
+          $BIN --version
+          $BIN def greet --project tests/fixtures/rust_project
+          $BIN refs greet --project tests/fixtures/rust_project
+          $BIN diagnostics tests/fixtures/rust_project/src/lib.rs
+          $BIN search '(function_item name: (identifier) @name)' --project tests/fixtures/rust_project
+          $BIN dead --project tests/fixtures/rust_project
+          echo "Smoke tests passed"
+
       - name: Determine archive name
         id: archive
         shell: bash
