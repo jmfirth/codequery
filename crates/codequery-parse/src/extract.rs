@@ -182,63 +182,65 @@ mod tests {
         assert_eq!(symbols[0].name, "Foo");
     }
 
-    #[test]
-    fn test_extract_symbols_swift_dispatches_correctly() {
-        let mut parser = crate::Parser::for_language(Language::Swift).unwrap();
-        let source = "func greet() {}";
-        let tree = parser.parse(source.as_bytes()).unwrap();
-        let symbols = extract_symbols(source, &tree, Path::new("test.swift"), Language::Swift);
-        assert_eq!(symbols.len(), 1);
-        assert_eq!(symbols[0].name, "greet");
+    // Tier-2 language tests skip gracefully when the grammar is not installed.
+    // These languages are not compiled into the binary with the `common` feature.
+
+    macro_rules! tier2_extract_test {
+        ($name:ident, $lang:expr, $source:expr, $file:expr, $expected_name:expr) => {
+            #[test]
+            fn $name() {
+                let Ok(mut parser) = crate::Parser::for_language($lang) else {
+                    eprintln!("skipping: {:?} grammar not installed", $lang);
+                    return;
+                };
+                let tree = parser.parse($source.as_bytes()).unwrap();
+                let symbols = extract_symbols($source, &tree, Path::new($file), $lang);
+                assert_eq!(symbols.len(), 1);
+                assert_eq!(symbols[0].name, $expected_name);
+            }
+        };
     }
 
-    #[test]
-    fn test_extract_symbols_kotlin_dispatches_correctly() {
-        let mut parser = crate::Parser::for_language(Language::Kotlin).unwrap();
-        let source = "fun greet() {}";
-        let tree = parser.parse(source.as_bytes()).unwrap();
-        let symbols = extract_symbols(source, &tree, Path::new("test.kt"), Language::Kotlin);
-        assert_eq!(symbols.len(), 1);
-        assert_eq!(symbols[0].name, "greet");
-    }
-
-    #[test]
-    fn test_extract_symbols_scala_dispatches_correctly() {
-        let mut parser = crate::Parser::for_language(Language::Scala).unwrap();
-        let source = "class Foo {}";
-        let tree = parser.parse(source.as_bytes()).unwrap();
-        let symbols = extract_symbols(source, &tree, Path::new("test.scala"), Language::Scala);
-        assert_eq!(symbols.len(), 1);
-        assert_eq!(symbols[0].name, "Foo");
-    }
-
-    #[test]
-    fn test_extract_symbols_zig_dispatches_correctly() {
-        let mut parser = crate::Parser::for_language(Language::Zig).unwrap();
-        let source = "pub fn add() void {}";
-        let tree = parser.parse(source.as_bytes()).unwrap();
-        let symbols = extract_symbols(source, &tree, Path::new("add.zig"), Language::Zig);
-        assert_eq!(symbols.len(), 1);
-        assert_eq!(symbols[0].name, "add");
-    }
-
-    #[test]
-    fn test_extract_symbols_lua_dispatches_correctly() {
-        let mut parser = crate::Parser::for_language(Language::Lua).unwrap();
-        let source = "function greet()\n  return 1\nend\n";
-        let tree = parser.parse(source.as_bytes()).unwrap();
-        let symbols = extract_symbols(source, &tree, Path::new("greet.lua"), Language::Lua);
-        assert_eq!(symbols.len(), 1);
-        assert_eq!(symbols[0].name, "greet");
-    }
-
-    #[test]
-    fn test_extract_symbols_bash_dispatches_correctly() {
-        let mut parser = crate::Parser::for_language(Language::Bash).unwrap();
-        let source = "greet() {\n  echo hello\n}\n";
-        let tree = parser.parse(source.as_bytes()).unwrap();
-        let symbols = extract_symbols(source, &tree, Path::new("greet.sh"), Language::Bash);
-        assert_eq!(symbols.len(), 1);
-        assert_eq!(symbols[0].name, "greet");
-    }
+    tier2_extract_test!(
+        test_extract_symbols_swift_dispatches_correctly,
+        Language::Swift,
+        "func greet() {}",
+        "test.swift",
+        "greet"
+    );
+    tier2_extract_test!(
+        test_extract_symbols_kotlin_dispatches_correctly,
+        Language::Kotlin,
+        "fun greet() {}",
+        "test.kt",
+        "greet"
+    );
+    tier2_extract_test!(
+        test_extract_symbols_scala_dispatches_correctly,
+        Language::Scala,
+        "class Foo {}",
+        "test.scala",
+        "Foo"
+    );
+    tier2_extract_test!(
+        test_extract_symbols_zig_dispatches_correctly,
+        Language::Zig,
+        "pub fn add() void {}",
+        "add.zig",
+        "add"
+    );
+    tier2_extract_test!(
+        test_extract_symbols_lua_dispatches_correctly,
+        Language::Lua,
+        "function greet()\n  return 1\nend\n",
+        "greet.lua",
+        "greet"
+    );
+    tier2_extract_test!(
+        test_extract_symbols_bash_dispatches_correctly,
+        Language::Bash,
+        "greet() {\n  echo hello\n}\n",
+        "greet.sh",
+        "greet"
+    );
 }
