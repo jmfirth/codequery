@@ -519,7 +519,10 @@ fn call_cq(cmd_args: &[String], tool_args: &serde_json::Value) -> Result<String,
         .output()
         .map_err(|e| format!("Failed to execute cq: {e}"))?;
 
-    if output.status.success() {
+    // Exit code 0 = success, 1 = no results (valid empty response).
+    // Both are non-error outcomes for the MCP consumer.
+    let exit_code = output.status.code().unwrap_or(-1);
+    if exit_code == 0 || exit_code == 1 {
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         Ok(stdout)
     } else {
