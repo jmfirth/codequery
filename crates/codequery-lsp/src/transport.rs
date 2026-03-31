@@ -174,44 +174,36 @@ impl StdioTransport {
         Ok(readable)
     }
 
-    /// On Windows, poll readability using a background thread.
+    /// On Windows, poll readability by calling `PeekNamedPipe` in a loop.
     ///
     /// Anonymous pipes from `ChildStdout` cannot be polled with mio on Windows.
-    /// Instead, we spawn a short-lived thread that attempts a peek via a 1-byte
-    /// non-consuming read with the pipe set to non-blocking. If the thread
-    /// signals data within the timeout, we proceed to read.
+    /// `PeekNamedPipe` is non-blocking and checks if data is available without
+    /// consuming it. We poll with short sleeps until data arrives or timeout.
     #[cfg(windows)]
     fn poll_readable(&mut self, timeout: Duration) -> Result<bool> {
-        use std::sync::mpsc;
+        use std::os::windows::io::AsRawHandle;
+        use std::time::Instant;
 
-        let (tx, rx) = mpsc::channel();
-        let stdout_ref = self.stdout.get_ref();
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn PeekNamedPipe(
+                hNamedPipe: isize,
+                lpBuffer: *mut u8,
+                nBufferSize: u32,
+                lpBytesRead: *mut u32,
+                lpTotalBytesAvail: *mut u32,
+                lpBytesLeftThisMessage: *mut u32,
+            ) -> i32;
+        }
 
-        // Try to duplicate the handle for the polling thread.
-        // Fall back to optimistic read if duplication isn't possible.
-        use std::os::windows::io::{AsRawHandle, FromRawHandle};
-        let raw = stdout_ref.as_raw_handle();
+        let handle = self.stdout.get_ref().as_raw_handle() as isize;
+        let deadline = Instant::now() + timeout;
 
-        // Spawn a thread that blocks on a tiny read to detect data availability.
-        // The thread owns a duplicate of the handle so it can peek independently.
-        std::thread::spawn(move || {
-            // Use PeekNamedPipe via raw FFI (no extra dependency).
-            // Link against kernel32 which is always available.
-            #[link(name = "kernel32")]
-            extern "system" {
-                fn PeekNamedPipe(
-                    hNamedPipe: *mut std::ffi::c_void,
-                    lpBuffer: *mut u8,
-                    nBufferSize: u32,
-                    lpBytesRead: *mut u32,
-                    lpTotalBytesAvail: *mut u32,
-                    lpBytesLeftThisMessage: *mut u32,
-                ) -> i32;
-            }
+        loop {
             let mut available: u32 = 0;
             let ok = unsafe {
                 PeekNamedPipe(
-                    raw as *mut std::ffi::c_void,
+                    handle,
                     std::ptr::null_mut(),
                     0,
                     std::ptr::null_mut(),
@@ -219,12 +211,13 @@ impl StdioTransport {
                     std::ptr::null_mut(),
                 )
             };
-            let _ = tx.send(ok != 0 && available > 0);
-        });
-
-        match rx.recv_timeout(timeout) {
-            Ok(has_data) => Ok(has_data),
-            Err(_) => Ok(false), // Timeout — no data
+            if ok != 0 && available > 0 {
+                return Ok(true);
+            }
+            if Instant::now() >= deadline {
+                return Ok(false);
+            }
+            std::thread::sleep(Duration::from_millis(10));
         }
     }
 
