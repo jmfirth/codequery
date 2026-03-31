@@ -48,7 +48,7 @@ fn initialize_returns_protocol_version_and_server_info() {
     assert_eq!(resp["id"], 1);
     assert_eq!(resp["result"]["protocolVersion"], "2024-11-05");
     assert_eq!(resp["result"]["serverInfo"]["name"], "cq-mcp");
-    assert_eq!(resp["result"]["serverInfo"]["version"], "0.1.0");
+    assert_eq!(resp["result"]["serverInfo"]["version"], "1.0.0");
     assert!(resp["result"]["capabilities"]["tools"].is_object());
 }
 
