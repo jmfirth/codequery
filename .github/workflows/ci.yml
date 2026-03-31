@@ -49,7 +49,7 @@ jobs:
 
       - name: Build check (Windows)
         if: runner.os == 'Windows'
-        run: cargo check --workspace --exclude codequery-lsp
+        run: cargo check -p codequery-core -p codequery-parse -p codequery-index -p codequery-resolve
 
   build:
     name: Release Build
