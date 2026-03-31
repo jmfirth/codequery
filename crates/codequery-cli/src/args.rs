@@ -849,25 +849,23 @@ mod tests {
         assert!(args.use_cache());
     }
 
+    // Env var tests are combined to avoid races from parallel test execution.
+    // set_var/remove_var is process-global and not thread-safe.
     #[test]
-    fn test_use_cache_returns_false_with_no_cache_flag() {
+    fn test_use_cache_env_var_behavior() {
+        // --no-cache wins over env
         let args = CqArgs::parse_from(["cq", "--no-cache", "def", "foo"]);
-        // Even if env is set, --no-cache wins
         std::env::set_var("CQ_CACHE", "1");
         assert!(!args.use_cache());
         std::env::remove_var("CQ_CACHE");
-    }
 
-    #[test]
-    fn test_use_cache_respects_cq_cache_env_var() {
+        // CQ_CACHE=1 enables caching
         let args = CqArgs::parse_from(["cq", "def", "foo"]);
         std::env::set_var("CQ_CACHE", "1");
         assert!(args.use_cache());
         std::env::remove_var("CQ_CACHE");
-    }
 
-    #[test]
-    fn test_use_cache_ignores_non_one_env_var() {
+        // CQ_CACHE=yes is not "1", so no caching
         let args = CqArgs::parse_from(["cq", "def", "foo"]);
         std::env::set_var("CQ_CACHE", "yes");
         assert!(!args.use_cache());
@@ -932,25 +930,22 @@ mod tests {
         assert!(args.use_semantic());
     }
 
+    // Env var tests are combined to avoid races from parallel test execution.
     #[test]
-    fn test_use_semantic_returns_false_with_no_semantic_flag() {
+    fn test_use_semantic_env_var_behavior() {
+        // --no-semantic wins over env
         let args = CqArgs::parse_from(["cq", "--no-semantic", "def", "foo"]);
-        // Even if env is set, --no-semantic wins
         std::env::set_var("CQ_SEMANTIC", "1");
         assert!(!args.use_semantic());
         std::env::remove_var("CQ_SEMANTIC");
-    }
 
-    #[test]
-    fn test_use_semantic_respects_cq_semantic_env_var() {
+        // CQ_SEMANTIC=1 enables semantic
         let args = CqArgs::parse_from(["cq", "def", "foo"]);
         std::env::set_var("CQ_SEMANTIC", "1");
         assert!(args.use_semantic());
         std::env::remove_var("CQ_SEMANTIC");
-    }
 
-    #[test]
-    fn test_use_semantic_ignores_non_one_env_var() {
+        // CQ_SEMANTIC=yes is not "1", so no semantic
         let args = CqArgs::parse_from(["cq", "def", "foo"]);
         std::env::set_var("CQ_SEMANTIC", "yes");
         assert!(!args.use_semantic());
