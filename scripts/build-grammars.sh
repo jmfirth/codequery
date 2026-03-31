@@ -147,14 +147,14 @@ build_grammar() {
     (cd "$grammar_dir" && tree-sitter generate 2>/dev/null) || true
   fi
 
-  # Build WASM
+  # Build WASM (5 minute timeout per grammar)
   local wasm_file="$grammar_dir/tree-sitter-${name}.wasm"
 
   # tree-sitter build --wasm outputs to the current directory
-  if ! (cd "$grammar_dir" && tree-sitter build --wasm -o "$wasm_file" 2>/dev/null); then
+  if ! (cd "$grammar_dir" && timeout 300 tree-sitter build --wasm -o "$wasm_file" 2>/dev/null); then
     # Some grammars use different naming; try without specifying output
-    if ! (cd "$grammar_dir" && tree-sitter build --wasm 2>/dev/null); then
-      echo "    FAILED: tree-sitter build --wasm failed" >&2
+    if ! (cd "$grammar_dir" && timeout 300 tree-sitter build --wasm 2>/dev/null); then
+      echo "    FAILED: tree-sitter build --wasm failed (or timed out)" >&2
       FAILED=$((FAILED + 1))
       FAILED_NAMES+=("$name")
       return 0
