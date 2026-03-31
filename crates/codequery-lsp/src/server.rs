@@ -239,7 +239,6 @@ impl LspServer {
     // a single read loop; factoring into helpers would fragment the state machine
     // without reducing cognitive load.
     #[allow(clippy::too_many_lines)]
-    #[cfg(unix)]
     pub fn wait_for_ready(&mut self, timeout: Duration) -> Result<()> {
         use std::time::Instant;
 
