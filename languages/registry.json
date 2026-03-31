@@ -610,21 +610,6 @@
       "grammar_repo": "Isopod/tree-sitter-pascal"
     },
     {
-      "name": "d",
-      "display_name": "D",
-      "description": "D programming language",
-      "extensions": [
-        ".d"
-      ],
-      "capabilities": [
-        "grammar",
-        "extract",
-        "lsp"
-      ],
-      "lsp_server": "serve-d",
-      "grammar_repo": "CyberShadow/tree-sitter-d"
-    },
-    {
       "name": "ini",
       "display_name": "INI",
       "description": "INI configuration files",
@@ -709,19 +694,6 @@
         "extract"
       ],
       "grammar_repo": "the-mikedavis/tree-sitter-diff"
-    },
-    {
-      "name": "llvm-ir",
-      "display_name": "LLVM IR",
-      "description": "LLVM intermediate representation",
-      "extensions": [
-        ".ll"
-      ],
-      "capabilities": [
-        "grammar",
-        "extract"
-      ],
-      "grammar_repo": "benwilliamgraham/tree-sitter-llvm"
     },
     {
       "name": "starlark",
