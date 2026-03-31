@@ -142,9 +142,14 @@ build_grammar() {
     (cd "$grammar_dir" && npm install --ignore-scripts --silent 2>/dev/null) || true
   fi
 
-  # Generate the parser source if needed
+  # Generate the parser source if needed (3 minute timeout)
   if [[ -f "$grammar_dir/grammar.js" && ! -f "$grammar_dir/src/parser.c" ]]; then
-    (cd "$grammar_dir" && tree-sitter generate 2>/dev/null) || true
+    if ! (cd "$grammar_dir" && timeout 180 tree-sitter generate 2>/dev/null); then
+      echo "    FAILED: tree-sitter generate timed out" >&2
+      FAILED=$((FAILED + 1))
+      FAILED_NAMES+=("$name")
+      return 0
+    fi
   fi
 
   # Build WASM (5 minute timeout per grammar)
@@ -223,7 +228,7 @@ echo "  output:   $DIST_DIR/"
 echo ""
 
 while IFS=$'\t' read -r name repo; do
-  build_grammar "$name" "$repo"
+  build_grammar "$name" "$repo" || true
 done <<< "$LANG_DATA"
 
 echo ""
