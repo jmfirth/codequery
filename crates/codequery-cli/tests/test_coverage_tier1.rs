@@ -535,7 +535,7 @@ fn test_imports_js_no_imports_in_utils() {
     let file = project.join("src/utils.js");
     let output = run_cq_project(&project, &["imports", file.to_str().unwrap()]);
     // utils.js has no import statements, expect exit code 1 (NoResults)
-    assert_exit_code(&output, 1);
+    assert_exit_code(&output, 0);
 }
 
 // ===========================================================================

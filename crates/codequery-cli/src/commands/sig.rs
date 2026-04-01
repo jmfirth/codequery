@@ -30,17 +30,13 @@ pub fn run(
     let matches = find_symbols_by_name(symbol, project, scope, lang_filter)?;
 
     if matches.is_empty() && mode != OutputMode::Json {
-        Ok(ExitCode::NoResults)
+        Ok(ExitCode::Success)
     } else {
         let output = format_sig(&matches, symbol, mode, pretty);
         if !output.is_empty() {
             println!("{output}");
         }
-        if matches.is_empty() {
-            Ok(ExitCode::NoResults)
-        } else {
-            Ok(ExitCode::Success)
-        }
+        Ok(ExitCode::Success)
     }
 }
 
@@ -111,7 +107,7 @@ mod tests {
             None,
         );
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     #[test]
@@ -134,7 +130,7 @@ mod tests {
             None,
         );
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     #[test]

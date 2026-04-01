@@ -59,18 +59,18 @@ pub fn run() -> anyhow::Result<ExitCode> {
             // Might be a 404 or rate-limited response
             eprintln!("No releases found for {GITHUB_REPO}");
             eprintln!("Check https://github.com/{GITHUB_REPO}/releases manually");
-            Ok(ExitCode::NoResults)
+            Ok(ExitCode::Success)
         }
         Ok(out) => {
             let stderr = String::from_utf8_lossy(&out.stderr);
             eprintln!("Failed to check for updates: {stderr}");
             eprintln!("Check https://github.com/{GITHUB_REPO}/releases manually");
-            Ok(ExitCode::NoResults)
+            Ok(ExitCode::Success)
         }
         Err(e) => {
             eprintln!("Could not run curl: {e}");
             eprintln!("Check https://github.com/{GITHUB_REPO}/releases manually");
-            Ok(ExitCode::NoResults)
+            Ok(ExitCode::Success)
         }
     }
 }

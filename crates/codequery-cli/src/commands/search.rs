@@ -107,17 +107,13 @@ pub fn run(
 
     // 6. Format and output
     if all_matches.is_empty() && mode != OutputMode::Json {
-        Ok(ExitCode::NoResults)
+        Ok(ExitCode::Success)
     } else {
         let output = format_search(&all_matches, pattern, mode, pretty);
         if !output.is_empty() {
             println!("{output}");
         }
-        if all_matches.is_empty() {
-            Ok(ExitCode::NoResults)
-        } else {
-            Ok(ExitCode::Success)
-        }
+        Ok(ExitCode::Success)
     }
 }
 
@@ -188,7 +184,7 @@ mod tests {
             None,
         );
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     // -----------------------------------------------------------------------
@@ -272,7 +268,7 @@ mod tests {
             None,
         );
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     // -----------------------------------------------------------------------

@@ -84,7 +84,7 @@ pub fn run(
             let output = format_context_output(None, target_line, &relative_path, mode, pretty);
             println!("{output}");
         }
-        return Ok(ExitCode::NoResults);
+        return Ok(ExitCode::Success);
     }
 
     // Apply depth: if depth is specified, take only the last N levels
@@ -415,7 +415,7 @@ mod tests {
         let location = format!("{}:1", file.display());
         let result = run(&location, Some(&project), OutputMode::Framed, false, None);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     // Test: Invalid file returns error
@@ -474,7 +474,7 @@ mod tests {
         let location = format!("{}:1", file.display());
         let result = run(&location, Some(&project), OutputMode::Json, true, None);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     // Test: depth flag limits nesting levels

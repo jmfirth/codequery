@@ -76,7 +76,7 @@ fn test_def_multiple_matches_helper() {
 #[test]
 fn test_def_symbol_not_found_returns_no_results() {
     let output = run_cq_fixture(&["def", "nonexistent_xyz"]);
-    assert_exit_code(&output, 1);
+    assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
         out.is_empty(),

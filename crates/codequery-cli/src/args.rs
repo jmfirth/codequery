@@ -561,13 +561,11 @@ pub enum GrammarAction {
 /// Process exit codes following SPECIFICATION.md section 12.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExitCode {
-    /// Success, results found
+    /// Success (results found, or query valid with no matches)
     Success = 0,
-    /// No results found (query valid but matched nothing)
-    NoResults = 1,
     /// Usage error (bad arguments, unknown command)
     UsageError = 2,
-    /// Project error (no project root, no source files)
+    /// Project error (no project root, no source files, grammar unavailable)
     ProjectError = 3,
     /// Parse warning (tree-sitter error, but results still returned from other files)
     ParseWarning = 4,
@@ -634,12 +632,6 @@ mod tests {
         // so we verify via the From<u8> path
         assert_eq!(ExitCode::Success as u8, 0);
         let _ = code; // ensure conversion compiles
-    }
-
-    #[test]
-    fn test_exit_code_no_results_is_one() {
-        assert_eq!(ExitCode::NoResults as u8, 1);
-        let _code: std::process::ExitCode = ExitCode::NoResults.into();
     }
 
     #[test]

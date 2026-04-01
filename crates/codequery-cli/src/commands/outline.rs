@@ -75,7 +75,7 @@ pub fn run(
 
     // Determine exit code
     if symbols.is_empty() {
-        Ok(ExitCode::NoResults)
+        Ok(ExitCode::Success)
     } else if has_parse_errors {
         Ok(ExitCode::ParseWarning)
     } else {
@@ -114,7 +114,7 @@ mod tests {
 
         let result = run(&empty_file, Some(tmp.path()), OutputMode::Framed, false);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     // Test 3: Nonexistent file returns ProjectError

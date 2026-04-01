@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 
 use rayon::prelude::*;
 
-use codequery_core::{discover_files, language_for_file, language_name_for_file, Symbol};
-use codequery_parse::{extract_symbols, extract_symbols_by_name, Parser};
+use codequery_core::{discover_files, language_for_file, Symbol};
+use codequery_parse::{extract_symbols, Parser};
 
 use crate::cache::{self, CacheStore, CachedFile};
 use crate::error::Result;
@@ -38,24 +38,17 @@ pub struct FileSymbols {
 fn scan_single_file(root: &Path, relative: &Path) -> Option<FileSymbols> {
     let absolute = root.join(relative);
 
-    // Try builtin language (fast path: compiled-in extractors)
-    if let Some(language) = language_for_file(&absolute) {
-        let mut parser = Parser::for_language(language).ok()?;
-        let (source, tree) = parser.parse_file(&absolute).ok()?;
-        let symbols = extract_symbols(&source, &tree, relative, language);
-        return Some(FileSymbols {
-            file: relative.to_path_buf(),
-            symbols,
-            source,
-            tree,
-        });
-    }
+    // Try builtin language with compiled-in grammar (safe for parallel execution).
+    // WASM grammar loading is NOT thread-safe in rayon workers — tree-sitter's
+    // wasmtime engine can crash (SIGBUS) when multiple threads create engines
+    // concurrently. So we only use compiled-in grammars in the parallel scanner.
+    // Runtime languages are handled by the sequential CLI command paths.
+    let language = language_for_file(&absolute)?;
+    codequery_parse::compiled_grammar(language)?;
 
-    // Fallback: runtime language via registry name + WASM grammar
-    let lang_name = language_name_for_file(&absolute)?;
-    let mut parser = Parser::for_name(&lang_name).ok()?;
+    let mut parser = Parser::for_language(language).ok()?;
     let (source, tree) = parser.parse_file(&absolute).ok()?;
-    let symbols = extract_symbols_by_name(&source, &tree, relative, &lang_name);
+    let symbols = extract_symbols(&source, &tree, relative, language);
     Some(FileSymbols {
         file: relative.to_path_buf(),
         symbols,
@@ -177,13 +170,10 @@ fn rebuild_from_cache(
         .filter_map(|entry| {
             let absolute = root.join(&entry.path);
 
-            // Create parser for builtin or runtime language
-            let mut parser = if let Some(language) = language_for_file(&absolute) {
-                Parser::for_language(language).ok()?
-            } else {
-                let name = language_name_for_file(&absolute)?;
-                Parser::for_name(&name).ok()?
-            };
+            // Only use compiled-in grammars in parallel context (WASM not thread-safe)
+            let language = language_for_file(&absolute)?;
+            codequery_parse::compiled_grammar(language)?;
+            let mut parser = Parser::for_language(language).ok()?;
 
             let (source, tree) = parser.parse_file(&absolute).ok()?;
 

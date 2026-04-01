@@ -54,17 +54,13 @@ pub fn run(
 
     // 7. Format and output
     if symbols.is_empty() && mode != OutputMode::Json {
-        Ok(ExitCode::NoResults)
+        Ok(ExitCode::Success)
     } else {
         let output = format_symbols(&symbols, mode, pretty);
         if !output.is_empty() {
             println!("{output}");
         }
-        if symbols.is_empty() {
-            Ok(ExitCode::NoResults)
-        } else {
-            Ok(ExitCode::Success)
-        }
+        Ok(ExitCode::Success)
     }
 }
 
@@ -249,7 +245,7 @@ mod tests {
             false,
         );
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     #[test]

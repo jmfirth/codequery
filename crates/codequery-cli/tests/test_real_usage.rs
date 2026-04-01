@@ -446,13 +446,13 @@ fn test_body_java_get_name_contains_return() {
 #[test]
 fn test_refs_nonexistent_symbol_returns_no_results() {
     let output = run_cq_fixture(&["refs", "nonexistent_xyz"]);
-    assert_exit_code(&output, 1);
+    assert_exit_code(&output, 0);
 }
 
 #[test]
 fn test_body_nonexistent_symbol_returns_no_results() {
     let output = run_cq_fixture(&["body", "nonexistent_xyz"]);
-    assert_exit_code(&output, 1);
+    assert_exit_code(&output, 0);
 }
 
 #[test]
@@ -594,7 +594,7 @@ fn test_callers_greet_json_finds_call_in_integration_test() {
 #[test]
 fn test_callers_nonexistent_returns_no_results() {
     let output = run_cq_fixture(&["callers", "nonexistent_xyz"]);
-    assert_exit_code(&output, 1);
+    assert_exit_code(&output, 0);
 }
 
 // ===========================================================================

@@ -118,7 +118,8 @@
       "capabilities": [
         "grammar",
         "extract",
-        "lsp"
+        "lsp",
+        "stack-graphs"
       ],
       "lsp_server": "clangd",
       "builtin": true
@@ -249,7 +250,8 @@
       "capabilities": [
         "grammar",
         "extract",
-        "lsp"
+        "lsp",
+        "stack-graphs"
       ],
       "lsp_server": "OmniSharp",
       "grammar_repo": "tree-sitter/tree-sitter-c-sharp"

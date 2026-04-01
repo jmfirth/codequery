@@ -121,17 +121,13 @@ pub fn run(
         .any(|s| s.visibility == Visibility::Public);
 
     if dead_symbols.is_empty() && mode != OutputMode::Json {
-        Ok(ExitCode::NoResults)
+        Ok(ExitCode::Success)
     } else {
         let output = format_dead(&dead_symbols, is_pub_warning, mode, pretty);
         if !output.is_empty() {
             println!("{output}");
         }
-        if dead_symbols.is_empty() {
-            Ok(ExitCode::NoResults)
-        } else {
-            Ok(ExitCode::Success)
-        }
+        Ok(ExitCode::Success)
     }
 }
 

@@ -189,11 +189,7 @@ pub fn run(
         println!("{output}");
     }
 
-    if result.edits.is_empty() {
-        Ok(ExitCode::NoResults)
-    } else {
-        Ok(ExitCode::Success)
-    }
+    Ok(ExitCode::Success)
 }
 
 /// Apply text edits to files on disk.

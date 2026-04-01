@@ -171,17 +171,13 @@ pub fn run(
     let has_results = !result.supertypes.is_empty() || !result.subtypes.is_empty();
 
     if !has_results && mode != OutputMode::Json {
-        Ok(ExitCode::NoResults)
+        Ok(ExitCode::Success)
     } else {
         let output = format_hierarchy(&result, mode, pretty);
         if !output.is_empty() {
             println!("{output}");
         }
-        if has_results {
-            Ok(ExitCode::Success)
-        } else {
-            Ok(ExitCode::NoResults)
-        }
+        Ok(ExitCode::Success)
     }
 }
 

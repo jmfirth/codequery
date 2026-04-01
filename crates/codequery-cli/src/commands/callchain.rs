@@ -78,17 +78,13 @@ pub fn run(
     let has_callers = !root.callers.is_empty();
 
     if !has_callers && mode != OutputMode::Json {
-        Ok(ExitCode::NoResults)
+        Ok(ExitCode::Success)
     } else {
         let output = format_callchain(&root, depth, mode, pretty);
         if !output.is_empty() {
             println!("{output}");
         }
-        if has_callers {
-            Ok(ExitCode::Success)
-        } else {
-            Ok(ExitCode::NoResults)
-        }
+        Ok(ExitCode::Success)
     }
 }
 

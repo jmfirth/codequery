@@ -44,18 +44,13 @@ pub fn run(
     };
 
     // 5. Format and output
-    let all_empty = file_symbols.iter().all(|fs| fs.symbols.is_empty());
     let output = format_tree_output(&file_symbols, effective_scope, mode, pretty);
 
     if !output.is_empty() {
         println!("{output}");
     }
 
-    if file_symbols.is_empty() || all_empty {
-        Ok(ExitCode::NoResults)
-    } else {
-        Ok(ExitCode::Success)
-    }
+    Ok(ExitCode::Success)
 }
 
 /// Limit symbol nesting depth. Depth 1 means top-level only (no children).
@@ -244,7 +239,7 @@ mod tests {
             false,
         );
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     // Test 8: Depth 0 removes all symbols' children

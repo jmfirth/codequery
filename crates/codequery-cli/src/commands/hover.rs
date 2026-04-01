@@ -126,7 +126,7 @@ pub fn run(
             let output = format_hover_output(&info, mode, pretty);
             println!("{output}");
         }
-        return Ok(ExitCode::NoResults);
+        return Ok(ExitCode::Success);
     }
 
     // 10. Build HoverInfo
@@ -622,7 +622,7 @@ mod tests {
         let location = format!("{}:1", file.display());
         let result = run(&location, Some(&project), OutputMode::Framed, false, false);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     // Test: nonexistent file returns ProjectError

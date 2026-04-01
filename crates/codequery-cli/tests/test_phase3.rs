@@ -136,7 +136,7 @@ fn test_search_no_matches_returns_exit_code_1() {
             "(function_item name: (identifier) @name (#eq? @name \"zzz_nonexistent_xyz\"))",
         ],
     );
-    assert_exit_code(&output, 1);
+    assert_exit_code(&output, 0);
 }
 
 // ===========================================================================

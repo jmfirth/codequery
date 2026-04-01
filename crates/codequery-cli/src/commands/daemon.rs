@@ -108,7 +108,7 @@ pub fn run_status(project: Option<&Path>) -> anyhow::Result<ExitCode> {
                 );
             }
         }
-        return Ok(ExitCode::NoResults);
+        return Ok(ExitCode::Success);
     }
 
     let mut client = codequery_lsp::DaemonClient::connect(&project_root)
@@ -175,7 +175,7 @@ mod tests {
         // Use a temp dir so we never collide with a real running daemon.
         let tmp = tempfile::TempDir::new().unwrap();
         let result = run_status(Some(tmp.path())).unwrap();
-        assert_eq!(result, ExitCode::NoResults);
+        assert_eq!(result, ExitCode::Success);
     }
 
     #[test]

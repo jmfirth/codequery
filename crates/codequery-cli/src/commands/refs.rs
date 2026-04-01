@@ -199,7 +199,7 @@ pub fn run(
     let has_results = !definitions.is_empty() || !all_refs.is_empty();
 
     if !has_results && mode != OutputMode::Json {
-        return Ok(ExitCode::NoResults);
+        return Ok(ExitCode::Success);
     }
 
     let def_clones: Vec<Symbol> = definitions.into_iter().cloned().collect();
@@ -248,11 +248,7 @@ pub fn run(
         println!("{output}");
     }
 
-    if has_results {
-        Ok(ExitCode::Success)
-    } else {
-        Ok(ExitCode::NoResults)
-    }
+    Ok(ExitCode::Success)
 }
 
 /// Check if the identifier at a reference's location matches the symbol name.
@@ -462,7 +458,7 @@ mod tests {
             false,
         );
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     #[test]
@@ -530,6 +526,6 @@ mod tests {
             false,
         );
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 }

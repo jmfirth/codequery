@@ -395,7 +395,7 @@ pub fn run_remove(language: &str) -> anyhow::Result<ExitCode> {
     let pkg_dir = languages_dir.join(language);
     if !pkg_dir.exists() {
         eprintln!("{language} is not installed");
-        return Ok(ExitCode::NoResults);
+        return Ok(ExitCode::Success);
     }
 
     std::fs::remove_dir_all(&pkg_dir)
@@ -422,7 +422,7 @@ pub fn run_info(language: &str) -> anyhow::Result<ExitCode> {
     let registry = load_registry()?;
     let Some(pkg) = registry.languages.iter().find(|l| l.name == language) else {
         eprintln!("unknown language: {language}");
-        return Ok(ExitCode::NoResults);
+        return Ok(ExitCode::Success);
     };
 
     let languages_dir = codequery_core::dirs::languages_dir();
@@ -485,11 +485,7 @@ pub fn run_validate(language: &str) -> anyhow::Result<ExitCode> {
                 errors.len(),
                 warnings.len()
             );
-            if errors.is_empty() {
-                Ok(ExitCode::Success)
-            } else {
-                Ok(ExitCode::NoResults)
-            }
+            Ok(ExitCode::Success)
         }
     }
 }
@@ -578,11 +574,7 @@ pub fn run_validate_all() -> anyhow::Result<ExitCode> {
         println!("Total: {total_errors} errors, {total_warnings} warnings");
     }
 
-    if failed.is_empty() {
-        Ok(ExitCode::Success)
-    } else {
-        Ok(ExitCode::NoResults)
-    }
+    Ok(ExitCode::Success)
 }
 
 /// Validation result for a language.
@@ -879,7 +871,7 @@ mod tests {
     #[test]
     fn test_info_unknown_language() {
         let result = run_info("klingon").unwrap();
-        assert_eq!(result, ExitCode::NoResults);
+        assert_eq!(result, ExitCode::Success);
     }
 
     #[test]
@@ -915,7 +907,7 @@ mod tests {
         // Remove on not-installed returns NoResults
         std::fs::create_dir_all(tmp.path().join("languages")).unwrap();
         let result = run_remove("elixir").unwrap();
-        assert_eq!(result, ExitCode::NoResults);
+        assert_eq!(result, ExitCode::Success);
 
         std::env::remove_var("CQ_DATA_DIR");
     }

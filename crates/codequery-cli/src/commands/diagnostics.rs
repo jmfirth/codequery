@@ -93,14 +93,14 @@ pub fn run(
 
     // 4. Format and output
     if diagnostics.is_empty() && mode != OutputMode::Json {
-        Ok(ExitCode::NoResults)
+        Ok(ExitCode::Success)
     } else {
         let output = format_diagnostics(&diagnostics, mode, pretty);
         if !output.is_empty() {
             println!("{output}");
         }
         if diagnostics.is_empty() {
-            Ok(ExitCode::NoResults)
+            Ok(ExitCode::Success)
         } else {
             // Return ParseWarning when diagnostics are found — the project has
             // parse errors but we still produced results
@@ -145,7 +145,7 @@ mod tests {
         let result = run(None, Some(&project), None, OutputMode::Framed, false, false);
         assert!(result.is_ok());
         // The fixture project should be clean (no syntax errors)
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     #[test]
@@ -154,7 +154,7 @@ mod tests {
         let result = run(None, Some(&project), None, OutputMode::Json, true, false);
         assert!(result.is_ok());
         // JSON mode always emits output even for zero results
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     #[test]
@@ -208,7 +208,7 @@ mod tests {
             false,
         );
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     // -----------------------------------------------------------------------
@@ -233,7 +233,7 @@ mod tests {
             false,
         );
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     #[test]

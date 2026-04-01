@@ -88,7 +88,7 @@ pub fn run(
 
     // Determine exit code
     if imports.is_empty() {
-        Ok(ExitCode::NoResults)
+        Ok(ExitCode::Success)
     } else if has_parse_errors {
         Ok(ExitCode::ParseWarning)
     } else {
@@ -153,7 +153,7 @@ mod tests {
         let file = project.join("src/models.rs");
         let result = run(&file, Some(&project), OutputMode::Framed, false);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     // Test 4: Nonexistent file returns ProjectError
@@ -239,6 +239,6 @@ mod tests {
 
         let result = run(&file, Some(tmp.path()), OutputMode::Framed, false);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 }
