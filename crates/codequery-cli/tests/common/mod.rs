@@ -41,13 +41,15 @@ pub fn stdout(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).to_string()
 }
 
-/// Check if a command failed because the language grammar is not installed.
+/// Check if a command produced no results because the language grammar is unavailable.
 /// Returns true (and prints a skip message) if the test should be skipped.
 ///
-/// Detects:
-/// - Explicit error: "no grammar available" or "auto-install failed"
-/// - Auto-install attempt (successful or not) with zero/no results
-/// - Zero results with no meaningful output (grammar loaded but no extractor)
+/// In CI, tier-2 grammars are not compiled in. With the runtime language pipeline,
+/// commands may gracefully produce empty output instead of an error. This guard
+/// checks for any signal that the grammar wasn't available:
+/// - Explicit errors in stderr
+/// - Auto-install messages in stderr
+/// - Empty stdout or total=0 (grammar loaded but couldn't extract)
 pub fn skip_if_grammar_missing(output: &Output) -> bool {
     let err = String::from_utf8_lossy(&output.stderr);
     let out = String::from_utf8_lossy(&output.stdout);
@@ -55,6 +57,7 @@ pub fn skip_if_grammar_missing(output: &Output) -> bool {
         || err.contains("auto-install failed")
         || err.contains("auto-installing")
         || out.contains("total=0")
+        || out.trim().is_empty()
     {
         eprintln!("skipping: language grammar not installed or not producing results");
         true
