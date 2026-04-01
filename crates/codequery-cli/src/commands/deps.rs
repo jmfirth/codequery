@@ -54,7 +54,7 @@ pub fn run(
         if mode == OutputMode::Json {
             print_output(&format_deps(None, &[], symbol, mode, pretty));
         }
-        return Ok(ExitCode::NoResults);
+        return Ok(ExitCode::Success);
     };
 
     if target_sym.body.is_none() {
@@ -68,9 +68,16 @@ pub fn run(
     let body_refs = extract_body_references(source, &target_sym)?;
     let scan = scan_project_cached(&project_root, None, use_cache)?;
 
-    // 4. Attempt stack graph resolution, fall back to syntactic index lookup
-    let dependencies = resolve_with_stack_graphs(&scan, &target_sym, symbol, source, &body_refs)
-        .unwrap_or_else(|| resolve_syntactic(source, &body_refs, symbol, &scan));
+    // 4. Attempt stack graph resolution, fall back to syntactic index lookup.
+    //    Stack graph resolution can panic on certain codebases (SIGBUS/stack overflow
+    //    in the graph traversal). catch_unwind prevents a panic from killing the process.
+    let sg_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        resolve_with_stack_graphs(&scan, &target_sym, symbol, source, &body_refs)
+    }));
+    let dependencies = match sg_result {
+        Ok(Some(deps)) => deps,
+        _ => resolve_syntactic(source, &body_refs, symbol, &scan),
+    };
 
     let output = format_deps(Some(&target_sym), &dependencies, symbol, mode, pretty);
     print_output(&output);
@@ -361,7 +368,7 @@ mod tests {
             false,
         );
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
     #[test]
@@ -429,6 +436,6 @@ mod tests {
             false,
         );
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::NoResults);
+        assert_eq!(result.unwrap(), ExitCode::Success);
     }
 }
