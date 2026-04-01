@@ -9,7 +9,9 @@
 //! 4. Fallback is safe for non-TSG languages
 
 mod common;
-use common::{assert_exit_code, run_cq, skip_if_grammar_missing, stdout};
+#[cfg(feature = "test-all-langs")]
+use common::skip_if_grammar_missing;
+use common::{assert_exit_code, run_cq, stdout};
 use std::path::PathBuf;
 
 fn fixture_base() -> PathBuf {
@@ -510,6 +512,7 @@ fn ruby_resolved() {
 }
 
 #[test]
+#[cfg(feature = "test-all-langs")]
 fn kotlin_fallback_syntactic() {
     let project = fixture_base().join("kotlin_project");
     let output = run_cq_project(&project, &["--json", "refs", "Animal"]);

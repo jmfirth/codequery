@@ -214,54 +214,9 @@ mod tests {
     }
 
     #[test]
-    fn test_write_and_read_daemon_info() {
-        let dir = tempfile::tempdir().unwrap();
-        std::env::set_var("CQ_CACHE_DIR", dir.path().to_str().unwrap());
-
-        let info = DaemonInfo {
-            port: 49152,
-            token: "test_token_abc123".to_string(),
-            pid: 12345,
-            project: PathBuf::from("/test/project"),
-            started: "2026-03-31T04:00:00Z".to_string(),
-        };
-
-        write_daemon_info(&info).unwrap();
-
-        let read_back = read_daemon_info(Path::new("/test/project"));
-        assert!(read_back.is_some());
-        assert_eq!(read_back.unwrap(), info);
-
-        std::env::remove_var("CQ_CACHE_DIR");
-    }
-
-    #[test]
     fn test_read_daemon_info_missing_file_returns_none() {
         let read_back = read_daemon_info(Path::new("/nonexistent/project/xyz123"));
         assert!(read_back.is_none());
-    }
-
-    #[test]
-    fn test_remove_daemon_file_removes_file() {
-        let dir = tempfile::tempdir().unwrap();
-        std::env::set_var("CQ_CACHE_DIR", dir.path().to_str().unwrap());
-
-        let info = DaemonInfo {
-            port: 49152,
-            token: "token".to_string(),
-            pid: 12345,
-            project: PathBuf::from("/test/project"),
-            started: "2026-03-31T04:00:00Z".to_string(),
-        };
-
-        write_daemon_info(&info).unwrap();
-        let path = daemon_file_path(Path::new("/test/project")).unwrap();
-        assert!(path.exists());
-
-        remove_daemon_file(Path::new("/test/project"));
-        assert!(!path.exists());
-
-        std::env::remove_var("CQ_CACHE_DIR");
     }
 
     #[test]
@@ -290,39 +245,47 @@ mod tests {
         assert!(!is_daemon_running(Path::new("/nonexistent/project/xyz")));
     }
 
+    // All CQ_CACHE_DIR env var tests consolidated into one test to prevent
+    // parallel test races on the shared environment variable.
     #[test]
-    fn test_is_daemon_running_false_when_port_not_open() {
+    fn test_daemon_operations_with_cache_dir() {
         let dir = tempfile::tempdir().unwrap();
         std::env::set_var("CQ_CACHE_DIR", dir.path().to_str().unwrap());
 
+        // write + read roundtrip
         let info = DaemonInfo {
-            port: 59999, // unlikely to be in use
+            port: 49152,
+            token: "test_token_abc123".to_string(),
+            pid: 12345,
+            project: PathBuf::from("/test/project"),
+            started: "2026-03-31T04:00:00Z".to_string(),
+        };
+        write_daemon_info(&info).unwrap();
+        let read_back = read_daemon_info(Path::new("/test/project"));
+        assert!(read_back.is_some());
+        assert_eq!(read_back.unwrap(), info);
+
+        // remove cleans up
+        let path = daemon_file_path(Path::new("/test/project")).unwrap();
+        assert!(path.exists());
+        remove_daemon_file(Path::new("/test/project"));
+        assert!(!path.exists());
+
+        // is_daemon_running returns false when port not open
+        let info_running = DaemonInfo {
+            port: 59999,
             token: "token".to_string(),
             pid: 999_999_999,
             project: PathBuf::from("/test/project/daemon_running_test"),
             started: "2026-03-31T04:00:00Z".to_string(),
         };
-        write_daemon_info(&info).unwrap();
-
+        write_daemon_info(&info_running).unwrap();
         assert!(!is_daemon_running(Path::new(
             "/test/project/daemon_running_test"
         )));
+        remove_daemon_file(Path::new("/test/project/daemon_running_test"));
 
-        std::env::remove_var("CQ_CACHE_DIR");
-    }
-
-    #[test]
-    fn test_list_all_daemons_empty_when_no_dir() {
-        let daemons = list_all_daemons();
-        // May or may not be empty depending on system state, but should not panic.
-        let _ = daemons;
-    }
-
-    #[test]
-    fn test_list_all_daemons_finds_written_files() {
-        let dir = tempfile::tempdir().unwrap();
-        std::env::set_var("CQ_CACHE_DIR", dir.path().to_str().unwrap());
-
+        // list_all_daemons finds written files
         let info1 = DaemonInfo {
             port: 49152,
             token: "t1".to_string(),
@@ -337,10 +300,8 @@ mod tests {
             project: PathBuf::from("/project/two"),
             started: "2026-03-31T04:01:00Z".to_string(),
         };
-
         write_daemon_info(&info1).unwrap();
         write_daemon_info(&info2).unwrap();
-
         let daemons = list_all_daemons();
         assert_eq!(daemons.len(), 2);
 
