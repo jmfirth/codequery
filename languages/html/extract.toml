@@ -1,0 +1,23 @@
+# HTML symbol extraction rules for cq.
+#
+# Extracts elements with structural significance. HTML elements with id or
+# class attributes are identified by the compiled extractor, but tree-sitter
+# queries can only match structural node types. We extract elements by tag name.
+
+[language]
+name = "html"
+extensions = [".html", ".htm"]
+
+# Elements with start tags: <div>...</div>
+[[symbols]]
+kind = "element"
+query = '(element (start_tag (tag_name) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Self-closing tags: <img />
+[[symbols]]
+kind = "element"
+query = '(self_closing_tag (tag_name) @name) @def'
+name = "@name"
+body = "@def"

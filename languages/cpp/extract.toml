@@ -1,0 +1,103 @@
+# C++ symbol extraction rules for cq.
+#
+# Extends C extraction with classes, methods, namespaces, and using aliases.
+# Covers function definitions, class/struct specifiers, enum specifiers,
+# namespace definitions, typedefs, using aliases, and preprocessor macros.
+
+[language]
+name = "cpp"
+extensions = [".cpp", ".cc", ".cxx", ".hpp", ".hxx", ".hh"]
+
+# Function definitions: int foo(int a) { ... }
+[[symbols]]
+kind = "function"
+query = '(function_definition declarator: (function_declarator declarator: (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Function definitions with pointer return: char* foo() { ... }
+[[symbols]]
+kind = "function"
+query = '(function_definition declarator: (pointer_declarator declarator: (function_declarator declarator: (identifier) @name))) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Class definitions: class Foo { ... }
+[[symbols]]
+kind = "class"
+query = '(class_specifier name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Struct definitions: struct Foo { ... }
+[[symbols]]
+kind = "struct"
+query = '(struct_specifier name: (type_identifier) @name body: (field_declaration_list)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Enum definitions: enum Foo { ... }
+[[symbols]]
+kind = "enum"
+query = '(enum_specifier name: (type_identifier) @name body: (enumerator_list)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Namespace definitions: namespace Foo { ... }
+[[symbols]]
+kind = "module"
+query = '(namespace_definition name: (namespace_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Typedef declarations: typedef unsigned long size_t;
+[[symbols]]
+kind = "type"
+query = '(type_definition declarator: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Using alias declarations: using Name = Type;
+[[symbols]]
+kind = "type"
+query = '(alias_declaration name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Preprocessor #define macros: #define FOO 42
+[[symbols]]
+kind = "const"
+query = '(preproc_def name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+# Preprocessor function macros: #define SQUARE(x) ((x)*(x))
+[[symbols]]
+kind = "const"
+query = '(preproc_function_def name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+# File-level variable declarations: int global_counter = 0;
+[[symbols]]
+kind = "static"
+query = '(declaration declarator: (init_declarator declarator: (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Method definitions inside class body
+[[symbols]]
+kind = "method"
+query = '(field_declaration_list (function_definition declarator: (function_declarator declarator: (field_identifier) @name))) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

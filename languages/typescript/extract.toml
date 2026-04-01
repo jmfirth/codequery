@@ -1,0 +1,65 @@
+# TypeScript symbol extraction rules for cq.
+#
+# Covers function declarations, classes (with method children), interfaces,
+# type aliases, enums, and const declarations (including arrow functions).
+# Exported declarations are public; non-exported are private.
+
+[language]
+name = "typescript"
+extensions = [".ts", ".tsx"]
+
+# Function declarations: function foo() {}
+[[symbols]]
+kind = "function"
+query = '(function_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Class declarations: class Foo {}
+[[symbols]]
+kind = "class"
+query = '(class_declaration name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Interface declarations: interface Foo {}
+[[symbols]]
+kind = "interface"
+query = '(interface_declaration name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Type alias declarations: type Foo = ...
+[[symbols]]
+kind = "type"
+query = '(type_alias_declaration name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Enum declarations: enum Foo {}
+[[symbols]]
+kind = "enum"
+query = '(enum_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Const declarations: const foo = ...
+[[symbols]]
+kind = "const"
+query = '(lexical_declaration (variable_declarator name: (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Method definitions inside class body: method(args) {}
+[[symbols]]
+kind = "method"
+query = '(method_definition name: (property_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

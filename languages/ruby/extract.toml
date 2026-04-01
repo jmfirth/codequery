@@ -1,0 +1,56 @@
+# Ruby symbol extraction rules for cq.
+#
+# Covers top-level methods (functions), class definitions, module definitions,
+# singleton methods (self.method), and constant assignments (SCREAMING_CASE).
+# Ruby visibility: methods starting with _ are private.
+
+[language]
+name = "ruby"
+extensions = [".rb", ".rake", ".gemspec"]
+
+# Method definitions: def foo ... end
+[[symbols]]
+kind = "function"
+query = '(method name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Singleton method definitions: def self.foo ... end
+[[symbols]]
+kind = "function"
+query = '(singleton_method name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Class definitions: class Foo ... end
+[[symbols]]
+kind = "class"
+query = '(class name: (constant) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Class definitions with scope resolution: class Foo::Bar ... end
+[[symbols]]
+kind = "class"
+query = '(class name: (scope_resolution) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Module definitions: module Foo ... end
+[[symbols]]
+kind = "module"
+query = '(module name: (constant) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Constant assignments: FOO = "bar"
+[[symbols]]
+kind = "const"
+query = '(assignment left: (constant) @name) @def'
+name = "@name"
+body = "@def"

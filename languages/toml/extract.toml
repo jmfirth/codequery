@@ -1,0 +1,36 @@
+# TOML symbol extraction rules for cq.
+#
+# Extracts tables ([section]), table arrays ([[section]]), and
+# top-level key-value pairs from TOML documents.
+
+[language]
+name = "toml"
+extensions = [".toml"]
+
+# Table headers: [package]
+[[symbols]]
+kind = "module"
+query = '(table) @def'
+name = "@def"
+body = "@def"
+
+# Table array headers: [[bin]]
+[[symbols]]
+kind = "type"
+query = '(table_array_element) @def'
+name = "@def"
+body = "@def"
+
+# Top-level key-value pairs: name = "cq"
+[[symbols]]
+kind = "const"
+query = '(pair (bare_key) @name) @def'
+name = "@name"
+body = "@def"
+
+# Dotted key pairs: package.name = "cq"
+[[symbols]]
+kind = "const"
+query = '(pair (dotted_key) @name) @def'
+name = "@name"
+body = "@def"

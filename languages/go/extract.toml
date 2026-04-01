@@ -1,0 +1,65 @@
+# Go symbol extraction rules for cq.
+#
+# Covers function declarations, method declarations (with receiver),
+# struct/interface types, type aliases, const specs, and var specs.
+# Go visibility is determined by capitalization: uppercase = exported.
+
+[language]
+name = "go"
+extensions = [".go"]
+
+# Function declarations: func Foo() {}
+[[symbols]]
+kind = "function"
+query = '(function_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Method declarations: func (r *Recv) Method() {}
+[[symbols]]
+kind = "method"
+query = '(method_declaration name: (field_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Struct types: type Foo struct {}
+[[symbols]]
+kind = "struct"
+query = '(type_declaration (type_spec name: (type_identifier) @name type: (struct_type))) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Interface types: type Foo interface {}
+[[symbols]]
+kind = "interface"
+query = '(type_declaration (type_spec name: (type_identifier) @name type: (interface_type))) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Type aliases and other type specs: type Foo = Bar, type Foo int
+[[symbols]]
+kind = "type"
+query = '(type_alias name: (type_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Const specs: const Foo = 1
+[[symbols]]
+kind = "const"
+query = '(const_spec name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Var specs (module-level): var Foo int
+[[symbols]]
+kind = "static"
+query = '(var_spec name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"

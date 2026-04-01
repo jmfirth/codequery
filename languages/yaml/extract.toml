@@ -1,0 +1,22 @@
+# YAML symbol extraction rules for cq.
+#
+# Extracts top-level mapping keys from YAML documents. Keys with mapping
+# values are Module, sequence values are Type, scalar values are Const.
+
+[language]
+name = "yaml"
+extensions = [".yaml", ".yml"]
+
+# Block mapping pairs: key: value
+[[symbols]]
+kind = "field"
+query = '(block_mapping_pair key: (_) @name) @def'
+name = "@name"
+body = "@def"
+
+# Flow mapping pairs: {key: value}
+[[symbols]]
+kind = "field"
+query = '(flow_pair key: (_) @name) @def'
+name = "@name"
+body = "@def"

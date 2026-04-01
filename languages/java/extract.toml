@@ -1,0 +1,72 @@
+# Java symbol extraction rules for cq.
+#
+# Covers class declarations, interface declarations, enum declarations,
+# annotation type declarations, method/constructor declarations, and
+# package declarations. Java visibility comes from modifiers (public,
+# private, protected, package-private).
+
+[language]
+name = "java"
+extensions = [".java"]
+
+# Class declarations: public class Foo {}
+[[symbols]]
+kind = "class"
+query = '(class_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Interface declarations: public interface Foo {}
+[[symbols]]
+kind = "interface"
+query = '(interface_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Enum declarations: public enum Foo {}
+[[symbols]]
+kind = "enum"
+query = '(enum_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Annotation type declarations: public @interface Foo {}
+[[symbols]]
+kind = "type"
+query = '(annotation_type_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Method declarations: public void foo() {}
+[[symbols]]
+kind = "method"
+query = '(method_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Constructor declarations: public Foo() {}
+[[symbols]]
+kind = "method"
+query = '(constructor_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Package declarations: package com.example;
+[[symbols]]
+kind = "module"
+query = '(package_declaration (scoped_identifier) @name) @def'
+name = "@name"
+body = "@def"
+
+# Package declarations (simple): package foo;
+[[symbols]]
+kind = "module"
+query = '(package_declaration (identifier) @name) @def'
+name = "@name"
+body = "@def"

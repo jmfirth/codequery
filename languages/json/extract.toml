@@ -1,0 +1,15 @@
+# JSON symbol extraction rules for cq.
+#
+# Extracts top-level key-value pairs from JSON objects. Keys with object
+# values are Module, array values are Type, scalar values are Const.
+
+[language]
+name = "json"
+extensions = [".json"]
+
+# Top-level key-value pairs: "key": value
+[[symbols]]
+kind = "field"
+query = '(object (pair key: (string) @name)) @def'
+name = "@name"
+body = "@def"

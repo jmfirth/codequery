@@ -1,0 +1,63 @@
+# PHP symbol extraction rules for cq.
+#
+# Covers function definitions, class declarations, interface declarations,
+# trait declarations, method declarations, const declarations, and
+# namespace definitions. PHP visibility comes from explicit keywords.
+
+[language]
+name = "php"
+extensions = [".php"]
+
+# Function definitions: function foo() {}
+[[symbols]]
+kind = "function"
+query = '(function_definition name: (name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Class declarations: class Foo {}
+[[symbols]]
+kind = "class"
+query = '(class_declaration name: (name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Interface declarations: interface Foo {}
+[[symbols]]
+kind = "interface"
+query = '(interface_declaration name: (name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Trait declarations: trait Foo {}
+[[symbols]]
+kind = "trait"
+query = '(trait_declaration name: (name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Method declarations: public function foo() {}
+[[symbols]]
+kind = "method"
+query = '(method_declaration name: (name) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Const declarations: const FOO = "bar";
+[[symbols]]
+kind = "const"
+query = '(const_declaration (const_element (name) @name)) @def'
+name = "@name"
+body = "@def"
+
+# Namespace definitions: namespace App\Models;
+[[symbols]]
+kind = "module"
+query = '(namespace_definition name: (namespace_name) @name) @def'
+name = "@name"
+body = "@def"

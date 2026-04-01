@@ -1,0 +1,36 @@
+# CSS symbol extraction rules for cq.
+#
+# Extracts rule sets (selectors), @media queries, @keyframes rules,
+# and CSS custom properties (variables).
+
+[language]
+name = "css"
+extensions = [".css"]
+
+# Rule sets: .container { ... }
+[[symbols]]
+kind = "type"
+query = '(rule_set (selectors) @name) @def'
+name = "@name"
+body = "@def"
+
+# Media queries: @media (max-width: 768px) { ... }
+[[symbols]]
+kind = "module"
+query = '(media_statement) @def'
+name = "@def"
+body = "@def"
+
+# Keyframes: @keyframes fadeIn { ... }
+[[symbols]]
+kind = "type"
+query = '(keyframes_statement (keyframes_name) @name) @def'
+name = "@name"
+body = "@def"
+
+# Custom properties (CSS variables): --primary-color: #333;
+[[symbols]]
+kind = "const"
+query = '(declaration (property_name) @name) @def'
+name = "@name"
+body = "@def"

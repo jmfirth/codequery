@@ -1,0 +1,41 @@
+# JavaScript symbol extraction rules for cq.
+#
+# Covers function declarations, classes (with method children),
+# and const declarations (including arrow functions).
+# JavaScript lacks interfaces, type aliases, and enums (those are TypeScript).
+
+[language]
+name = "javascript"
+extensions = [".js", ".jsx", ".mjs", ".cjs"]
+
+# Function declarations: function foo() {}
+[[symbols]]
+kind = "function"
+query = '(function_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Class declarations: class Foo {}
+[[symbols]]
+kind = "class"
+query = '(class_declaration name: (identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Const declarations: const foo = ...
+[[symbols]]
+kind = "const"
+query = '(lexical_declaration (variable_declarator name: (identifier) @name)) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
+
+# Method definitions inside class body: method(args) {}
+[[symbols]]
+kind = "method"
+query = '(method_definition name: (property_identifier) @name) @def'
+name = "@name"
+body = "@def"
+doc = "preceding_comment"
