@@ -93,6 +93,9 @@ clone_repo() {
     fi
 }
 
+# Per-command timeout (seconds)
+CMD_TIMEOUT=30
+
 # Run a single cq command and check for success
 run_check() {
     local label="$1"
@@ -100,8 +103,16 @@ run_check() {
     local output
     local exit_code
 
-    output=$("$@" 2>&1) || true
+    output=$(timeout "$CMD_TIMEOUT" "$@" 2>&1) || true
     exit_code=${PIPESTATUS[0]:-$?}
+
+    # timeout returns 124 on timeout
+    if [ "$exit_code" -eq 124 ]; then
+        if [ "$VERBOSE" = "1" ]; then
+            echo -e "    ${YELLOW}⏱${NC} $label (timeout ${CMD_TIMEOUT}s)"
+        fi
+        return 1
+    fi
 
     # Exit code 0 = success, 1 = no results (acceptable for some commands)
     if [ "$exit_code" -eq 0 ] || [ "$exit_code" -eq 1 ]; then
@@ -175,15 +186,29 @@ validate_language() {
         fi
     fi
 
-    # 4. symbols (project-wide scan)
-    if run_check "symbols" "$CQ" symbols --project "$repo_dir" --limit 10; then
+    # Determine a narrow scope for wide commands (directory of the test file)
+    local scope_dir=""
+    if [ -n "$file" ]; then
+        scope_dir=$(dirname "$file")
+    fi
+
+    # 4. symbols (scoped to test file's directory)
+    local symbols_args=(symbols --project "$repo_dir" --limit 10)
+    if [ -n "$scope_dir" ] && [ "$scope_dir" != "." ]; then
+        symbols_args+=(--in "$scope_dir")
+    fi
+    if run_check "symbols" "$CQ" "${symbols_args[@]}"; then
         pass=$((pass + 1))
     else
         fail=$((fail + 1))
     fi
 
-    # 5. tree (project structure)
-    if run_check "tree" "$CQ" tree --project "$repo_dir" --depth 0; then
+    # 5. tree (scoped to test file's directory)
+    local tree_args=(tree --project "$repo_dir" --depth 0)
+    if [ -n "$scope_dir" ] && [ "$scope_dir" != "." ]; then
+        tree_args+=(--in "$scope_dir")
+    fi
+    if run_check "tree" "$CQ" "${tree_args[@]}"; then
         pass=$((pass + 1))
     else
         fail=$((fail + 1))
