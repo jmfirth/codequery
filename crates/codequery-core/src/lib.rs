@@ -27,7 +27,7 @@ pub use config::{load_config, LspConfig, LspServerOverride, ProjectConfig};
 pub use diagnostic::{Diagnostic, DiagnosticSeverity, DiagnosticSource};
 pub use discovery::{
     discover_files, discover_files_with_config, language_for_file,
-    language_for_file_with_overrides, language_name_for_file, Language,
+    language_for_file_with_overrides, language_name_for_file, wasm_name_for_language, Language,
 };
 pub use edit::{RenameResult, TextEdit};
 pub use error::{CoreError, Result};

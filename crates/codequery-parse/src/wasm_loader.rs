@@ -30,34 +30,62 @@ pub struct WasmGrammarInfo {
 
 /// Resolve the WASM function name for a language.
 ///
-/// Tree-sitter WASM modules export `tree_sitter_<name>`. The `<name>` may differ
-/// from our canonical language name (e.g., "common-lisp" → "commonlisp",
-/// "objective-c" → "objc"). This function checks for a `wasm_name` file in the
-/// grammar package, then tries hyphens→underscores, then the original name.
+/// Tree-sitter WASM modules export `tree_sitter_<name>`. The `<name>` is derived
+/// from the grammar repo name (e.g., `tree-sitter-c-sharp` → `c_sharp`), which
+/// may differ from our canonical name (e.g., "csharp", "objective-c").
+///
+/// Resolution order:
+/// 1. Registry `grammar_repo` field (most reliable — derived from actual repo name)
+/// 2. `wasm_name` file in the grammar package directory (explicit override)
+/// 3. Hyphens → underscores (handles simple cases like `common-lisp` → `common_lisp`)
+/// 4. Original name as-is
 #[cfg(feature = "wasm")]
-fn resolve_wasm_name(lang_name: &str, wasm_path: &Path) -> String {
-    // Check for explicit wasm_name file in the grammar package directory
+fn resolve_wasm_name(lang_name: &str, wasm_path: &Path) -> Vec<String> {
+    let mut candidates = Vec::new();
+
+    // 1. Registry-derived name (from grammar_repo URL)
+    if let Some(name) = codequery_core::wasm_name_for_language(lang_name) {
+        if !candidates.contains(&name) {
+            candidates.push(name);
+        }
+    }
+
+    // 2. Explicit wasm_name file in the grammar package directory
     if let Some(dir) = wasm_path.parent() {
         let name_file = dir.join("wasm_name");
         if let Ok(name) = std::fs::read_to_string(&name_file) {
-            let name = name.trim();
-            if !name.is_empty() {
-                return name.to_string();
+            let name = name.trim().to_string();
+            if !name.is_empty() && !candidates.contains(&name) {
+                candidates.push(name);
             }
         }
     }
 
-    // If name contains hyphens, try without them (common pattern)
+    // 3. Hyphens → underscores
     if lang_name.contains('-') {
-        return lang_name.replace('-', "_");
+        let underscore = lang_name.replace('-', "_");
+        if !candidates.contains(&underscore) {
+            candidates.push(underscore);
+        }
+        // Also try removing hyphens entirely
+        let no_sep = lang_name.replace('-', "");
+        if !candidates.contains(&no_sep) {
+            candidates.push(no_sep);
+        }
     }
 
-    lang_name.to_string()
+    // 4. Original name
+    let original = lang_name.to_string();
+    if !candidates.contains(&original) {
+        candidates.push(original);
+    }
+
+    candidates
 }
 
 /// Try loading a WASM language with name fallbacks.
 ///
-/// Attempts the resolved name first, then the original name if different.
+/// Attempts each candidate name in priority order until one succeeds.
 #[cfg(feature = "wasm")]
 fn load_language_with_fallback(
     store: &mut tree_sitter::WasmStore,
@@ -65,25 +93,20 @@ fn load_language_with_fallback(
     wasm_path: &Path,
     wasm_bytes: &[u8],
 ) -> std::result::Result<tree_sitter::Language, String> {
-    let resolved = resolve_wasm_name(lang_name, wasm_path);
+    let candidates = resolve_wasm_name(lang_name, wasm_path);
+    let mut last_err = String::new();
 
-    // Try resolved name first
-    match store.load_language(&resolved, wasm_bytes) {
-        Ok(lang) => Ok(lang),
-        Err(e) => {
-            // If resolved name differs from original, the original won't work either
-            // (it has hyphens which are invalid). Try without any separators.
-            if resolved != lang_name {
-                let no_sep = lang_name.replace('-', "");
-                if no_sep != resolved {
-                    if let Ok(lang) = store.load_language(&no_sep, wasm_bytes) {
-                        return Ok(lang);
-                    }
-                }
-            }
-            Err(format!("load language '{lang_name}': {e}"))
+    for candidate in &candidates {
+        match store.load_language(candidate, wasm_bytes) {
+            Ok(lang) => return Ok(lang),
+            Err(e) => last_err = format!("{e}"),
         }
     }
+
+    Err(format!(
+        "load language '{lang_name}': {last_err} (tried: {})",
+        candidates.join(", ")
+    ))
 }
 
 /// Scan the languages directory for installed WASM grammar packages.

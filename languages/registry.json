@@ -284,7 +284,7 @@
         "lsp"
       ],
       "lsp_server": "sourcekit-lsp",
-      "grammar_repo": "tree-sitter/tree-sitter-swift"
+      "grammar_repo": "alex-pinkus/tree-sitter-swift"
     },
     {
       "name": "kotlin",
@@ -299,7 +299,7 @@
         "lsp"
       ],
       "lsp_server": "kotlin-language-server",
-      "grammar_repo": "fwcd/tree-sitter-kotlin"
+      "grammar_repo": "tree-sitter-grammars/tree-sitter-kotlin"
     },
     {
       "name": "scala",
@@ -329,7 +329,7 @@
         "lsp"
       ],
       "lsp_server": "zls",
-      "grammar_repo": "maxxnino/tree-sitter-zig"
+      "grammar_repo": "tree-sitter-grammars/tree-sitter-zig"
     },
     {
       "name": "lua",

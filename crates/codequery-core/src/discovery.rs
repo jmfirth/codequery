@@ -41,6 +41,43 @@ fn extension_map() -> &'static HashMap<String, String> {
     })
 }
 
+/// Derive the WASM function name for a language from the registry's `grammar_repo`.
+///
+/// Tree-sitter WASM modules export `tree_sitter_<suffix>` where `<suffix>` comes
+/// from the grammar repo name (e.g., `tree-sitter-c-sharp` → `c_sharp`). This
+/// function extracts that suffix from the registry, handling cases where our
+/// canonical language name differs (`csharp` → `c_sharp`, `objective-c` → `objc`, etc.).
+///
+/// Returns `None` if the language isn't in the registry or has no `grammar_repo`.
+#[must_use]
+pub fn wasm_name_for_language(name: &str) -> Option<String> {
+    static WASM_NAME_MAP: OnceLock<HashMap<String, String>> = OnceLock::new();
+
+    let map = WASM_NAME_MAP.get_or_init(|| {
+        let mut m = HashMap::new();
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(REGISTRY_JSON) {
+            if let Some(languages) = parsed.get("languages").and_then(|l| l.as_array()) {
+                for lang in languages {
+                    let Some(lang_name) = lang.get("name").and_then(|n| n.as_str()) else {
+                        continue;
+                    };
+                    let Some(repo) = lang.get("grammar_repo").and_then(|r| r.as_str()) else {
+                        continue;
+                    };
+                    // Extract suffix: "tree-sitter/tree-sitter-c-sharp" → "c-sharp" → "c_sharp"
+                    let repo_name = repo.rsplit('/').next().unwrap_or(repo);
+                    let suffix = repo_name.strip_prefix("tree-sitter-").unwrap_or(repo_name);
+                    let wasm_name = suffix.replace('-', "_");
+                    m.insert(lang_name.to_string(), wasm_name);
+                }
+            }
+        }
+        m
+    });
+
+    map.get(name).cloned()
+}
+
 /// Resolve a file extension to a language name using the registry.
 ///
 /// Returns the language name (e.g. "rust", "elixir") for any language
