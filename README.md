@@ -1,8 +1,8 @@
 # cq
 
-Semantic code intelligence for AI agents. One binary, 71 languages, zero setup.
+Semantic code intelligence for AI agents. One 7.9MB binary, 71 languages, zero setup.
 
-`cq` gives agents structured answers about code — definitions, references, call hierarchies, type info — using 10-50x fewer tokens than reading files. It works without a language server, without a compilable project, without any configuration. Three precision tiers activate automatically based on what's available.
+`cq` gives agents structured answers about code — definitions, references, call hierarchies, type info — using 10-50x fewer tokens than reading files. All 71 language grammars are WASM plugins that auto-install on first use, keeping the binary small and the language list open-ended. It works without a language server, without a compilable project, without any configuration. Three precision tiers activate automatically based on what's available.
 
 ```
 $ cq body detect_project_root --in crates/codequery-core
@@ -76,6 +76,8 @@ Stack graphs traced the import and resolved call sites across files — no langu
 
 ## Install
 
+Install the binary. That's it — no language toolchains, no grammar downloads, no configuration. Grammars auto-install as WASM plugins the first time you query a file in that language.
+
 **npm** (no Rust toolchain needed):
 ```
 npx -y @codequery/cli
@@ -99,7 +101,7 @@ cargo install codequery-cli
 
 ### MCP Server (recommended)
 
-All 18 query commands become native tool calls. Works with Claude Code, Cursor, and any MCP-compatible agent.
+All 24 commands become native tool calls. Works with Claude Code, Cursor, and any MCP-compatible agent.
 
 ```json
 {
@@ -119,13 +121,11 @@ Install `cq` on the agent's PATH and include [`llms.txt`](llms.txt) in the syste
 
 ## 71 Languages
 
-Languages install automatically on first use. `cq outline app.ex` downloads Elixir support in ~2 seconds, then shows results. No manual setup.
+All 71 grammars are WASM plugins — none are compiled into the binary. `cq outline app.ex` auto-installs Elixir support in ~2 seconds, then shows results. Every language works the same way: use it and cq handles the rest. Manage grammars explicitly with `cq grammar list/install/remove`.
 
-**Built-in** (compiled into the binary): Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, Ruby, PHP, HTML, CSS, JSON, YAML, TOML
+**Tier 1** — full extraction + scope-resolved cross-references: Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, Ruby, C#
 
-**Installable** (56 more): Elixir, Haskell, Dart, Scala, Swift, Kotlin, SQL, F#, OCaml, Clojure, Erlang, Julia, Lua, Zig, Bash, Dockerfile, Terraform, Protobuf, GraphQL, SCSS, Solidity, and [many more](docs/languages.md).
-
-**Scope-resolved cross-references** for 10 languages: Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, Ruby, C#.
+**Tier 2** — full extraction: PHP, Elixir, Haskell, Dart, Scala, Swift, Kotlin, SQL, F#, OCaml, Clojure, Erlang, Julia, Lua, Zig, Bash, HTML, CSS, JSON, YAML, TOML, and [50+ more](docs/languages.md)
 
 All 71 languages [validated end-to-end](scripts/validate-languages.sh) against real open-source projects.
 
@@ -153,8 +153,10 @@ All 71 languages [validated end-to-end](scripts/validate-languages.sh) against r
 | `cq dead` | Find unreferenced symbols |
 | `cq callchain <symbol>` | Multi-level call hierarchy |
 | `cq hierarchy <type>` | Type hierarchy (supertypes/subtypes) |
-| `cq grammar` | Manage language support |
+| `cq grammar` | Manage language grammars (list/install/remove/info/validate) |
 | `cq daemon` | Manage LSP daemon for semantic precision |
+| `cq cache` | Manage the grammar and parse cache |
+| `cq upgrade` | Upgrade cq to the latest version |
 
 See the [full usage guide](docs/guide.md) and [real output examples](docs/examples.md).
 

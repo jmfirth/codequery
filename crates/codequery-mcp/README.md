@@ -1,8 +1,8 @@
 # cq-mcp
 
-MCP (Model Context Protocol) server for [cq](https://github.com/jmfirth/codequery) — semantic code query tool. Exposes all 12 cq commands as AI-callable tools over JSON-RPC stdio.
+MCP (Model Context Protocol) server for [cq](https://github.com/jmfirth/codequery) — semantic code query tool. Exposes 18 cq commands as AI-callable tools over JSON-RPC stdio.
 
-75 languages. Three-tier precision cascade: tree-sitter → stack graphs → LSP. Auto-starts a language server daemon for compiler-level precision.
+71 languages. Three-tier precision cascade: tree-sitter → stack graphs → LSP. Auto-starts a language server daemon for compiler-level precision.
 
 ## Setup
 

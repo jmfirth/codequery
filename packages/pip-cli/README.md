@@ -2,7 +2,7 @@
 
 Pre-built binary distribution of [cq](https://github.com/jmfirth/codequery) — semantic code query tool.
 
-75 languages. Three-tier precision: tree-sitter, stack graphs, and LSP.
+71 languages. Three-tier precision: tree-sitter, stack graphs, and LSP.
 
 ## Install
 

@@ -14,7 +14,7 @@ The system has five non-negotiable constraints:
 
 1. **Stateless by default.** Every invocation parses what it needs. Caching is opt-in via `--cache`. The daemon is optional and the system falls back gracefully when it is not running.
 2. **Error-tolerant.** Tree-sitter produces usable ASTs even on broken code. A parse error in one file must never block results from other files.
-3. **Cross-language from one binary.** 22 languages are compiled into the binary. 49 more are available via WASM grammar packages that install on first use.
+3. **Cross-language from one binary.** All 71 languages are available via WASM grammar packages that install on first use. The binary ships at ~7.9MB with no compiled-in grammars.
 4. **Human-readable default output.** Framed plain text with `@@ file:line:column kind name @@` delimiters. JSON and raw modes are available via flags.
 5. **Performance contract.** Narrow commands (`def`, `body`, `sig`) under 100ms on any project size. Wide commands (`refs`, `callers`, `symbols`) under 2s on 400k lines with 8 cores.
 
@@ -189,7 +189,7 @@ Every result carries `Resolution` metadata so consumers know what they got:
 
 ## Grammar Plugin System
 
-The 22 compiled-in languages cover most common use cases. The plugin system extends this to 71 registry-known languages (and beyond) without recompiling the binary.
+All 71 languages are delivered as WASM plugins. No grammars are compiled into the binary. The plugin system provides all language support without recompiling the binary.
 
 ### registry.json
 
@@ -197,11 +197,10 @@ The 22 compiled-in languages cover most common use cases. The plugin system exte
 
 ### Grammar resolution order
 
-`Parser::for_language` and `Parser::for_name` follow a three-step resolution:
+`Parser::for_language` and `Parser::for_name` follow a two-step resolution:
 
-1. **Compiled-in grammar** — `compiled_grammar(language)` returns the grammar linked into the binary via Cargo feature flags (`lang-rust`, `lang-typescript`, etc.). This is the fast path.
-2. **Native runtime grammar** — `load_runtime_grammar(name)` looks for `tree-sitter-<name>.<dylib|so|dll>` in `$XDG_DATA_HOME/cq/grammars/` and loads it via `libloading` (unsafe, annotated).
-3. **WASM grammar** — `find_wasm_grammar(name)` looks for `~/.local/share/cq/languages/<name>/grammar.wasm`. If found, `load_wasm_language_cached` loads it. The WASM function name may differ from the language name; resolution checks a `wasm_name` file in the package directory, then tries hyphen-to-underscore transformation.
+1. **Native runtime grammar** — `load_runtime_grammar(name)` looks for `tree-sitter-<name>.<dylib|so|dll>` in `$XDG_DATA_HOME/cq/grammars/` and loads it via `libloading` (unsafe, annotated). This is an optional local override path.
+2. **WASM grammar** — `find_wasm_grammar(name)` looks for `~/.local/share/cq/languages/<name>/grammar.wasm`. If found, `load_wasm_language_cached` loads it. The WASM function name may differ from the language name; resolution checks a `wasm_name` file in the package directory, then tries hyphen-to-underscore transformation.
 
 **Auto-install**: if none of the above succeeds and the language is in the registry, the parser triggers an auto-install. It shells out to `curl` to download `https://github.com/jmfirth/codequery/releases/download/v<version>/lang-<name>.tar.gz`, extracts it to `~/.local/share/cq/languages/<name>/`, and retries WASM loading. A `Mutex<Vec<String>>` tracks which languages have been attempted this process to prevent repeated download attempts.
 
@@ -228,31 +227,23 @@ doc = "preceding_comment"
 
 ## Language Support Architecture
 
-There are two paths through the system depending on whether a language is compiled-in or runtime.
+All 71 languages follow the same runtime plugin path. There are no compiled-in grammars.
 
-### Compiled-in languages (the `Language` enum)
+### Plugin languages (the universal path)
 
-The 22 compiled-in languages are variants of the `Language` enum in `codequery-core/src/discovery.rs`. They are organized into tiers:
+All languages are looked up via `language_name_for_file`, which consults the registry JSON baked into the binary at compile time. Language grammars are loaded at runtime via WASM:
+
+- `language_name_for_file` returns the language name string from the registry JSON.
+- `Parser::for_name(name)` loads the grammar via native runtime or WASM (with auto-install).
+- `extract_symbols_by_name(source, tree, file, name)` looks for an `extract.toml` in the installed package directory and runs it through `CompiledExtractor`.
+
+Languages with hand-written extractors in `codequery-parse/src/languages/` are organized into tiers for test coverage purposes:
 
 - **Tier 1** (8): Rust, TypeScript, JavaScript, Python, Go, C, C++, Java
 - **Tier 2** (9): Ruby, PHP, C#, Swift, Kotlin, Scala, Zig, Lua, Bash
 - **Structured data** (5): HTML, CSS, JSON, YAML, TOML
 
-For these languages:
-- `language_for_file` returns `Some(Language::X)` from a static match on extension.
-- `compiled_grammar(language)` returns the grammar linked into the binary.
-- `extract_symbols(source, tree, file, language)` dispatches to a hand-written per-language extractor in `codequery-parse/src/languages/`.
-- Stack graph TSG rules exist for all Tier 1 languages plus Ruby and C#.
-
-### Runtime languages (name-based path)
-
-For languages beyond the 22 compiled-in variants:
-- `language_name_for_file` returns the language name string from the registry JSON.
-- `Parser::for_name(name)` loads the grammar via native runtime or WASM (with auto-install).
-- `extract_symbols_by_name(source, tree, file, name)` looks for an `extract.toml` in the installed package directory and runs it through `CompiledExtractor`.
-- `scanner.rs` handles both paths: it tries `language_for_file` first (compiled-in), then falls back to `language_name_for_file` + `Parser::for_name` for runtime languages.
-
-Stack graph resolution is not currently available for runtime languages; they fall back to `Syntactic` precision.
+Stack graph TSG rules exist for all Tier 1 languages plus Ruby and C#. All other languages fall back to `Syntactic` precision for cross-reference commands.
 
 ---
 

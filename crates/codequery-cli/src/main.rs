@@ -21,8 +21,7 @@ fn main() -> std::process::ExitCode {
 
 /// Parse the `--lang` flag into a `Language`, returning a usage error on invalid values.
 ///
-/// When the language is not built-in but exists in the installable registry,
-/// suggests `cq grammar install <lang>`.
+/// When the language name matches a registry package, suggests `cq grammar install <lang>`.
 fn parse_lang_filter(lang: Option<&String>) -> anyhow::Result<Option<Language>> {
     match lang {
         None => Ok(None),

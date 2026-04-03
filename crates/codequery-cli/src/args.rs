@@ -489,8 +489,8 @@ pub enum Command {
     /// Manage language grammar packages
     #[command(
         long_about = "Install, remove, and inspect language grammar packages.\n\
-                      cq ships with 16 built-in languages. Additional languages can be\n\
-                      installed as grammar packages stored in ~/.local/share/cq/languages/.",
+                      All 71 languages auto-install as WASM plugins on first use.\n\
+                      Packages are stored in ~/.local/share/cq/languages/.",
         after_help = "Examples:\n  cq grammar list\n  cq grammar install elixir\n  cq grammar info haskell"
     )]
     Grammar {

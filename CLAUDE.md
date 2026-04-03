@@ -7,7 +7,7 @@ Semantic code query tool for the command line. Tree-sitter-powered structural na
 
 ## Project State
 
-Release-ready. 2050+ tests, 7 crates, 18 commands, 22 languages. Stack graphs for 10 languages (all Tier 1 + Ruby, C#), hardened against 24 real-world open-source projects. LSP defaults for all 22 languages. MCP server ships as `cq-mcp`.
+Release-ready. ~885 tests, 7 crates, 24 commands, 71 languages. Stack graphs for 10 languages (all Tier 1 + Ruby, C#), hardened against 24 real-world open-source projects. All grammars load at runtime via WASM plugins (auto-install on first use). Binary is 7.9MB. MCP server ships as `cq-mcp`.
 
 ## Key Documents
 
@@ -20,11 +20,11 @@ Release-ready. 2050+ tests, 7 crates, 18 commands, 22 languages. Stack graphs fo
 | Crate | Purpose |
 |-------|---------|
 | `codequery-core` | Symbol types, project detection, file discovery, config |
-| `codequery-parse` | Tree-sitter parsing, per-language extraction (22 languages), search engine |
+| `codequery-parse` | Tree-sitter parsing, per-language extraction (71 languages via WASM plugins), search engine |
 | `codequery-index` | Parallel scanning (rayon), grep pre-filter (memchr), symbol index, reference extraction, caching |
 | `codequery-resolve` | Stack graph resolution (10 languages), TSG rules, resolver facade |
 | `codequery-lsp` | LSP client, JSON-RPC transport, server lifecycle, daemon, cascade |
-| `codequery-cli` | Binary entry point (`cq`), 18 commands, output formatting |
+| `codequery-cli` | Binary entry point (`cq`), 24 commands, output formatting |
 | `codequery-mcp` | MCP server (`cq-mcp`), exposes all commands as AI-callable tools |
 
 ## Query Pipeline
@@ -55,7 +55,7 @@ These are non-negotiable constraints:
 
 1. **Stateless by default.** Every invocation parses what it needs. Optional caching is opt-in. Daemon mode is optional — the cascade falls back gracefully.
 2. **Error-tolerant.** Tree-sitter produces usable ASTs even on broken code. A parse error in one file must not block results from other files.
-3. **Cross-language from one binary.** All 16 language grammars are compiled into the binary. No runtime dependencies on language toolchains.
+3. **Cross-language from one binary.** All 71 language grammars load at runtime via WASM plugins — auto-installed on first use from the plugin registry. No compiled-in grammars; the binary stays small (7.9MB, strip+LTO+panic=abort). No runtime dependencies on language toolchains.
 4. **Human-readable default output.** Framed plain text with `@@ file:line:column kind name @@` delimiters. JSON and raw modes via flags.
 5. **Performance contract.** Narrow commands sub-100ms on any project size. Wide commands under 2s on 400k lines with 8 cores.
 
@@ -83,7 +83,7 @@ These are non-negotiable constraints:
 |-------|------|-------|
 | Unit | Internal API correctness | `#[cfg(test)]` in each module |
 | Integration | Command → expected output against fixture projects | `crates/codequery-cli/tests/` |
-| Cross-language | Same commands across all 22 languages | `test_coverage_tier1.rs`, `test_coverage_tier2.rs` |
+| Cross-language | Same commands across tier-1 and tier-2 languages | `test_coverage_tier1.rs`, `test_coverage_tier2.rs` |
 | Precision | Stack graph resolution proof, LSP comparison | `test_proof.rs`, `test_precision.rs` |
 | Strict | Exact resolution tiers per language | `test_stack_graph_strict.rs` |
 

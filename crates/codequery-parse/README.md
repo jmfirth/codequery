@@ -1,6 +1,6 @@
 # codequery-parse
 
-Tree-sitter parsing and per-language symbol extraction for 22 languages
+Tree-sitter parsing and per-language symbol extraction for 71 languages via WASM plugins
 
 Part of [cq](https://github.com/jmfirth/codequery) — semantic code query tool for the command line.
 

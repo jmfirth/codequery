@@ -2,7 +2,7 @@
 
 Pre-built binary distribution of [cq](https://github.com/jmfirth/codequery) — semantic code query tool for the command line.
 
-75 languages. Three-tier precision: tree-sitter, stack graphs, and LSP.
+71 languages. Three-tier precision: tree-sitter, stack graphs, and LSP.
 
 ## Install
 
@@ -15,7 +15,7 @@ Downloads a pre-built binary for your platform from GitHub releases.
 
 ## What is cq?
 
-`cq` answers structural questions about code: where is a symbol defined, what does it look like, who calls it. One binary, 75 languages, zero setup.
+`cq` answers structural questions about code: where is a symbol defined, what does it look like, who calls it. One binary, 71 languages, zero setup.
 
 ```
 $ cq def handle_request

@@ -1,7 +1,7 @@
 //! Grammar package management commands: list, install, update, remove, info.
 //!
-//! Manages installable language grammar packages that extend cq beyond its
-//! 16 built-in languages. Packages are stored in `~/.local/share/cq/languages/`.
+//! Manages language grammar packages stored in `~/.local/share/cq/languages/`.
+//! All 71 languages auto-install as WASM plugins on first use.
 
 use std::path::Path;
 
@@ -20,29 +20,6 @@ const REGISTRY_URL: &str =
 /// Base URL for GitHub release artifacts (grammar packages, binaries).
 /// CORS-enabled — works from browsers.
 const RELEASE_BASE_URL: &str = "https://github.com/jmfirth/codequery/releases/download";
-
-/// Languages compiled into the binary with the `common` feature preset.
-///
-/// This list reflects the default `common` feature. Languages outside this set
-/// (C#, Swift, Kotlin, Scala, Zig, Lua, Bash) can be enabled at compile time
-/// via individual `lang-*` features, or installed as WASM plugins at runtime.
-const BUILTIN_LANGUAGES: &[&str] = &[
-    "rust",
-    "typescript",
-    "javascript",
-    "python",
-    "go",
-    "c",
-    "cpp",
-    "java",
-    "ruby",
-    "php",
-    "html",
-    "css",
-    "json",
-    "yaml",
-    "toml",
-];
 
 /// Top-level registry structure.
 #[derive(Debug, Deserialize)]
@@ -119,7 +96,7 @@ fn find_installed(languages_dir: &Path) -> Vec<String> {
     installed
 }
 
-/// `cq grammar list` — show installed, available, and built-in languages.
+/// `cq grammar list` — show installed and available languages.
 ///
 /// # Errors
 ///
@@ -149,7 +126,10 @@ pub fn run_list() -> anyhow::Result<ExitCode> {
 
     // Available section (not yet installed)
     println!();
-    println!("Available:");
+    println!(
+        "Available ({} languages — auto-install on first use):",
+        registry.languages.len()
+    );
     let available: Vec<&LanguagePackage> = registry
         .languages
         .iter()
@@ -164,35 +144,19 @@ pub fn run_list() -> anyhow::Result<ExitCode> {
         }
     }
 
-    // Built-in section
-    println!();
-    println!("Built-in ({} languages):", BUILTIN_LANGUAGES.len());
-    // Print in rows of roughly 8
-    let chunks: Vec<&[&str]> = BUILTIN_LANGUAGES.chunks(8).collect();
-    for chunk in chunks {
-        let line = chunk.join(", ");
-        println!("  {line}");
-    }
-
     Ok(ExitCode::Success)
 }
 
 /// `cq grammar install <lang>` — install a language package.
 ///
-/// Downloads the language package from GitHub releases (placeholder for now).
+/// Downloads the language package from GitHub releases.
 /// Creates the directory structure under `~/.local/share/cq/languages/<lang>/`.
 ///
 /// # Errors
 ///
-/// Returns an error if the language is unknown, already a built-in, already
-/// installed, or the directory cannot be created.
+/// Returns an error if the language is unknown, already installed,
+/// or the directory cannot be created.
 pub fn run_install(language: &str) -> anyhow::Result<ExitCode> {
-    // Reject built-in languages
-    if BUILTIN_LANGUAGES.contains(&language) {
-        eprintln!("{language} is a built-in language and does not need installation");
-        return Ok(ExitCode::UsageError);
-    }
-
     let registry = load_registry()?;
     let Some(_pkg) = registry.languages.iter().find(|l| l.name == language) else {
         eprintln!("unknown language: {language}");
@@ -285,10 +249,7 @@ pub fn run_install(language: &str) -> anyhow::Result<ExitCode> {
                 "error: failed to download {language} language package.\n\
                  Release v{version} may not be published yet.\n\
                  \n\
-                 The 15 built-in languages work without installation:\n\
-                 Python, TypeScript, JavaScript, Rust, Go, C, C++, Java,\n\
-                 Ruby, PHP, HTML, CSS, JSON, YAML, TOML\n\
-                 \n\
+                 All 71 languages auto-install as WASM plugins on first use.\n\
                  If you have a language server installed, use --semantic\n\
                  for {language} support without a grammar package."
             );
@@ -309,10 +270,7 @@ pub fn run_install_all() -> anyhow::Result<ExitCode> {
 
     let mut installed_count = 0;
     for pkg in &registry.languages {
-        // Skip built-in languages and already-installed packages
-        if BUILTIN_LANGUAGES.contains(&pkg.name.as_str()) {
-            continue;
-        }
+        // Skip already-installed packages
         let pkg_dir = languages_dir.join(&pkg.name);
         if pkg_dir.exists() {
             continue;
@@ -387,11 +345,6 @@ pub fn run_update() -> anyhow::Result<ExitCode> {
 ///
 /// Returns an error if the directory cannot be removed.
 pub fn run_remove(language: &str) -> anyhow::Result<ExitCode> {
-    if BUILTIN_LANGUAGES.contains(&language) {
-        eprintln!("{language} is a built-in language and cannot be removed");
-        return Ok(ExitCode::UsageError);
-    }
-
     let languages_dir = codequery_core::dirs::languages_dir()
         .ok_or_else(|| anyhow::anyhow!("cannot determine languages directory"))?;
 
@@ -414,14 +367,6 @@ pub fn run_remove(language: &str) -> anyhow::Result<ExitCode> {
 ///
 /// Returns an error if the registry cannot be loaded.
 pub fn run_info(language: &str) -> anyhow::Result<ExitCode> {
-    // Check if it's a built-in
-    if BUILTIN_LANGUAGES.contains(&language) {
-        println!("Language:     {language}");
-        println!("Type:         built-in");
-        println!("Status:       always available");
-        return Ok(ExitCode::Success);
-    }
-
     let registry = load_registry()?;
     let Some(pkg) = registry.languages.iter().find(|l| l.name == language) else {
         eprintln!("unknown language: {language}");
@@ -454,8 +399,8 @@ pub fn run_info(language: &str) -> anyhow::Result<ExitCode> {
 
 /// `cq grammar validate <lang>` — validate a grammar's extract.toml.
 ///
-/// Loads the grammar (compiled-in or WASM) and the extract.toml, then
-/// checks that all queries compile against the grammar and all symbol
+/// Loads the grammar (native Rust extractor or WASM plugin) and the extract.toml,
+/// then checks that all queries compile against the grammar and all symbol
 /// kinds are recognized.
 ///
 /// # Errors
@@ -464,7 +409,7 @@ pub fn run_info(language: &str) -> anyhow::Result<ExitCode> {
 pub fn run_validate(language: &str) -> anyhow::Result<ExitCode> {
     match validate_language(language)? {
         ValidateResult::Builtin => {
-            println!("{language}: ok (compiled-in extractor)");
+            println!("{language}: ok (native extractor)");
             Ok(ExitCode::Success)
         }
         ValidateResult::Checked(errors, warnings) => {
@@ -506,17 +451,12 @@ pub fn run_validate_all() -> anyhow::Result<ExitCode> {
         .map(|d| find_installed(d))
         .unwrap_or_default();
 
-    // Validate built-in languages + all installed
-    let mut all_langs: Vec<String> = BUILTIN_LANGUAGES.iter().map(|s| (*s).to_string()).collect();
-    for name in &installed {
-        if !all_langs.contains(name) {
-            all_langs.push(name.clone());
-        }
-    }
-    // Also include registry languages not yet installed but available in source
+    // Validate all installed languages, plus any registry languages whose grammar
+    // is available (auto-installed WASM or recognized by the core language detector).
+    let mut all_langs: Vec<String> = installed.clone();
     for pkg in &registry.languages {
         if !all_langs.contains(&pkg.name) {
-            // Only validate if we can load the grammar (installed or built-in)
+            // Only validate if we can load the grammar (installed or recognized)
             if codequery_core::Language::from_name(&pkg.name).is_some()
                 || installed.contains(&pkg.name)
             {
@@ -535,7 +475,7 @@ pub fn run_validate_all() -> anyhow::Result<ExitCode> {
     for lang in &all_langs {
         match validate_language(lang) {
             Ok(ValidateResult::Builtin) => {
-                println!("{lang}: ok (compiled-in extractor)");
+                println!("{lang}: ok (native extractor)");
             }
             Ok(ValidateResult::Checked(errors, warnings)) => {
                 if errors.is_empty() && warnings.is_empty() {
@@ -584,15 +524,15 @@ pub fn run_validate_all() -> anyhow::Result<ExitCode> {
 enum ValidateResult {
     /// Validated with errors and warnings.
     Checked(Vec<String>, Vec<String>),
-    /// Language has a builtin extractor but no extract.toml to validate.
+    /// Language has a native Rust extractor but no extract.toml to validate.
     Builtin,
 }
 
 /// Validate a single language's extract.toml and stack-graphs.tsg against its grammar.
 fn validate_language(name: &str) -> anyhow::Result<ValidateResult> {
-    // Load extract.toml — if not found, check for compiled-in extractor
+    // Load extract.toml — if not found, check for a native Rust extractor
     let Ok(config_str) = load_extract_toml(name) else {
-        // If the language has a compiled-in extractor, that's fine
+        // If the language has a native extractor, no extract.toml is needed
         if codequery_core::Language::from_name(name).is_some() {
             return Ok(ValidateResult::Builtin);
         }
@@ -749,11 +689,22 @@ mod tests {
     fn test_registry_contains_all_expected_languages() {
         let registry = load_registry().unwrap();
         let names: Vec<&str> = registry.languages.iter().map(|l| l.name.as_str()).collect();
-        // Non-common compiled languages (now installable)
+        // All languages are WASM plugins that auto-install on first use
+        for expected in &[
+            "rust",
+            "typescript",
+            "javascript",
+            "python",
+            "go",
+            "c",
+            "cpp",
+            "java",
+        ] {
+            assert!(names.contains(expected), "missing language: {expected}");
+        }
         for expected in &["csharp", "swift", "kotlin", "scala", "zig", "lua", "bash"] {
             assert!(names.contains(expected), "missing language: {expected}");
         }
-        // WASM-only languages
         for expected in &[
             "elixir", "haskell", "dart", "sql", "ocaml", "r", "perl", "clojure", "erlang", "julia",
         ] {
@@ -796,8 +747,8 @@ mod tests {
     }
 
     #[test]
-    fn test_find_package_for_extension_builtin_in_registry() {
-        // Built-in languages are now in the registry (unified extension resolver)
+    fn test_find_package_for_extension_rust() {
+        // All languages, including rust, resolve through the registry
         assert_eq!(find_package_for_extension(".rs"), Some("rust".to_string()));
     }
 
@@ -827,24 +778,37 @@ mod tests {
     }
 
     #[test]
-    fn test_builtin_languages_list() {
-        assert!(BUILTIN_LANGUAGES.contains(&"rust"));
-        assert!(BUILTIN_LANGUAGES.contains(&"python"));
-        assert!(BUILTIN_LANGUAGES.contains(&"typescript"));
-        assert!(BUILTIN_LANGUAGES.contains(&"html"));
-        assert!(BUILTIN_LANGUAGES.contains(&"css"));
-        assert!(BUILTIN_LANGUAGES.contains(&"json"));
-        assert!(BUILTIN_LANGUAGES.contains(&"yaml"));
-        assert!(BUILTIN_LANGUAGES.contains(&"toml"));
-        // Non-common languages should not be in the builtin list
-        assert!(!BUILTIN_LANGUAGES.contains(&"csharp"));
-        assert!(!BUILTIN_LANGUAGES.contains(&"swift"));
-        assert!(!BUILTIN_LANGUAGES.contains(&"kotlin"));
-        assert!(!BUILTIN_LANGUAGES.contains(&"scala"));
-        assert!(!BUILTIN_LANGUAGES.contains(&"zig"));
-        assert!(!BUILTIN_LANGUAGES.contains(&"lua"));
-        assert!(!BUILTIN_LANGUAGES.contains(&"bash"));
-        assert!(!BUILTIN_LANGUAGES.contains(&"elixir"));
+    fn test_registry_covers_all_languages() {
+        // All 71 languages are in the registry — no separate built-in tier
+        let registry = load_registry().unwrap();
+        assert!(
+            registry.languages.len() >= 71,
+            "expected at least 71 languages in registry"
+        );
+        let names: Vec<&str> = registry.languages.iter().map(|l| l.name.as_str()).collect();
+        for expected in &[
+            "rust",
+            "python",
+            "typescript",
+            "html",
+            "css",
+            "json",
+            "yaml",
+            "toml",
+            "csharp",
+            "swift",
+            "kotlin",
+            "scala",
+            "zig",
+            "lua",
+            "bash",
+            "elixir",
+        ] {
+            assert!(
+                names.contains(expected),
+                "missing language in registry: {expected}"
+            );
+        }
     }
 
     #[test]
@@ -872,25 +836,21 @@ mod tests {
     }
 
     #[test]
-    fn test_install_builtin_rejected() {
-        let result = run_install("rust").unwrap();
-        assert_eq!(result, ExitCode::UsageError);
-    }
-
-    #[test]
     fn test_install_unknown_language_rejected() {
         let result = run_install("klingon").unwrap();
         assert_eq!(result, ExitCode::UsageError);
     }
 
     #[test]
-    fn test_remove_builtin_rejected() {
+    fn test_remove_not_installed_succeeds() {
+        // Removing a language that isn't installed returns Success (no-op)
         let result = run_remove("rust").unwrap();
-        assert_eq!(result, ExitCode::UsageError);
+        assert_eq!(result, ExitCode::Success);
     }
 
     #[test]
-    fn test_info_builtin_language() {
+    fn test_info_rust() {
+        // rust is a registry language like all others
         let result = run_info("rust").unwrap();
         assert_eq!(result, ExitCode::Success);
     }

@@ -2,7 +2,7 @@
 
 MCP server for [cq](https://github.com/jmfirth/codequery) — semantic code query tool.
 
-Exposes all 12 cq commands as AI-callable tools. 75 languages. Three-tier precision cascade.
+Exposes 18 cq commands as AI-callable tools. 71 languages. Three-tier precision cascade.
 
 ## Setup
 

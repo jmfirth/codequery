@@ -418,7 +418,7 @@ Captures (`@name`) control which part of the match is returned. Use `--raw` for 
 
 #### `grammar`
 
-Manage language grammar packages. 15 languages are compiled into the binary. The remaining 60 install on first use or can be pre-installed.
+Manage language grammar packages. All 71 languages are WASM plugins that auto-install on first use or can be pre-installed.
 
 | Subcommand | Description |
 |------------|-------------|
@@ -685,7 +685,7 @@ Use `--no-semantic` to force syntactic even when the daemon is running.
 
 ## Grammar Management
 
-71 languages are supported. 15 are compiled into the binary. The other 56 are WASM grammar packages stored in `~/.local/share/cq/languages/` and auto-install on first use.
+71 languages are supported. All are WASM grammar packages stored in `~/.local/share/cq/languages/` and auto-install on first use.
 
 ### Auto-install
 

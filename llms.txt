@@ -1,7 +1,7 @@
 # cq -- semantic code query tool
-# 75 languages. One binary. Zero setup.
+# 71 languages. One binary. Zero setup.
 # tree-sitter parsing, stack graph resolution, optional LSP precision.
-# Languages auto-install on first use. Works on broken code.
+# Languages auto-install on first use via WASM plugins. Works on broken code.
 
 ## Commands (all accept --json, --raw, --project, --in, --lang, --kind)
 def <symbol>          Find where a symbol is defined
@@ -102,13 +102,13 @@ cq daemon status  Show running servers
 Auto-detected when running; no extra flags needed.
 
 ## Languages
-75 languages supported. All auto-install on first use.
+71 languages supported. All auto-install on first use via WASM plugins.
 cq grammar list -- see all available languages.
 cq grammar install --all -- pre-download everything.
 
 Scope-resolved (10): Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, Ruby, C#
 LSP configs (40+): available for most languages when server is installed.
-All 75: Python, TypeScript, JavaScript, Rust, Go, C, C++, Java, Ruby, PHP,
+All 71: Python, TypeScript, JavaScript, Rust, Go, C, C++, Java, Ruby, PHP,
   C#, Swift, Kotlin, HTML, CSS, JSON, YAML, TOML, Elixir, Haskell, Dart,
   SQL, Scala, Zig, Lua, Bash, Dockerfile, Terraform, Markdown, XML,
   Protobuf, GraphQL, Vue, Svelte, F#, Groovy, Objective-C, Nix, CMake,
