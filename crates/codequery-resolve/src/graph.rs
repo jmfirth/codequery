@@ -179,10 +179,6 @@ mod tests {
     }
 
     /// Returns true if both the grammar and TSG rules for `lang` are installed and working.
-    ///
-    /// Tries loading the TSG rules with an empty file list to verify they compile correctly.
-    /// For languages known to segfault in WASM TSG loading (JavaScript, TypeScript), tests
-    /// using those languages should be marked `#[ignore]` instead of relying on this check.
     fn grammar_and_tsg_available(lang: Language) -> bool {
         let empty: Vec<(PathBuf, String, tree_sitter::Tree)> = vec![];
         build_graph(&empty, lang).is_ok()
@@ -405,11 +401,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     // JavaScript (and TypeScript) WASM grammar loading via grammar_for_name
-    // creates a temporary WasmStore that is dropped before the Language is used,
-    // causing a segfault in StackGraphLanguage::from_str. Ignored until the
-    // lifetime bug in grammar_for_name is fixed.
     #[test]
-    #[ignore]
     fn test_build_graph_javascript_simple() {
         if !grammar_and_tsg_available(Language::JavaScript) {
             eprintln!("skipping: javascript grammar or TSG rules not available");
@@ -435,7 +427,6 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    #[ignore]
     fn test_build_graph_typescript_simple() {
         if !grammar_and_tsg_available(Language::TypeScript) {
             eprintln!("skipping: typescript grammar or TSG rules not available");

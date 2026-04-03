@@ -383,10 +383,6 @@ mod tests {
     use std::path::PathBuf;
 
     /// Returns true if both the grammar and TSG rules for `lang` are installed and working.
-    ///
-    /// Tries loading the TSG rules with an empty file list to verify they compile correctly.
-    /// For languages known to segfault in WASM TSG loading (JavaScript, TypeScript), tests
-    /// using those languages should be marked `#[ignore]` instead of relying on this check.
     fn grammar_and_tsg_available(lang: Language) -> bool {
         let empty: Vec<(PathBuf, String, tree_sitter::Tree)> = vec![];
         crate::graph::build_graph(&empty, lang).is_ok()

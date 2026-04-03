@@ -252,24 +252,13 @@ mod tests {
         };
     }
 
-    // Swift WASM grammar causes SIGBUS — ignore until grammar is fixed.
-    #[test]
-    #[ignore]
-    fn test_extract_symbols_swift_dispatches_correctly() {
-        let Ok(mut parser) = crate::Parser::for_language(Language::Swift) else {
-            eprintln!("skipping: Swift grammar not installed");
-            return;
-        };
-        let tree = parser.parse("func greet() {}".as_bytes()).unwrap();
-        let symbols = extract_symbols(
-            "func greet() {}",
-            &tree,
-            Path::new("test.swift"),
-            Language::Swift,
-        );
-        assert_eq!(symbols.len(), 1);
-        assert_eq!(symbols[0].name, "greet");
-    }
+    tier2_extract_test!(
+        test_extract_symbols_swift_dispatches_correctly,
+        Language::Swift,
+        "func greet() {}",
+        "test.swift",
+        "greet"
+    );
     tier2_extract_test!(
         test_extract_symbols_kotlin_dispatches_correctly,
         Language::Kotlin,
