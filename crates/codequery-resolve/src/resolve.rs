@@ -243,7 +243,7 @@ fn extract_node_location(
     Some((PathBuf::from(file_name), line, column))
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "compiled-rules"))]
 mod tests {
     use super::*;
     use crate::graph::build_graph;

@@ -5,15 +5,25 @@
 //! factory for creating `StackGraphLanguage` instances and a predicate for
 //! checking which languages have rules available.
 
+#[cfg(feature = "compiled-rules")]
 pub mod c;
+#[cfg(feature = "compiled-rules")]
 pub mod cpp;
+#[cfg(feature = "compiled-rules")]
 pub mod csharp;
+#[cfg(feature = "compiled-rules")]
 pub mod go;
+#[cfg(feature = "compiled-rules")]
 pub mod java;
+#[cfg(feature = "compiled-rules")]
 pub mod javascript;
+#[cfg(feature = "compiled-rules")]
 pub mod python;
+#[cfg(feature = "compiled-rules")]
 pub mod ruby;
+#[cfg(feature = "compiled-rules")]
 pub mod rust;
+#[cfg(feature = "compiled-rules")]
 pub mod typescript;
 
 use std::sync::Arc;
@@ -47,20 +57,25 @@ pub fn has_rules_by_name(name: &str) -> bool {
 }
 
 /// Check if a language has compiled-in stack graph rules.
-fn has_compiled_rules(lang: Language) -> bool {
-    matches!(
-        lang,
-        Language::Python
-            | Language::TypeScript
-            | Language::JavaScript
-            | Language::Java
-            | Language::Go
-            | Language::C
-            | Language::Cpp
-            | Language::Rust
-            | Language::Ruby
-            | Language::CSharp
-    )
+fn has_compiled_rules(_lang: Language) -> bool {
+    #[cfg(feature = "compiled-rules")]
+    {
+        matches!(
+            _lang,
+            Language::Python
+                | Language::TypeScript
+                | Language::JavaScript
+                | Language::Java
+                | Language::Go
+                | Language::C
+                | Language::Cpp
+                | Language::Rust
+                | Language::Ruby
+                | Language::CSharp
+        )
+    }
+    #[cfg(not(feature = "compiled-rules"))]
+    false
 }
 
 /// Create a `StackGraphLanguage` for the given language.
@@ -89,34 +104,28 @@ pub fn get_stack_graph_language(name: &str) -> Option<error::Result<Arc<StackGra
 }
 
 /// Dispatch to compiled-in language rules.
-fn compiled_language_config(lang: Language) -> Option<error::Result<StackGraphLanguage>> {
-    match lang {
-        Language::Python => Some(python::create_language()),
-        Language::TypeScript => Some(typescript::create_language()),
-        Language::JavaScript => Some(javascript::create_language()),
-        Language::Java => Some(java::create_language()),
-        Language::Go => Some(go::create_language()),
-        Language::C => Some(c::create_language()),
-        Language::Cpp => Some(cpp::create_language()),
-        Language::Rust => Some(rust::create_language()),
-        Language::Ruby => Some(ruby::create_language()),
-        Language::CSharp => Some(csharp::create_language()),
-        Language::Php
-        | Language::Swift
-        | Language::Kotlin
-        | Language::Scala
-        | Language::Zig
-        | Language::Lua
-        | Language::Bash
-        | Language::Html
-        | Language::Css
-        | Language::Json
-        | Language::Yaml
-        | Language::Toml => None,
+fn compiled_language_config(_lang: Language) -> Option<error::Result<StackGraphLanguage>> {
+    #[cfg(feature = "compiled-rules")]
+    {
+        match _lang {
+            Language::Python => Some(python::create_language()),
+            Language::TypeScript => Some(typescript::create_language()),
+            Language::JavaScript => Some(javascript::create_language()),
+            Language::Java => Some(java::create_language()),
+            Language::Go => Some(go::create_language()),
+            Language::C => Some(c::create_language()),
+            Language::Cpp => Some(cpp::create_language()),
+            Language::Rust => Some(rust::create_language()),
+            Language::Ruby => Some(ruby::create_language()),
+            Language::CSharp => Some(csharp::create_language()),
+            _ => None,
+        }
     }
+    #[cfg(not(feature = "compiled-rules"))]
+    None
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "compiled-rules"))]
 mod tests {
     use super::*;
 

@@ -10,6 +10,19 @@ edition = "2021"
 default = ["wasm"]
 wasm = ["tree-sitter-stack-graphs/wasm"]
 
+# Compile stack graph grammars directly into the binary (batteries-included).
+# Without this, all grammars load at runtime via WASM plugins.
+compiled-rules = [
+    "dep:tree-sitter-python", "dep:tree-sitter-typescript",
+    "dep:tree-sitter-javascript", "dep:tree-sitter-java",
+    "dep:tree-sitter-go", "dep:tree-sitter-c",
+    "dep:tree-sitter-c-sharp", "dep:tree-sitter-cpp",
+    "dep:tree-sitter-rust", "dep:tree-sitter-ruby",
+]
+
+# Convenience: everything compiled in.
+full = ["compiled-rules", "wasm"]
+
 [dependencies]
 codequery-core = { path = "../codequery-core" }
 codequery-index = { path = "../codequery-index" }
@@ -21,16 +34,16 @@ stack-graphs = "0.14"
 # Grammar versions must match the TSG rules bundled in tree-sitter-stack-graphs.
 # These 0.23 grammars use tree-sitter-language (not tree-sitter directly),
 # so they are ABI-compatible with tree-sitter 0.26.
-tree-sitter-python = "0.23"
-tree-sitter-typescript = "0.23"
-tree-sitter-javascript = "0.23"
-tree-sitter-java = "0.23"
-tree-sitter-go = "0.23"
-tree-sitter-c = "0.23"
-tree-sitter-c-sharp = "0.23"
-tree-sitter-cpp = "0.23"
-tree-sitter-rust = "0.23"
-tree-sitter-ruby = "0.23"
+tree-sitter-python = { version = "0.23", optional = true }
+tree-sitter-typescript = { version = "0.23", optional = true }
+tree-sitter-javascript = { version = "0.23", optional = true }
+tree-sitter-java = { version = "0.23", optional = true }
+tree-sitter-go = { version = "0.23", optional = true }
+tree-sitter-c = { version = "0.23", optional = true }
+tree-sitter-c-sharp = { version = "0.23", optional = true }
+tree-sitter-cpp = { version = "0.23", optional = true }
+tree-sitter-rust = { version = "0.23", optional = true }
+tree-sitter-ruby = { version = "0.23", optional = true }
 
 [dev-dependencies]
 codequery-parse = { path = "../codequery-parse" }

@@ -196,7 +196,7 @@ pub fn build_graph_by_name(
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "compiled-rules"))]
 mod tests {
     use super::*;
     use codequery_parse::Parser;

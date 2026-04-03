@@ -383,7 +383,7 @@ fn extract_ref_text(source: &str, line: usize, column: usize) -> &str {
     &rest[..end]
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "compiled-rules"))]
 mod tests {
     use super::*;
     use codequery_parse::Parser;

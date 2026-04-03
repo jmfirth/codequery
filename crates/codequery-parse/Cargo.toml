@@ -7,8 +7,11 @@ repository = "https://github.com/jmfirth/codequery"
 edition = "2021"
 
 [features]
-default = ["common", "wasm"]
+default = ["wasm"]
 wasm = ["tree-sitter/wasm"]
+
+# Convenience: all common grammars + WASM runtime.
+full = ["common", "wasm"]
 
 # The common preset: top 10 programming languages + structured data formats
 common = [

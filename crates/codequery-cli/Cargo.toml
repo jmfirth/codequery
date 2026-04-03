@@ -7,10 +7,12 @@ repository = "https://github.com/jmfirth/codequery"
 edition = "2021"
 
 [features]
-default = ["codequery-parse/common", "codequery-parse/wasm", "codequery-resolve/wasm"]
+default = ["codequery-parse/wasm", "codequery-resolve/wasm"]
+
+# Batteries-included: all common grammars compiled in + WASM + compiled resolve rules.
+full = ["codequery-parse/common", "codequery-resolve/compiled-rules"]
 
 # Enable all compiled-in languages. Used by CI and `cargo test --workspace`.
-# Not a user-facing feature — the common preset defines the release binary.
 test-all-langs = ["codequery-parse/test-all-langs"]
 
 [[bin]]
