@@ -266,6 +266,9 @@ pub fn run_install(language: &str) -> anyhow::Result<ExitCode> {
                     if pkg_dir.join("lsp.toml").exists() {
                         eprintln!("  lsp.toml        \u{2713}");
                     }
+                    if pkg_dir.join("stack-graphs.tsg").exists() {
+                        eprintln!("  stack-graphs.tsg \u{2713}");
+                    }
                     eprintln!("Installed to {}/", pkg_dir.display());
                     Ok(ExitCode::Success)
                 }
@@ -460,7 +463,7 @@ pub fn run_info(language: &str) -> anyhow::Result<ExitCode> {
 /// Returns an error if the grammar or config cannot be loaded.
 pub fn run_validate(language: &str) -> anyhow::Result<ExitCode> {
     match validate_language(language)? {
-        ValidateResult::CompiledIn => {
+        ValidateResult::Builtin => {
             println!("{language}: ok (compiled-in extractor)");
             Ok(ExitCode::Success)
         }
@@ -531,7 +534,7 @@ pub fn run_validate_all() -> anyhow::Result<ExitCode> {
 
     for lang in &all_langs {
         match validate_language(lang) {
-            Ok(ValidateResult::CompiledIn) => {
+            Ok(ValidateResult::Builtin) => {
                 println!("{lang}: ok (compiled-in extractor)");
             }
             Ok(ValidateResult::Checked(errors, warnings)) => {
@@ -581,20 +584,17 @@ pub fn run_validate_all() -> anyhow::Result<ExitCode> {
 enum ValidateResult {
     /// Validated with errors and warnings.
     Checked(Vec<String>, Vec<String>),
-    /// Language uses a compiled-in extractor, no extract.toml to validate.
-    CompiledIn,
+    /// Language has a builtin extractor but no extract.toml to validate.
+    Builtin,
 }
 
-/// Validate a single language's extract.toml against its grammar.
-///
-/// Returns validation results. Languages with compiled-in extractors
-/// and no extract.toml are reported as `CompiledIn`.
+/// Validate a single language's extract.toml and stack-graphs.tsg against its grammar.
 fn validate_language(name: &str) -> anyhow::Result<ValidateResult> {
     // Load extract.toml — if not found, check for compiled-in extractor
     let Ok(config_str) = load_extract_toml(name) else {
         // If the language has a compiled-in extractor, that's fine
         if codequery_core::Language::from_name(name).is_some() {
-            return Ok(ValidateResult::CompiledIn);
+            return Ok(ValidateResult::Builtin);
         }
         anyhow::bail!("no extract.toml found for '{name}'");
     };
@@ -615,7 +615,7 @@ fn validate_language(name: &str) -> anyhow::Result<ValidateResult> {
     }
 
     // Compile queries
-    let errors: Vec<String> = codequery_parse::validate_config(&config, &ts_lang)
+    let mut errors: Vec<String> = codequery_parse::validate_config(&config, &ts_lang)
         .into_iter()
         .map(|(i, msg)| {
             let kind = &config.symbols[i].kind;
@@ -623,7 +623,40 @@ fn validate_language(name: &str) -> anyhow::Result<ValidateResult> {
         })
         .collect();
 
+    // Validate TSG rules if present — try loading via the plugin rules system
+    if load_tsg_file(name).is_ok() {
+        // Attempt to load the full stack graph language (grammar + TSG compilation)
+        if let Some(Err(e)) = codequery_resolve::rules::get_stack_graph_language(name) {
+            errors.push(format!("stack-graphs.tsg: {e}"));
+        }
+    }
+
     Ok(ValidateResult::Checked(errors, warnings))
+}
+
+/// Load stack-graphs.tsg for a language from source tree or installed package.
+fn load_tsg_file(name: &str) -> anyhow::Result<String> {
+    // Try source tree first (crates/codequery-resolve/tsg/<name>/stack-graphs.tsg)
+    let source_path = std::path::Path::new("crates")
+        .join("codequery-resolve")
+        .join("tsg")
+        .join(name)
+        .join("stack-graphs.tsg");
+    if source_path.exists() {
+        return std::fs::read_to_string(&source_path)
+            .map_err(|e| anyhow::anyhow!("cannot read {}: {e}", source_path.display()));
+    }
+
+    // Fall back to installed package
+    if let Some(dir) = codequery_core::dirs::languages_dir() {
+        let path = dir.join(name).join("stack-graphs.tsg");
+        if path.exists() {
+            return std::fs::read_to_string(&path)
+                .map_err(|e| anyhow::anyhow!("cannot read {}: {e}", path.display()));
+        }
+    }
+
+    anyhow::bail!("no stack-graphs.tsg found for '{name}'")
 }
 
 /// Load extract.toml for a language from source tree or installed package.
