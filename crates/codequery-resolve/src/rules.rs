@@ -16,17 +16,38 @@ pub mod ruby;
 pub mod rust;
 pub mod typescript;
 
+use std::sync::Arc;
+
 use codequery_core::Language;
 use tree_sitter_stack_graphs::StackGraphLanguage;
 
 use crate::error;
+use crate::plugin_rules;
 
 /// Check if a language has stack graph rules available.
 ///
-/// Returns `true` for Python, TypeScript, JavaScript, Java, Go, C, C++, Rust, Ruby, and C#.
-/// Returns `false` for remaining Tier 2 languages (not yet supported).
+/// Checks compiled-in rules first (fast path), then falls back to checking
+/// the plugin directory for installed `stack-graphs.tsg` files.
 #[must_use]
 pub fn has_rules(lang: Language) -> bool {
+    has_compiled_rules(lang) || plugin_rules::has_plugin_rules(lang.name())
+}
+
+/// Check if a language has stack graph rules available by name.
+///
+/// Like [`has_rules`] but accepts a language name string, enabling
+/// support for runtime languages without a `Language` enum variant.
+#[must_use]
+pub fn has_rules_by_name(name: &str) -> bool {
+    if let Some(lang) = Language::from_name(name) {
+        has_compiled_rules(lang) || plugin_rules::has_plugin_rules(name)
+    } else {
+        plugin_rules::has_plugin_rules(name)
+    }
+}
+
+/// Check if a language has compiled-in stack graph rules.
+fn has_compiled_rules(lang: Language) -> bool {
     matches!(
         lang,
         Language::Python
@@ -44,11 +65,31 @@ pub fn has_rules(lang: Language) -> bool {
 
 /// Create a `StackGraphLanguage` for the given language.
 ///
-/// Returns `None` for languages without stack graph rules (remaining Tier 2 languages).
-/// Returns `Some(Ok(_))` on successful rule loading, or `Some(Err(_))` if the
-/// TSG rules fail to parse.
+/// Tries compiled-in rules first, then falls back to loading from the plugin
+/// directory. Returns `None` if no rules are available from either source.
 #[must_use]
 pub fn language_config(lang: Language) -> Option<error::Result<StackGraphLanguage>> {
+    compiled_language_config(lang)
+}
+
+/// Get a `StackGraphLanguage` for a language, checking both compiled-in and plugin sources.
+///
+/// Returns an `Arc` because plugin-loaded rules are cached at process level.
+/// Compiled-in rules are wrapped in a fresh `Arc`.
+pub fn get_stack_graph_language(name: &str) -> Option<error::Result<Arc<StackGraphLanguage>>> {
+    // Try compiled-in via Language enum
+    if let Some(lang) = Language::from_name(name) {
+        if let Some(result) = compiled_language_config(lang) {
+            return Some(result.map(Arc::new));
+        }
+    }
+
+    // Plugin fallback
+    plugin_rules::load_plugin_rules(name)
+}
+
+/// Dispatch to compiled-in language rules.
+fn compiled_language_config(lang: Language) -> Option<error::Result<StackGraphLanguage>> {
     match lang {
         Language::Python => Some(python::create_language()),
         Language::TypeScript => Some(typescript::create_language()),

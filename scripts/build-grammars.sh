@@ -208,6 +208,13 @@ build_grammar() {
     cp "$TSG_DIR/$name/stack-graphs.tsg" "$pkg_dir/"
   fi
 
+  # Copy builtins files if they exist (e.g., TypeScript builtins.ts)
+  for builtins_file in "$TSG_DIR/$name"/builtins.*; do
+    if [[ -f "$builtins_file" ]]; then
+      cp "$builtins_file" "$pkg_dir/"
+    fi
+  done
+
   # Create tarball (files at top level, no directory wrapper)
   local archive="$DIST_DIR/lang-${name}.tar.gz"
   tar czf "$archive" -C "$pkg_dir" .

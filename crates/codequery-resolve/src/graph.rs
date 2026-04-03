@@ -5,15 +5,18 @@
 //! graph construction are skipped with warnings rather than aborting the entire build.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use codequery_core::Language;
 use stack_graphs::graph::StackGraph;
 use stack_graphs::partial::PartialPaths;
-use tree_sitter_stack_graphs::{CancelAfterDuration, NoCancellation, Variables};
+use tree_sitter_stack_graphs::{
+    CancelAfterDuration, NoCancellation, StackGraphLanguage, Variables,
+};
 
 use crate::error::{ResolveError, Result};
-use crate::rules::language_config;
+use crate::rules::{get_stack_graph_language, language_config};
 
 /// Default timeout for graph construction per file.
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -107,6 +110,73 @@ pub fn build_graph_with_timeout(
             sgl.build_stack_graph_into(&mut graph, file_handle, source, &globals, &cancel)
         } else {
             sgl.build_stack_graph_into(&mut graph, file_handle, source, &globals, &NoCancellation)
+        };
+
+        if let Err(err) = build_result {
+            warnings.push(GraphWarning {
+                file: path.clone(),
+                message: format!("{err}"),
+            });
+        }
+    }
+
+    let partial_paths = PartialPaths::new();
+
+    Ok(GraphResult {
+        graph,
+        partial_paths,
+        warnings,
+    })
+}
+
+/// Build a stack graph by language name, using pre-parsed trees.
+///
+/// Unlike [`build_graph`] which takes a `Language` enum, this accepts a language
+/// name string and uses the unified rule loading (compiled-in → plugin fallback).
+/// It uses pre-parsed trees from the scan phase, avoiding redundant parsing and
+/// WASM Store lifecycle issues.
+///
+/// # Errors
+///
+/// Returns `ResolveError::RuleLoadError` if no stack graph rules are available.
+pub fn build_graph_by_name(
+    files: &[(PathBuf, String, tree_sitter::Tree)],
+    lang_name: &str,
+    timeout: Option<Duration>,
+) -> Result<GraphResult> {
+    let sgl: Arc<StackGraphLanguage> = get_stack_graph_language(lang_name)
+        .ok_or_else(|| {
+            ResolveError::RuleLoadError(format!("{lang_name}: no stack graph rules available"))
+        })?
+        .map_err(|e| ResolveError::RuleLoadError(format!("{lang_name}: {e}")))?;
+
+    let mut graph = StackGraph::new();
+    let mut warnings = Vec::new();
+    let globals = Variables::new();
+
+    for (path, source, tree) in files {
+        let path_str = path.to_string_lossy();
+        let file_handle = graph.get_or_create_file(&*path_str);
+
+        let build_result = if let Some(limit) = timeout {
+            let cancel = CancelAfterDuration::new(limit);
+            sgl.build_stack_graph_into_with_tree(
+                &mut graph,
+                file_handle,
+                source,
+                tree,
+                &globals,
+                &cancel,
+            )
+        } else {
+            sgl.build_stack_graph_into_with_tree(
+                &mut graph,
+                file_handle,
+                source,
+                tree,
+                &globals,
+                &NoCancellation,
+            )
         };
 
         if let Err(err) = build_result {

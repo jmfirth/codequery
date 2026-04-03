@@ -6,9 +6,14 @@ description = "Stack graph name resolution with TSG rules for 10 languages"
 repository = "https://github.com/jmfirth/codequery"
 edition = "2021"
 
+[features]
+default = ["wasm"]
+wasm = ["tree-sitter-stack-graphs/wasm"]
+
 [dependencies]
 codequery-core = { path = "../codequery-core" }
 codequery-index = { path = "../codequery-index" }
+codequery-parse = { path = "../codequery-parse" }
 thiserror = "2"
 tree-sitter = "0.26"
 tree-sitter-stack-graphs = "0.10"

@@ -10,7 +10,7 @@ use std::path::Path;
 use codequery_core::{language_for_file, Language};
 use codequery_index::{extract_references, FileSymbols};
 
-use crate::graph::build_graph;
+use crate::graph::{build_graph, build_graph_by_name};
 use crate::resolve::resolve_references;
 use crate::rules::has_rules;
 use crate::types::{Resolution, ResolutionResult, ResolvedReference};
@@ -270,7 +270,18 @@ fn resolve_language_group(
         .map(|fs| (fs.file.clone(), fs.source.clone(), fs.tree.clone()))
         .collect();
 
-    let mut graph_result = build_graph(&graph_input, language)?;
+    // Try compiled-in rules first, then fall back to name-based (plugin) resolution.
+    let mut graph_result = match build_graph(&graph_input, language) {
+        Ok(result) => result,
+        Err(_) => {
+            // Compiled-in rules not available; try plugin path with pre-parsed trees.
+            build_graph_by_name(
+                &graph_input,
+                language.name(),
+                Some(std::time::Duration::from_secs(10)),
+            )?
+        }
+    };
     if capped {
         graph_result.warnings.push(crate::graph::GraphWarning {
             file: std::path::PathBuf::from("<resolver>"),

@@ -453,6 +453,11 @@ pub struct StackGraphLanguage {
     tsg_path: PathBuf,
     tsg_source: std::borrow::Cow<'static, str>,
     functions: Functions,
+    /// Shared WASM engine for languages loaded from WASM grammars.
+    /// When present, `Builder::build` creates a `WasmStore` from this engine
+    /// and sets it on the parser before calling `set_language`.
+    #[cfg(feature = "wasm")]
+    wasm_engine: Option<Arc<tree_sitter::wasmtime::Engine>>,
 }
 
 impl StackGraphLanguage {
@@ -469,6 +474,8 @@ impl StackGraphLanguage {
             tsg_path: PathBuf::from("<tsg>"),
             tsg_source: Cow::from(String::new()),
             functions: Self::default_functions(),
+            #[cfg(feature = "wasm")]
+            wasm_engine: None,
         }
     }
 
@@ -486,6 +493,8 @@ impl StackGraphLanguage {
             tsg_path: PathBuf::from("<missing tsg path>"),
             tsg_source: Cow::from(tsg_source.to_string()),
             functions: Self::default_functions(),
+            #[cfg(feature = "wasm")]
+            wasm_engine: None,
         })
     }
 
@@ -533,6 +542,17 @@ impl StackGraphLanguage {
     pub fn tsg_source(&self) -> &Cow<'static, str> {
         &self.tsg_source
     }
+
+    /// Set a shared WASM engine for this language.
+    ///
+    /// When set, `Builder::build` will create a `WasmStore` from this engine
+    /// and configure the parser for WASM grammar support before parsing.
+    /// The engine should be the same one used to load the WASM grammar.
+    #[cfg(feature = "wasm")]
+    pub fn with_wasm_engine(mut self, engine: Arc<tree_sitter::wasmtime::Engine>) -> Self {
+        self.wasm_engine = Some(engine);
+        self
+    }
 }
 
 /// An error that can occur while loading in the TSG stack graph construction rules for a language
@@ -569,6 +589,23 @@ impl StackGraphLanguage {
     ) -> Result<(), BuildError> {
         self.builder_into_stack_graph(stack_graph, file, source)
             .build(globals, cancellation_flag)
+    }
+
+    /// Like [`build_stack_graph_into`], but uses a pre-parsed tree instead of re-parsing.
+    ///
+    /// This avoids redundant parsing when the caller already has a valid tree from the scan
+    /// phase. It also avoids needing a WASM store, making it suitable for WASM-loaded grammars.
+    pub fn build_stack_graph_into_with_tree<'a>(
+        &'a self,
+        stack_graph: &'a mut StackGraph,
+        file: Handle<File>,
+        source: &'a str,
+        tree: &'a tree_sitter::Tree,
+        globals: &'a Variables<'a>,
+        cancellation_flag: &'a dyn CancellationFlag,
+    ) -> Result<(), BuildError> {
+        self.builder_into_stack_graph(stack_graph, file, source)
+            .build_with_tree(tree, globals, cancellation_flag)
     }
 
     /// Create a builder that will execute the graph construction rules for this language against
@@ -624,6 +661,14 @@ impl<'a> Builder<'a> {
     ) -> Result<(), BuildError> {
         let tree = {
             let mut parser = Parser::new();
+            #[cfg(feature = "wasm")]
+            if let Some(engine) = &self.sgl.wasm_engine {
+                let store =
+                    tree_sitter::WasmStore::new(engine).map_err(|_| BuildError::ParseError)?;
+                parser
+                    .set_wasm_store(store)
+                    .map_err(|_| BuildError::ParseError)?;
+            }
             parser.set_language(&self.sgl.language)?;
             let source_bytes = self.source.as_bytes();
             let source_len = source_bytes.len();
@@ -697,6 +742,57 @@ impl<'a> Builder<'a> {
         // (2) it returns no values connected to 'a.
         // These together guarantee that no values connected to the lifetime 'a outlive the Tree.
         let tree: &'a tree_sitter::Tree = unsafe { transmute(&tree) };
+        self.sgl.tsg.execute_into(
+            &mut self.graph,
+            tree,
+            self.source,
+            &mut config,
+            &(cancellation_flag as &dyn CancellationFlag),
+        )?;
+
+        self.load(cancellation_flag)
+    }
+
+    /// Executes this builder using a pre-parsed tree instead of re-parsing the source.
+    ///
+    /// This avoids redundant parsing when the caller already has a valid tree from the scan phase.
+    /// It also avoids the need for a WASM store in the builder, since no parsing occurs.
+    pub fn build_with_tree(
+        mut self,
+        tree: &'a tree_sitter::Tree,
+        globals: &'a Variables<'a>,
+        cancellation_flag: &dyn CancellationFlag,
+    ) -> Result<(), BuildError> {
+        let mut globals = Variables::nested(globals);
+
+        let root_node = self.inject_node(NodeID::root());
+        globals
+            .add(ROOT_NODE_VAR.into(), root_node.into())
+            .unwrap_or_default();
+
+        let jump_to_scope_node = self.inject_node(NodeID::jump_to());
+        globals
+            .add(JUMP_TO_SCOPE_NODE_VAR.into(), jump_to_scope_node.into())
+            .expect("Failed to set JUMP_TO_SCOPE_NODE");
+
+        if globals.get(&FILE_PATH_VAR.into()).is_none() {
+            let file_name = self.stack_graph[self.file].to_string();
+            globals
+                .add(FILE_PATH_VAR.into(), file_name.into())
+                .expect("Failed to set FILE_PATH");
+        }
+
+        let mut config = ExecutionConfig::new(&self.sgl.functions, &globals)
+            .lazy(true)
+            .debug_attributes(
+                [DEBUG_ATTR_PREFIX, "tsg_location"].concat().as_str().into(),
+                [DEBUG_ATTR_PREFIX, "tsg_variable"].concat().as_str().into(),
+                [DEBUG_ATTR_PREFIX, "tsg_match_node"]
+                    .concat()
+                    .as_str()
+                    .into(),
+            );
+
         self.sgl.tsg.execute_into(
             &mut self.graph,
             tree,
