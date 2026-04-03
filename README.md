@@ -88,11 +88,6 @@ npx -y @codequery/cli
 uvx codequery-cli
 ```
 
-**Cargo**:
-```
-cargo install codequery-cli
-```
-
 **Binary**: Pre-built for Linux, macOS, and Windows at [github.com/jmfirth/codequery/releases](https://github.com/jmfirth/codequery/releases).
 
 ---
@@ -101,7 +96,7 @@ cargo install codequery-cli
 
 ### MCP Server (recommended)
 
-All 24 commands become native tool calls. Works with Claude Code, Cursor, and any MCP-compatible agent.
+18 tools — all source-processing commands as native tool calls. Works with Claude Code, Cursor, and any MCP-compatible agent.
 
 ```json
 {
