@@ -35,7 +35,7 @@ That's real output. Source code passes through unescaped — no JSON string esca
 
 **For agent harness builders:** Give your agent semantic code understanding without LSP overhead. `cq body handle_request` returns 5 lines instead of reading a 500-line file. Every result carries `resolution` and `completeness` metadata so agents self-calibrate trust.
 
-**For developers using AI tools:** Your agent gets better results with cq than with grep. MCP integration means Claude, Cursor, and any MCP-compatible agent can use all 24 commands as native tools — zero prompt engineering.
+**For developers using AI tools:** Your agent gets better results with cq than with grep. MCP integration means Claude, Cursor, and any MCP-compatible agent can use 18 tools natively — zero prompt engineering.
 
 **For humans:** The CLI is fast and genuinely useful. `cq def Symbol` finds it instantly across 71 languages. IDE plugins are a natural next step, but the CLI is productive today.
 
