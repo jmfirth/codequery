@@ -16,7 +16,8 @@
       ],
       "lsp_server": "rust-analyzer",
       "builtin": true,
-      "grammar_repo": "tree-sitter/tree-sitter-rust"
+      "grammar_repo": "tree-sitter/tree-sitter-rust",
+      "grammar_tag": "v0.23.3"
     },
     {
       "name": "typescript",
@@ -34,7 +35,8 @@
       ],
       "lsp_server": "typescript-language-server",
       "builtin": true,
-      "grammar_repo": "tree-sitter/tree-sitter-typescript"
+      "grammar_repo": "tree-sitter/tree-sitter-typescript",
+      "grammar_tag": "v0.23.2"
     },
     {
       "name": "javascript",
@@ -54,7 +56,8 @@
       ],
       "lsp_server": "typescript-language-server",
       "builtin": true,
-      "grammar_repo": "tree-sitter/tree-sitter-javascript"
+      "grammar_repo": "tree-sitter/tree-sitter-javascript",
+      "grammar_tag": "v0.23.1"
     },
     {
       "name": "python",
@@ -72,7 +75,8 @@
       ],
       "lsp_server": "pyright",
       "builtin": true,
-      "grammar_repo": "tree-sitter/tree-sitter-python"
+      "grammar_repo": "tree-sitter/tree-sitter-python",
+      "grammar_tag": "v0.23.6"
     },
     {
       "name": "go",
@@ -89,7 +93,8 @@
       ],
       "lsp_server": "gopls",
       "builtin": true,
-      "grammar_repo": "tree-sitter/tree-sitter-go"
+      "grammar_repo": "tree-sitter/tree-sitter-go",
+      "grammar_tag": "v0.23.4"
     },
     {
       "name": "c",
@@ -107,7 +112,8 @@
       ],
       "lsp_server": "clangd",
       "builtin": true,
-      "grammar_repo": "tree-sitter/tree-sitter-c"
+      "grammar_repo": "tree-sitter/tree-sitter-c",
+      "grammar_tag": "v0.23.6"
     },
     {
       "name": "cpp",
@@ -129,7 +135,8 @@
       ],
       "lsp_server": "clangd",
       "builtin": true,
-      "grammar_repo": "tree-sitter/tree-sitter-cpp"
+      "grammar_repo": "tree-sitter/tree-sitter-cpp",
+      "grammar_tag": "v0.23.4"
     },
     {
       "name": "java",
@@ -146,7 +153,8 @@
       ],
       "lsp_server": "jdtls",
       "builtin": true,
-      "grammar_repo": "tree-sitter/tree-sitter-java"
+      "grammar_repo": "tree-sitter/tree-sitter-java",
+      "grammar_tag": "v0.23.5"
     },
     {
       "name": "ruby",
@@ -165,7 +173,8 @@
       ],
       "lsp_server": "solargraph",
       "builtin": true,
-      "grammar_repo": "tree-sitter/tree-sitter-ruby"
+      "grammar_repo": "tree-sitter/tree-sitter-ruby",
+      "grammar_tag": "v0.23.1"
     },
     {
       "name": "php",
@@ -269,7 +278,8 @@
         "stack-graphs"
       ],
       "lsp_server": "OmniSharp",
-      "grammar_repo": "tree-sitter/tree-sitter-c-sharp"
+      "grammar_repo": "tree-sitter/tree-sitter-c-sharp",
+      "grammar_tag": "v0.23.1"
     },
     {
       "name": "swift",

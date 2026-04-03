@@ -50,8 +50,8 @@ mkdir -p "$DIST_DIR"
 
 # --- Parse registry ---
 
-# Extract languages that have a grammar_repo field
-LANG_DATA=$(jq -r '.languages[] | select(.grammar_repo != null) | "\(.name)\t\(.grammar_repo)"' "$REGISTRY")
+# Extract languages that have a grammar_repo field (name, repo, optional tag)
+LANG_DATA=$(jq -r '.languages[] | select(.grammar_repo != null) | "\(.name)\t\(.grammar_repo)\t\(.grammar_tag // "")"' "$REGISTRY")
 
 # If specific languages were requested, filter to those
 FILTER_LANGS=("$@")
@@ -66,6 +66,7 @@ FAILED_NAMES=()
 build_grammar() {
   local name="$1"
   local repo="$2"
+  local tag="${3:-}"  # Optional: pin to specific git tag for TSG compatibility
 
   # Filter check
   if [[ ${#FILTER_LANGS[@]} -gt 0 ]]; then
@@ -86,9 +87,14 @@ build_grammar() {
   local clone_dir="$WORK_DIR/$name"
   local pkg_dir="$WORK_DIR/pkg-$name"
 
-  # Clone the grammar repo (shallow)
-  if ! git clone --depth 1 --quiet "https://github.com/$repo.git" "$clone_dir" 2>/dev/null; then
-    echo "    FAILED: could not clone https://github.com/$repo.git" >&2
+  # Clone the grammar repo (shallow, optionally at a specific tag)
+  local clone_args=(--depth 1 --quiet)
+  if [[ -n "$tag" ]]; then
+    clone_args+=(--branch "$tag")
+    echo "  [$name] cloning $repo @ $tag"
+  fi
+  if ! git clone "${clone_args[@]}" "https://github.com/$repo.git" "$clone_dir" 2>/dev/null; then
+    echo "    FAILED: could not clone https://github.com/$repo.git${tag:+ @ $tag}" >&2
     FAILED=$((FAILED + 1))
     FAILED_NAMES+=("$name")
     return 0
@@ -234,8 +240,8 @@ echo "  registry: $REGISTRY"
 echo "  output:   $DIST_DIR/"
 echo ""
 
-while IFS=$'\t' read -r name repo; do
-  build_grammar "$name" "$repo" || true
+while IFS=$'\t' read -r name repo tag; do
+  build_grammar "$name" "$repo" "$tag" || true
 done <<< "$LANG_DATA"
 
 echo ""
