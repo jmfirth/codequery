@@ -121,6 +121,11 @@ pub fn run(
         .any(|s| s.visibility == Visibility::Public);
 
     if dead_symbols.is_empty() && mode != OutputMode::Json {
+        let total_symbols: usize = scan.iter().map(|f| f.symbols.len()).sum();
+        let total_files = scan.len();
+        eprintln!(
+            "0 unreferenced symbols found (scanned {total_symbols} symbols across {total_files} files)"
+        );
         Ok(ExitCode::Success)
     } else {
         let output = format_dead(&dead_symbols, is_pub_warning, mode, pretty);
