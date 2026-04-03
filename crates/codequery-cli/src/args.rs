@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use codequery_lsp::SemanticMode;
 use std::path::PathBuf;
 
 /// The output format for command results.
@@ -111,11 +112,11 @@ pub struct CqArgs {
         long,
         global = true,
         conflicts_with = "no_semantic",
-        long_help = "Enable LSP-backed resolution for compiler-level precision.\n\
-                     Slower than the default syntactic analysis, but resolves through\n\
-                     type aliases, trait impls, and cross-module re-exports.\n\
-                     Much faster when the daemon is running (`cq daemon start`).\n\
-                     Can also be enabled via CQ_SEMANTIC=1 env var."
+        long_help = "Enable LSP-backed resolution for compiler-level precision (oneshot mode).\n\
+                     For persistent LSP, set CQ_SEMANTIC=daemon in your shell profile.\n\
+                     Resolves through type aliases, trait impls, and cross-module re-exports.\n\
+                     CQ_SEMANTIC values: 1/on (oneshot), daemon (auto-start persistent daemon),\n\
+                     0/off (force off). Precedence: --no-semantic > --semantic > CQ_SEMANTIC > off."
     )]
     pub semantic: bool,
 
@@ -200,20 +201,30 @@ impl CqArgs {
         }
     }
 
-    /// Determine whether semantic (LSP-backed) resolution is enabled.
+    /// Determine the semantic resolution mode.
     ///
-    /// Precedence: `--no-semantic` (force off) > `--semantic` (force on) > `CQ_SEMANTIC=1` env var.
+    /// Precedence: `--no-semantic` (force off) > `--semantic` (force oneshot) >
+    /// `CQ_SEMANTIC` env var > default (off).
     #[must_use]
-    pub fn use_semantic(&self) -> bool {
+    pub fn semantic_mode(&self) -> SemanticMode {
         if self.no_semantic {
-            return false;
+            return SemanticMode::Off;
         }
         if self.semantic {
-            return true;
+            return SemanticMode::Oneshot;
         }
-        std::env::var("CQ_SEMANTIC")
-            .map(|v| v == "1")
-            .unwrap_or(false)
+        match std::env::var("CQ_SEMANTIC").as_deref() {
+            Ok("1" | "on") => SemanticMode::Oneshot,
+            Ok("daemon") => SemanticMode::Daemon,
+            _ => SemanticMode::Off,
+        }
+    }
+
+    /// Backward-compat helper: returns `true` if any LSP resolution is enabled.
+    #[must_use]
+    #[cfg(test)]
+    pub fn use_semantic(&self) -> bool {
+        self.semantic_mode() != SemanticMode::Off
     }
 
     /// Determine whether disk caching is enabled.
@@ -917,33 +928,81 @@ mod tests {
     }
 
     // All CQ_SEMANTIC env var tests in one function to prevent parallel races.
+    // set_var/remove_var is process-global — separate #[test] functions race.
     #[test]
-    fn test_use_semantic_behavior() {
-        // Default: false (clean env)
+    fn test_semantic_mode_behavior() {
+        // Default: Off (clean env)
         std::env::remove_var("CQ_SEMANTIC");
         let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        assert_eq!(args.semantic_mode(), SemanticMode::Off);
         assert!(!args.use_semantic());
 
-        // --semantic flag: true
+        // --semantic flag: Oneshot
         let args = CqArgs::parse_from(["cq", "--semantic", "def", "foo"]);
+        assert_eq!(args.semantic_mode(), SemanticMode::Oneshot);
         assert!(args.use_semantic());
 
         // --no-semantic wins over env
         std::env::set_var("CQ_SEMANTIC", "1");
         let args = CqArgs::parse_from(["cq", "--no-semantic", "def", "foo"]);
+        assert_eq!(args.semantic_mode(), SemanticMode::Off);
         assert!(!args.use_semantic());
         std::env::remove_var("CQ_SEMANTIC");
 
-        // CQ_SEMANTIC=1 enables semantic
+        // CQ_SEMANTIC=1 enables Oneshot
         std::env::set_var("CQ_SEMANTIC", "1");
         let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        assert_eq!(args.semantic_mode(), SemanticMode::Oneshot);
         assert!(args.use_semantic());
         std::env::remove_var("CQ_SEMANTIC");
 
-        // CQ_SEMANTIC=yes is not "1", so no semantic
+        // CQ_SEMANTIC=on enables Oneshot
+        std::env::set_var("CQ_SEMANTIC", "on");
+        let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        assert_eq!(args.semantic_mode(), SemanticMode::Oneshot);
+        assert!(args.use_semantic());
+        std::env::remove_var("CQ_SEMANTIC");
+
+        // CQ_SEMANTIC=daemon enables Daemon
+        std::env::set_var("CQ_SEMANTIC", "daemon");
+        let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        assert_eq!(args.semantic_mode(), SemanticMode::Daemon);
+        assert!(args.use_semantic());
+        std::env::remove_var("CQ_SEMANTIC");
+
+        // CQ_SEMANTIC=0 forces Off
+        std::env::set_var("CQ_SEMANTIC", "0");
+        let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        assert_eq!(args.semantic_mode(), SemanticMode::Off);
+        assert!(!args.use_semantic());
+        std::env::remove_var("CQ_SEMANTIC");
+
+        // CQ_SEMANTIC=off forces Off
+        std::env::set_var("CQ_SEMANTIC", "off");
+        let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        assert_eq!(args.semantic_mode(), SemanticMode::Off);
+        assert!(!args.use_semantic());
+        std::env::remove_var("CQ_SEMANTIC");
+
+        // CQ_SEMANTIC=yes is not recognized, defaults to Off
         std::env::set_var("CQ_SEMANTIC", "yes");
         let args = CqArgs::parse_from(["cq", "def", "foo"]);
+        assert_eq!(args.semantic_mode(), SemanticMode::Off);
         assert!(!args.use_semantic());
+        std::env::remove_var("CQ_SEMANTIC");
+
+        // --no-semantic wins over CQ_SEMANTIC=daemon
+        std::env::set_var("CQ_SEMANTIC", "daemon");
+        let args = CqArgs::parse_from(["cq", "--no-semantic", "def", "foo"]);
+        assert_eq!(args.semantic_mode(), SemanticMode::Off);
+        assert!(!args.use_semantic());
+        std::env::remove_var("CQ_SEMANTIC");
+
+        // --semantic (Oneshot) wins over CQ_SEMANTIC=daemon
+        std::env::set_var("CQ_SEMANTIC", "daemon");
+        let args = CqArgs::parse_from(["cq", "--semantic", "def", "foo"]);
+        assert_eq!(args.semantic_mode(), SemanticMode::Oneshot);
+        assert!(args.use_semantic());
         std::env::remove_var("CQ_SEMANTIC");
     }
 

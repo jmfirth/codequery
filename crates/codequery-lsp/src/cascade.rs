@@ -17,16 +17,31 @@ use crate::daemon_file;
 use crate::oneshot;
 use crate::queries::uri_to_path;
 
+/// Controls how cq resolves cross-references via language servers.
+///
+/// Precedence: `--no-semantic` (force off) > `--semantic` (force oneshot) >
+/// `CQ_SEMANTIC` env var > default (off).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SemanticMode {
+    /// No LSP resolution. Tiers 1-2 only (tree-sitter + stack graphs).
+    Off,
+    /// Cold-start a language server per query, then shut it down.
+    Oneshot,
+    /// Use a persistent daemon. Auto-starts one if not already running.
+    Daemon,
+}
+
 /// Resolves references using a four-step cascade of increasing cost.
 ///
 /// The cascade tries the following strategies in order, falling through on
 /// failure:
 ///
-/// 1. **Daemon** -- If a cq daemon is running, query it for references via a
-///    warm language server. Fastest path (sub-50ms).
-/// 2. **Oneshot LSP** -- If `semantic_requested` is true and no daemon is
-///    running, start a language server, query, and shut it down. Correct but
-///    slow (2-5s).
+/// 1. **Daemon** -- If a cq daemon is running (or `SemanticMode::Daemon`
+///    requests auto-start), query it for references via a warm language
+///    server. Fastest path (sub-50ms).
+/// 2. **Oneshot LSP** -- If `SemanticMode::Oneshot` is active and no daemon
+///    is running, start a language server, query, and shut it down. Correct
+///    but slow (2-5s).
 /// 3. **Stack graph** -- Use `StackGraphResolver` which provides `Resolved`
 ///    or `Syntactic` precision depending on language support.
 /// 4. **Fallback** -- If steps 1-2 error, fall through to step 3.
@@ -45,25 +60,36 @@ pub fn resolve_with_cascade(
     symbol_line: usize,
     symbol_column: usize,
     scan_results: &[FileSymbols],
-    semantic_requested: bool,
+    semantic_mode: SemanticMode,
 ) -> ResolutionResult {
-    // Step 1: Try the daemon if it's running.
-    if daemon_file::is_daemon_running(project_root) {
-        if let Ok(result) = try_daemon_refs(
-            project_root,
-            language,
-            symbol_name,
-            symbol_file,
-            symbol_line,
-            symbol_column,
-        ) {
-            return result;
+    // Step 1: Try the daemon if it's running and mode is not Off.
+    if semantic_mode != SemanticMode::Off {
+        let daemon_running = daemon_file::is_daemon_running(project_root);
+
+        // In Daemon mode, auto-start the daemon if not already running.
+        let daemon_running = if !daemon_running && semantic_mode == SemanticMode::Daemon {
+            try_auto_start_daemon(project_root)
+        } else {
+            daemon_running
+        };
+
+        if daemon_running {
+            if let Ok(result) = try_daemon_refs(
+                project_root,
+                language,
+                symbol_name,
+                symbol_file,
+                symbol_line,
+                symbol_column,
+            ) {
+                return result;
+            }
+            // Daemon connection or query failed; fall through.
         }
-        // Daemon connection or query failed; fall through.
     }
 
-    // Step 2: Try oneshot LSP if semantic was explicitly requested.
-    if semantic_requested {
+    // Step 2: Try oneshot LSP if mode is Oneshot (not Daemon — Daemon uses the daemon path).
+    if semantic_mode == SemanticMode::Oneshot {
         match try_oneshot_refs(
             project_root,
             language,
@@ -82,9 +108,59 @@ pub fn resolve_with_cascade(
         // Oneshot failed; fall through to stack graph.
     }
 
+    // Step 2b: Daemon mode fallback — if daemon start failed or query failed,
+    // fall back to oneshot as a last resort before stack graphs.
+    if semantic_mode == SemanticMode::Daemon {
+        match try_oneshot_refs(
+            project_root,
+            language,
+            symbol_name,
+            symbol_file,
+            symbol_line,
+            symbol_column,
+        ) {
+            Ok(result) if !result.references.is_empty() => {
+                return result;
+            }
+            _ => {}
+        }
+    }
+
     // Step 3: Stack graph resolution (always available).
     let mut resolver = StackGraphResolver::new();
     resolver.resolve_refs(scan_results, symbol_name)
+}
+
+/// Attempt to auto-start the cq daemon for a project.
+///
+/// Looks for the `cq` binary on PATH (or via `CQ_BIN` env var), spawns
+/// `cq daemon start --project <root>` as a detached process, then polls
+/// `is_daemon_running()` for up to 3 seconds. Returns `true` if the daemon
+/// became available.
+fn try_auto_start_daemon(project_root: &Path) -> bool {
+    let cq_bin = std::env::var("CQ_BIN").unwrap_or_else(|_| "cq".to_string());
+
+    let project_str = project_root.to_string_lossy();
+    let spawn_result = std::process::Command::new(&cq_bin)
+        .args(["daemon", "start", "--project", &project_str])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+
+    if spawn_result.is_err() {
+        return false;
+    }
+
+    // Poll for daemon availability with 100ms intervals, up to 3 seconds.
+    for _ in 0..30 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if daemon_file::is_daemon_running(project_root) {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// Attempts to resolve references via the daemon.
@@ -214,7 +290,7 @@ mod tests {
             1,
             4,
             &[fs],
-            false, // no semantic requested
+            SemanticMode::Off, // no semantic requested
         );
 
         // Should get results from stack graph resolver (Resolved or Syntactic).
@@ -243,7 +319,7 @@ mod tests {
             1,
             4,
             &[fs],
-            true, // semantic requested
+            SemanticMode::Oneshot, // semantic requested
         );
 
         // The Python scan results don't match a Ruby query, so we may get
@@ -261,7 +337,7 @@ mod tests {
             1,
             0,
             &[],
-            false,
+            SemanticMode::Off,
         );
 
         assert!(result.references.is_empty());
@@ -282,7 +358,7 @@ mod tests {
             1,
             5,
             &[fs],
-            false,
+            SemanticMode::Off,
         );
 
         // C++ now has stack graph rules — references should be resolved.
@@ -334,7 +410,7 @@ mod tests {
             1,
             3,
             &[fs],
-            false,
+            SemanticMode::Off,
         );
 
         for r in &result.references {
@@ -361,7 +437,7 @@ mod tests {
             1,
             0,
             &[fs],
-            false,
+            SemanticMode::Off,
         );
 
         // Should complete without error regardless.
@@ -383,7 +459,7 @@ mod tests {
             1,
             4,
             &[fs],
-            false,
+            SemanticMode::Off,
         );
 
         // Result is a ResolutionResult — verify its structure.
@@ -422,7 +498,7 @@ mod tests {
             1,
             4,
             &[fs1, fs2],
-            false,
+            SemanticMode::Off,
         );
 
         // Stack graph should find references across both files.
@@ -448,7 +524,7 @@ mod tests {
             1,
             3,
             &[fs],
-            true, // semantic requested, but no real server available
+            SemanticMode::Oneshot, // semantic requested, but no real server available
         );
 
         // Should succeed (fell through to stack graph), not panic.
@@ -464,7 +540,7 @@ mod tests {
         let source = "x = 1\nprint(x)\n";
         let fs = make_file_symbols("app.py", source, Language::Python);
 
-        // Ruby has no LSP config, so oneshot will fail even with semantic=true.
+        // Ruby has no LSP config, so oneshot will fail even with semantic=Oneshot.
         let result = resolve_with_cascade(
             Path::new("/tmp/project"),
             Language::Ruby,
@@ -473,7 +549,7 @@ mod tests {
             1,
             0,
             &[fs],
-            true,
+            SemanticMode::Oneshot,
         );
 
         // Should not panic — falls through to stack graph.
@@ -499,7 +575,7 @@ mod tests {
             1,
             4,
             &[fs],
-            false,
+            SemanticMode::Off,
         );
 
         // Stack graph resolution should not produce warnings for valid input.

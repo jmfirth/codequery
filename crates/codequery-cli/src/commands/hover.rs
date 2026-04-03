@@ -11,6 +11,7 @@ use codequery_core::{
     detect_project_root_or, language_for_file, language_name_for_file, Completeness, HoverInfo,
     QueryResult, Resolution,
 };
+use codequery_lsp::SemanticMode;
 use codequery_parse::{extract_symbols, extract_symbols_by_name, extract_type_at_position, Parser};
 use serde::Serialize;
 use std::io::IsTerminal;
@@ -31,7 +32,7 @@ pub fn run(
     project: Option<&Path>,
     mode: OutputMode,
     pretty: bool,
-    _use_semantic: bool,
+    _semantic_mode: SemanticMode,
 ) -> anyhow::Result<ExitCode> {
     // 1. Parse file:line[:col] argument
     let Some((file_str, target_line, target_col)) = parse_location(location) else {
@@ -369,6 +370,7 @@ fn find_enclosing_recursive<'a>(
 mod tests {
     use super::*;
     use codequery_core::{Symbol, SymbolKind, Visibility};
+    use codequery_lsp::SemanticMode;
     use std::path::PathBuf;
 
     /// Path to the fixture rust project.
@@ -574,7 +576,13 @@ mod tests {
         let file = project.join("src/lib.rs");
         // Line 9 is `pub fn greet(name: &str) -> String {`
         let location = format!("{}:9:7", file.display());
-        let result = run(&location, Some(&project), OutputMode::Framed, false, false);
+        let result = run(
+            &location,
+            Some(&project),
+            OutputMode::Framed,
+            false,
+            SemanticMode::Off,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -586,7 +594,13 @@ mod tests {
         let file = project.join("src/services.rs");
         // Line 16 is `pub fn is_adult(&self) -> bool {`
         let location = format!("{}:16", file.display());
-        let result = run(&location, Some(&project), OutputMode::Framed, false, false);
+        let result = run(
+            &location,
+            Some(&project),
+            OutputMode::Framed,
+            false,
+            SemanticMode::Off,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -597,7 +611,13 @@ mod tests {
         let project = fixture_project();
         let file = project.join("src/lib.rs");
         let location = format!("{}:9:7", file.display());
-        let result = run(&location, Some(&project), OutputMode::Json, true, false);
+        let result = run(
+            &location,
+            Some(&project),
+            OutputMode::Json,
+            true,
+            SemanticMode::Off,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -608,7 +628,13 @@ mod tests {
         let project = fixture_project();
         let file = project.join("src/lib.rs");
         let location = format!("{}:9:7", file.display());
-        let result = run(&location, Some(&project), OutputMode::Raw, false, false);
+        let result = run(
+            &location,
+            Some(&project),
+            OutputMode::Raw,
+            false,
+            SemanticMode::Off,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -620,7 +646,13 @@ mod tests {
         let file = project.join("src/lib.rs");
         // Line 1 is the module doc comment, outside any function
         let location = format!("{}:1", file.display());
-        let result = run(&location, Some(&project), OutputMode::Framed, false, false);
+        let result = run(
+            &location,
+            Some(&project),
+            OutputMode::Framed,
+            false,
+            SemanticMode::Off,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
@@ -631,7 +663,13 @@ mod tests {
         let project = fixture_project();
         let file = project.join("src/nonexistent.rs");
         let location = format!("{}:10", file.display());
-        let result = run(&location, Some(&project), OutputMode::Framed, false, false);
+        let result = run(
+            &location,
+            Some(&project),
+            OutputMode::Framed,
+            false,
+            SemanticMode::Off,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::ProjectError);
     }
@@ -645,7 +683,7 @@ mod tests {
             Some(&project),
             OutputMode::Framed,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::UsageError);

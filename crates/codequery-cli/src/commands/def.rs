@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use codequery_core::Language;
-use codequery_lsp::{daemon_file, oneshot};
+use codequery_lsp::{daemon_file, oneshot, SemanticMode};
 
 use super::common::find_symbols_by_name;
 use crate::args::{ExitCode, OutputMode};
@@ -27,13 +27,13 @@ pub fn run(
     mode: OutputMode,
     pretty: bool,
     lang_filter: Option<Language>,
-    use_semantic: bool,
+    semantic_mode: SemanticMode,
 ) -> anyhow::Result<ExitCode> {
     let matches = find_symbols_by_name(symbol, project, scope, lang_filter)?;
 
     // When semantic resolution is available and there are multiple matches,
     // try LSP definition to disambiguate to the most precise result.
-    let matches = if use_semantic && matches.len() > 1 {
+    let matches = if semantic_mode != SemanticMode::Off && matches.len() > 1 {
         disambiguate_with_lsp(&matches, symbol, project).unwrap_or(matches)
     } else {
         matches
@@ -102,6 +102,7 @@ fn disambiguate_with_lsp(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use codequery_lsp::SemanticMode;
     use std::path::PathBuf;
 
     /// Path to the fixture rust project.
@@ -121,7 +122,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -137,7 +138,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -153,7 +154,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -169,7 +170,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -185,7 +186,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -201,7 +202,7 @@ mod tests {
             OutputMode::Framed,
             false,
             None,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -217,7 +218,7 @@ mod tests {
             OutputMode::Json,
             true,
             None,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -233,7 +234,7 @@ mod tests {
             OutputMode::Json,
             true,
             None,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -249,7 +250,7 @@ mod tests {
             OutputMode::Raw,
             false,
             None,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -265,7 +266,7 @@ mod tests {
             OutputMode::Framed,
             false,
             Some(Language::Rust),
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -281,7 +282,7 @@ mod tests {
             OutputMode::Framed,
             false,
             Some(Language::Python),
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);

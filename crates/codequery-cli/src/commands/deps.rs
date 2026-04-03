@@ -11,6 +11,8 @@ use codequery_index::{extract_references, scan_project_cached, SymbolIndex};
 use codequery_parse::Parser;
 use codequery_resolve::StackGraphResolver;
 
+use codequery_lsp::SemanticMode;
+
 use super::common::find_first_symbol_with_source;
 use crate::args::{ExitCode, OutputMode};
 use crate::output::{format_deps, Dependency};
@@ -35,9 +37,9 @@ pub fn run(
     pretty: bool,
     lang_filter: Option<Language>,
     use_cache: bool,
-    _use_semantic: bool,
+    _semantic_mode: SemanticMode,
 ) -> anyhow::Result<ExitCode> {
-    // Semantic flag is plumbed through for future cascade integration.
+    // Semantic mode is plumbed through for future cascade integration.
     // The deps command uses stack graph resolution internally; a deps-specific
     // cascade (using textDocument/definition per dependency) is a future enhancement.
 
@@ -261,6 +263,7 @@ fn extract_ref_name(source: &str, line: usize, column: usize) -> Option<String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use codequery_lsp::SemanticMode;
     use std::path::PathBuf;
 
     /// Path to the fixture rust project.
@@ -315,7 +318,7 @@ mod tests {
             false,
             None,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -332,7 +335,7 @@ mod tests {
             false,
             None,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -349,7 +352,7 @@ mod tests {
             true,
             None,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
     }
@@ -365,7 +368,7 @@ mod tests {
             false,
             None,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -382,7 +385,7 @@ mod tests {
             true,
             None,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -399,7 +402,7 @@ mod tests {
             false,
             None,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -416,7 +419,7 @@ mod tests {
             false,
             None,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -433,7 +436,7 @@ mod tests {
             true,
             None,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);

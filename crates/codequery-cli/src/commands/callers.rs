@@ -8,7 +8,7 @@ use std::path::Path;
 
 use codequery_core::{detect_project_root_or, Reference, ReferenceKind, Resolution, Symbol};
 use codequery_index::{extract_references, scan_project_cached, SymbolIndex};
-use codequery_lsp::resolve_with_cascade;
+use codequery_lsp::{resolve_with_cascade, SemanticMode};
 use codequery_resolve::StackGraphResolver;
 
 use crate::args::{ExitCode, OutputMode};
@@ -37,7 +37,7 @@ pub fn run(
     pretty: bool,
     context_lines: usize,
     use_cache: bool,
-    use_semantic: bool,
+    semantic_mode: SemanticMode,
 ) -> anyhow::Result<ExitCode> {
     // 1. Resolve project root
     let cwd = std::env::current_dir()?;
@@ -99,7 +99,7 @@ pub fn run(
             def.line,
             def.column,
             &scan_results,
-            use_semantic,
+            semantic_mode,
         );
         // Filter to call references only: keep Semantic/Resolved refs that match
         // a Call in the syntactic map, or keep all Resolved refs (stack graph
@@ -227,6 +227,7 @@ fn ref_name_matches(reference: &Reference, source: &str, symbol: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use codequery_lsp::SemanticMode;
     use std::path::PathBuf;
 
     /// Path to the fixture rust project.
@@ -292,7 +293,7 @@ mod tests {
             false,
             0,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -311,7 +312,7 @@ mod tests {
             false,
             0,
             false,
-            false,
+            SemanticMode::Off,
         );
         // User may have Call refs (constructor calls like User::new) or may not;
         // we just verify it doesn't error
@@ -330,7 +331,7 @@ mod tests {
             false,
             0,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -347,7 +348,7 @@ mod tests {
             false,
             0,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -364,7 +365,7 @@ mod tests {
             true,
             0,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -381,7 +382,7 @@ mod tests {
             false,
             0,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -398,7 +399,7 @@ mod tests {
             true,
             0,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);
@@ -415,7 +416,7 @@ mod tests {
             false,
             2,
             false,
-            false,
+            SemanticMode::Off,
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExitCode::Success);

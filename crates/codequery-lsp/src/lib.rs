@@ -21,7 +21,7 @@ pub mod socket;
 pub mod transport;
 pub mod types;
 
-pub use cascade::resolve_with_cascade;
+pub use cascade::{resolve_with_cascade, SemanticMode};
 pub use client::DaemonClient;
 pub use config::{LanguageServerRegistry, ServerConfig};
 pub use daemon::Daemon;
