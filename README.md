@@ -43,17 +43,25 @@ That's real output. Source code passes through unescaped — no JSON string esca
 
 ## Precision Cascade
 
-cq doesn't force you to choose between speed and accuracy. Three tiers activate automatically:
+cq doesn't force you to choose between speed and accuracy. Three tiers activate based on what's available:
 
 ```
-Tree-sitter    instant, all 71 languages, works on broken code
+Tree-sitter    instant, all 71 languages, works on broken code        (always on)
      |
-Stack graphs   import-aware, follows qualified names, 10 languages
+Stack graphs   import-aware, follows qualified names, 10 languages    (always on)
      |
-LSP daemon     compiler-level, full type resolution, 40+ languages
+LSP            compiler-level, full type resolution, 40+ languages    (opt-in)
 ```
 
-The same command produces the same output format at every tier. Only the `resolution` metadata changes — `syntactic`, `resolved`, or `semantic`. No configuration, no flags, no setup.
+Tiers 1-2 are always active — zero configuration. Tier 3 (LSP) is opt-in via `CQ_SEMANTIC`:
+
+```bash
+CQ_SEMANTIC=daemon    # auto-start LSP daemon, reuse across queries (recommended)
+CQ_SEMANTIC=1         # one-shot LSP per query (slower, no daemon)
+cq refs --semantic    # one-off per command
+```
+
+The same command produces the same output format at every tier. Only the `resolution` metadata changes — `syntactic`, `resolved`, or `semantic`.
 
 ```
 $ cq refs greet --project tests/fixtures/rust_project
