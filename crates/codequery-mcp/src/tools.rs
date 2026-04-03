@@ -474,10 +474,17 @@ fn run_callchain_command(args: &serde_json::Value) -> Result<String, String> {
 fn call_cq(cmd_args: &[String], tool_args: &serde_json::Value) -> Result<String, String> {
     let mut args: Vec<String> = Vec::new();
 
-    // Always use semantic precision (daemon is running, tracks file changes).
-    // Never cache (AI agent is actively editing files between queries).
-    args.push("--semantic".to_string());
-    args.push("--no-cache".to_string());
+    // Semantic precision: tries daemon/LSP first, falls back gracefully.
+    // Disable with CQ_SEMANTIC=0 if you want pure syntactic/stack-graph only.
+    if std::env::var("CQ_SEMANTIC").as_deref() != Ok("0") {
+        args.push("--semantic".to_string());
+    }
+
+    // Cache disabled by default: AI agents edit files between queries, so
+    // cached results go stale. Enable with CQ_CACHE=1 for read-only workloads.
+    if std::env::var("CQ_CACHE").as_deref() != Ok("1") {
+        args.push("--no-cache".to_string());
+    }
 
     // Inject --project if provided
     if let Some(project) = tool_args.get("project").and_then(serde_json::Value::as_str) {

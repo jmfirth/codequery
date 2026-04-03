@@ -1,6 +1,6 @@
-"""Allow running as `python -m cq_mcp`."""
+"""Allow running as `python -m cq_cli`."""
 
-from cq_mcp import main
+from cq_cli import main
 
 if __name__ == "__main__":
     main()

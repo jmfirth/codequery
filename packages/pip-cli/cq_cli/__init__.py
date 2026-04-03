@@ -1,4 +1,4 @@
-"""cq: MCP server for cq, a semantic code query tool."""
+"""cq: semantic code query tool. 71 languages, three-tier precision."""
 
 import os
 import platform
