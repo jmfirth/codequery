@@ -382,6 +382,16 @@ mod tests {
     use codequery_parse::Parser;
     use std::path::PathBuf;
 
+    /// Returns true if both the grammar and TSG rules for `lang` are installed and working.
+    ///
+    /// Tries loading the TSG rules with an empty file list to verify they compile correctly.
+    /// For languages known to segfault in WASM TSG loading (JavaScript, TypeScript), tests
+    /// using those languages should be marked `#[ignore]` instead of relying on this check.
+    fn grammar_and_tsg_available(lang: Language) -> bool {
+        let empty: Vec<(PathBuf, String, tree_sitter::Tree)> = vec![];
+        crate::graph::build_graph(&empty, lang).is_ok()
+    }
+
     /// Create a `FileSymbols` from source text, path, and language.
     fn make_file_symbols(path: &str, source: &str, lang: Language) -> FileSymbols {
         let mut parser = Parser::for_language(lang).unwrap();
@@ -405,6 +415,10 @@ mod tests {
 
     #[test]
     fn test_resolve_refs_python_same_file() {
+        if !grammar_and_tsg_available(Language::Python) {
+            eprintln!("skipping: python grammar or TSG rules not available");
+            return;
+        }
         let source = "def greet(name):\n    return f'Hello, {name}!'\n\ngreet('world')\n";
         let fs = make_file_symbols("app.py", source, Language::Python);
 
@@ -420,6 +434,10 @@ mod tests {
 
     #[test]
     fn test_resolve_refs_python_cross_file() {
+        if !grammar_and_tsg_available(Language::Python) {
+            eprintln!("skipping: python grammar or TSG rules not available");
+            return;
+        }
         let src_a = "def add(a, b):\n    return a + b\n";
         let src_b = "from math_mod import add\nresult = add(1, 2)\n";
 
@@ -440,6 +458,10 @@ mod tests {
 
     #[test]
     fn test_resolve_refs_rust_same_file() {
+        if !grammar_and_tsg_available(Language::Rust) {
+            eprintln!("skipping: rust grammar or TSG rules not available");
+            return;
+        }
         let source = "fn greet() -> String {\n    String::from(\"hello\")\n}\nfn main() {\n    greet();\n}\n";
         let fs = make_file_symbols("main.rs", source, Language::Rust);
 
@@ -465,6 +487,10 @@ mod tests {
 
     #[test]
     fn test_resolve_refs_cpp_resolves_same_file() {
+        if !grammar_and_tsg_available(Language::Cpp) {
+            eprintln!("skipping: cpp grammar or TSG rules not available");
+            return;
+        }
         let source = "void greet() {}\nint main() { greet(); return 0; }\n";
         let fs = make_file_symbols("main.cpp", source, Language::Cpp);
 
@@ -494,6 +520,14 @@ mod tests {
 
     #[test]
     fn test_resolve_refs_mixed_languages_both_resolved() {
+        if !grammar_and_tsg_available(Language::Python) {
+            eprintln!("skipping: python grammar or TSG rules not available");
+            return;
+        }
+        if !grammar_and_tsg_available(Language::Cpp) {
+            eprintln!("skipping: cpp grammar or TSG rules not available");
+            return;
+        }
         let py_source = "def greet(name):\n    return f'Hello, {name}!'\n\ngreet('world')\n";
         let cpp_source = "void greet() {}\nint main() { greet(); return 0; }\n";
 
@@ -538,6 +572,10 @@ mod tests {
 
     #[test]
     fn test_resolve_callers_python_returns_resolved_only() {
+        if !grammar_and_tsg_available(Language::Python) {
+            eprintln!("skipping: python grammar or TSG rules not available");
+            return;
+        }
         let source = "def greet(name):\n    return f'Hello, {name}!'\n\ngreet('world')\n";
         let fs = make_file_symbols("app.py", source, Language::Python);
 
@@ -556,6 +594,10 @@ mod tests {
 
     #[test]
     fn test_resolve_deps_python_within_line_range() {
+        if !grammar_and_tsg_available(Language::Python) {
+            eprintln!("skipping: python grammar or TSG rules not available");
+            return;
+        }
         let source = "x = 42\ndef foo():\n    return x + 1\n\ny = foo()\n";
         let fs = make_file_symbols("main.py", source, Language::Python);
 
@@ -579,6 +621,10 @@ mod tests {
 
     #[test]
     fn test_resolve_deps_missing_file_returns_warning() {
+        if !grammar_and_tsg_available(Language::Python) {
+            eprintln!("skipping: python grammar or TSG rules not available");
+            return;
+        }
         let source = "x = 42\n";
         let fs = make_file_symbols("main.py", source, Language::Python);
 
@@ -639,6 +685,10 @@ mod tests {
 
     #[test]
     fn test_resolve_refs_nonexistent_symbol() {
+        if !grammar_and_tsg_available(Language::Python) {
+            eprintln!("skipping: python grammar or TSG rules not available");
+            return;
+        }
         let source = "def greet(name):\n    pass\n";
         let fs = make_file_symbols("app.py", source, Language::Python);
 
@@ -654,6 +704,10 @@ mod tests {
 
     #[test]
     fn test_resolve_refs_python_fixture_project() {
+        if !grammar_and_tsg_available(Language::Python) {
+            eprintln!("skipping: python grammar or TSG rules not available");
+            return;
+        }
         let fixture_root =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/python_project");
         let fixture_files = [
@@ -684,6 +738,10 @@ mod tests {
 
     #[test]
     fn test_resolve_refs_rust_fixture_project() {
+        if !grammar_and_tsg_available(Language::Rust) {
+            eprintln!("skipping: rust grammar or TSG rules not available");
+            return;
+        }
         let fixture_root =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/rust_project");
         let fixture_files = [

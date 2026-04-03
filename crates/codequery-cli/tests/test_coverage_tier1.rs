@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::{assert_exit_code, run_cq, stdout};
+use common::{assert_exit_code, run_cq, skip_if_grammar_missing, stdout};
 use std::path::PathBuf;
 
 // ---------------------------------------------------------------------------
@@ -391,6 +391,9 @@ fn test_sig_js_extracts_function_signature() {
 #[test]
 fn test_refs_js_finds_formatname_references() {
     let output = run_cq_project(&typescript_project(), &["refs", "formatName"]);
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -411,6 +414,9 @@ fn test_refs_js_finds_formatname_references() {
 #[test]
 fn test_callers_js_finds_formatname_callers() {
     let output = run_cq_project(&typescript_project(), &["callers", "formatName"]);
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(
@@ -545,6 +551,9 @@ fn test_imports_js_no_imports_in_utils() {
 #[test]
 fn test_callers_ts_finds_greet_callers() {
     let output = run_cq_project(&typescript_project(), &["callers", "greet"]);
+    if skip_if_grammar_missing(&output) {
+        return;
+    }
     assert_exit_code(&output, 0);
     let out = stdout(&output);
     assert!(

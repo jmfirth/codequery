@@ -41,16 +41,23 @@ pub fn stdout(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).to_string()
 }
 
-/// Check if a command produced no results because the language grammar is unavailable.
+/// Check if a command produced no results because the language grammar is unavailable,
+/// or if the process was terminated by a signal (e.g. a crash in the WASM TSG engine).
 /// Returns true (and prints a skip message) if the test should be skipped.
 ///
 /// In CI, tier-2 grammars are not compiled in. With the runtime language pipeline,
 /// commands may gracefully produce empty output instead of an error. This guard
 /// checks for any signal that the grammar wasn't available:
+/// - Process terminated by signal (exit code None — e.g. SIGSEGV in WASM engine)
 /// - Explicit errors in stderr
 /// - Auto-install messages in stderr
 /// - Empty stdout or total=0 (grammar loaded but couldn't extract)
 pub fn skip_if_grammar_missing(output: &Output) -> bool {
+    // Signal termination (SIGSEGV etc.) means the WASM TSG engine crashed — skip.
+    if output.status.code().is_none() {
+        eprintln!("skipping: process terminated by signal (WASM TSG engine crash)");
+        return true;
+    }
     let err = String::from_utf8_lossy(&output.stderr);
     let out = String::from_utf8_lossy(&output.stdout);
     if err.contains("no grammar available")

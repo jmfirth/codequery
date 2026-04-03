@@ -5,9 +5,8 @@
 //!
 //! Each test validates actual content, not just exit codes.
 //!
-//! These tests require tier-2 grammars to be compiled in (feature `test-all-langs`).
-//! They are skipped entirely in default CI builds which only enable `common`.
-#![cfg(feature = "test-all-langs")]
+//! These tests require tier-2 grammars to be installed at runtime.
+//! They use skip_if_grammar_missing and will self-skip if grammars are unavailable.
 
 mod common;
 

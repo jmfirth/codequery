@@ -397,19 +397,25 @@ body = "@def"
 "#
     }
 
-    fn parse_python(source: &str) -> (tree_sitter::Tree, Language) {
-        let lang: Language = tree_sitter_python::LANGUAGE.into();
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&lang).unwrap();
-        let tree = parser.parse(source.as_bytes(), None).unwrap();
-        (tree, lang)
+    /// Parse Python source and return the tree plus an owned parser.
+    ///
+    /// The parser must be kept alive alongside the tree when using WASM grammars,
+    /// because the WasmStore that backs the `tree_sitter::Language` lives inside
+    /// the parser. Call `.ts_language()` on the returned parser to get a
+    /// `tree_sitter::Language` valid for the parser's lifetime.
+    fn parse_python(source: &str) -> (tree_sitter::Tree, crate::parser::Parser) {
+        let mut parser =
+            crate::parser::Parser::for_language(codequery_core::Language::Python).unwrap();
+        let tree = parser.parse(source.as_bytes()).unwrap();
+        (tree, parser)
     }
 
     #[test]
     fn test_extract_with_config_python_function() {
         let config = load_extract_config(python_config()).unwrap();
         let source = "def greet(name):\n    return name\n";
-        let (tree, lang) = parse_python(source);
+        let (tree, parser) = parse_python(source);
+        let lang = parser.ts_language();
 
         let symbols =
             extract_with_config_uncached(&config, source, &tree, Path::new("test.py"), &lang);
@@ -425,7 +431,8 @@ body = "@def"
     fn test_extract_with_config_python_class() {
         let config = load_extract_config(python_config()).unwrap();
         let source = "class Foo:\n    pass\n";
-        let (tree, lang) = parse_python(source);
+        let (tree, parser) = parse_python(source);
+        let lang = parser.ts_language();
 
         let symbols =
             extract_with_config_uncached(&config, source, &tree, Path::new("test.py"), &lang);
@@ -439,7 +446,8 @@ body = "@def"
     fn test_extract_with_config_multiple_symbols() {
         let config = load_extract_config(python_config()).unwrap();
         let source = "def foo():\n    pass\n\ndef bar():\n    pass\n\nclass Baz:\n    pass\n";
-        let (tree, lang) = parse_python(source);
+        let (tree, parser) = parse_python(source);
+        let lang = parser.ts_language();
 
         let symbols =
             extract_with_config_uncached(&config, source, &tree, Path::new("test.py"), &lang);
@@ -455,7 +463,8 @@ body = "@def"
     fn test_extract_with_config_body_captured() {
         let config = load_extract_config(python_config()).unwrap();
         let source = "def greet(name):\n    return name\n";
-        let (tree, lang) = parse_python(source);
+        let (tree, parser) = parse_python(source);
+        let lang = parser.ts_language();
 
         let symbols =
             extract_with_config_uncached(&config, source, &tree, Path::new("test.py"), &lang);
@@ -470,7 +479,8 @@ body = "@def"
     fn test_extract_with_config_visibility_underscore_prefix() {
         let config = load_extract_config(python_config()).unwrap();
         let source = "def public_fn():\n    pass\n\ndef _private_fn():\n    pass\n";
-        let (tree, lang) = parse_python(source);
+        let (tree, parser) = parse_python(source);
+        let lang = parser.ts_language();
 
         let symbols =
             extract_with_config_uncached(&config, source, &tree, Path::new("test.py"), &lang);
@@ -486,7 +496,8 @@ body = "@def"
     fn test_extract_with_config_empty_source() {
         let config = load_extract_config(python_config()).unwrap();
         let source = "";
-        let (tree, lang) = parse_python(source);
+        let (tree, parser) = parse_python(source);
+        let lang = parser.ts_language();
 
         let symbols =
             extract_with_config_uncached(&config, source, &tree, Path::new("empty.py"), &lang);
@@ -498,7 +509,8 @@ body = "@def"
     fn test_extract_with_config_broken_source_partial_results() {
         let config = load_extract_config(python_config()).unwrap();
         let source = "def good():\n    pass\n\ndef broken(\n";
-        let (tree, lang) = parse_python(source);
+        let (tree, parser) = parse_python(source);
+        let lang = parser.ts_language();
 
         let symbols =
             extract_with_config_uncached(&config, source, &tree, Path::new("broken.py"), &lang);
@@ -513,7 +525,8 @@ body = "@def"
     #[test]
     fn test_validate_config_valid() {
         let config = load_extract_config(python_config()).unwrap();
-        let lang: Language = tree_sitter_python::LANGUAGE.into();
+        let py = crate::parser::Parser::for_language(codequery_core::Language::Python).unwrap();
+        let lang = py.ts_language();
 
         let errors = validate_config(&config, &lang);
         assert!(errors.is_empty(), "expected no errors, got: {errors:?}");
@@ -532,7 +545,8 @@ query = '(this_node_does_not_exist) @cap'
 name = "@cap"
 "#;
         let config = load_extract_config(toml).unwrap();
-        let lang: Language = tree_sitter_python::LANGUAGE.into();
+        let py = crate::parser::Parser::for_language(codequery_core::Language::Python).unwrap();
+        let lang = py.ts_language();
 
         let errors = validate_config(&config, &lang);
         assert_eq!(errors.len(), 1);
@@ -552,7 +566,8 @@ query = '(function_definition name: (identifier) @name)'
 name = "@name"
 "#;
         let config = load_extract_config(toml).unwrap();
-        let lang: Language = tree_sitter_python::LANGUAGE.into();
+        let py = crate::parser::Parser::for_language(codequery_core::Language::Python).unwrap();
+        let lang = py.ts_language();
 
         let errors = validate_config(&config, &lang);
         assert_eq!(errors.len(), 1);
@@ -588,7 +603,8 @@ query = '(nonexistent_node_type) @bad'
 name = "@bad"
 "#;
         let config = load_extract_config(toml).unwrap();
-        let lang: Language = tree_sitter_python::LANGUAGE.into();
+        let py = crate::parser::Parser::for_language(codequery_core::Language::Python).unwrap();
+        let lang = py.ts_language();
 
         let compiled = CompiledExtractor::compile(&config, &lang);
         // Only the valid function rule should have compiled
@@ -600,7 +616,8 @@ name = "@bad"
     fn test_extract_file_path_stored_in_symbols() {
         let config = load_extract_config(python_config()).unwrap();
         let source = "def foo():\n    pass\n";
-        let (tree, lang) = parse_python(source);
+        let (tree, parser) = parse_python(source);
+        let lang = parser.ts_language();
         let path = PathBuf::from("/project/src/foo.py");
 
         let symbols = extract_with_config_uncached(&config, source, &tree, &path, &lang);
@@ -612,7 +629,8 @@ name = "@bad"
     fn test_extract_with_config_line_numbers_1_based() {
         let config = load_extract_config(python_config()).unwrap();
         let source = "\n\ndef third_line():\n    pass\n";
-        let (tree, lang) = parse_python(source);
+        let (tree, parser) = parse_python(source);
+        let lang = parser.ts_language();
 
         let symbols =
             extract_with_config_uncached(&config, source, &tree, Path::new("test.py"), &lang);
@@ -625,7 +643,8 @@ name = "@bad"
     #[test]
     fn test_cached_extractor_returns_same_instance() {
         let config = load_extract_config(python_config()).unwrap();
-        let lang: Language = tree_sitter_python::LANGUAGE.into();
+        let py = crate::parser::Parser::for_language(codequery_core::Language::Python).unwrap();
+        let lang = py.ts_language();
 
         let a = CompiledExtractor::get_or_compile(&config, &lang);
         let b = CompiledExtractor::get_or_compile(&config, &lang);
@@ -669,7 +688,8 @@ name = "@bad"
     #[test]
     fn test_python_extract_toml_queries_compile() {
         let config = load_python_extract_toml();
-        let lang: Language = tree_sitter_python::LANGUAGE.into();
+        let py = crate::parser::Parser::for_language(codequery_core::Language::Python).unwrap();
+        let lang = py.ts_language();
 
         let errors = validate_config(&config, &lang);
         assert!(
@@ -681,12 +701,18 @@ name = "@bad"
     #[test]
     fn test_python_extract_toml_matches_compiled_in_names() {
         let config = load_python_extract_toml();
-        let lang: Language = tree_sitter_python::LANGUAGE.into();
+        let (tree, parser) = {
+            let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/python_project/src/main.py");
+            let source = std::fs::read_to_string(&fixture_path).unwrap();
+            let (tree, parser) = parse_python(&source);
+            (tree, parser)
+        };
+        let lang = parser.ts_language();
 
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/fixtures/python_project/src/main.py");
         let source = std::fs::read_to_string(&fixture_path).unwrap();
-        let (tree, _) = parse_python(&source);
 
         // Config-based extraction
         let config_symbols =
@@ -719,12 +745,11 @@ name = "@bad"
     #[test]
     fn test_python_extract_toml_matches_compiled_in_kinds() {
         let config = load_python_extract_toml();
-        let lang: Language = tree_sitter_python::LANGUAGE.into();
-
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/fixtures/python_project/src/models.py");
         let source = std::fs::read_to_string(&fixture_path).unwrap();
-        let (tree, _) = parse_python(&source);
+        let (tree, parser) = parse_python(&source);
+        let lang = parser.ts_language();
 
         let config_symbols =
             extract_with_config_uncached(&config, &source, &tree, &fixture_path, &lang);
@@ -770,12 +795,11 @@ name = "@bad"
     #[test]
     fn test_python_extract_toml_function_kinds_match() {
         let config = load_python_extract_toml();
-        let lang: Language = tree_sitter_python::LANGUAGE.into();
-
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/fixtures/python_project/src/main.py");
         let source = std::fs::read_to_string(&fixture_path).unwrap();
-        let (tree, _) = parse_python(&source);
+        let (tree, parser) = parse_python(&source);
+        let lang = parser.ts_language();
 
         let config_symbols =
             extract_with_config_uncached(&config, &source, &tree, &fixture_path, &lang);
@@ -811,7 +835,8 @@ name = "@bad"
     #[test]
     fn test_rust_extract_toml_queries_compile() {
         let config = load_rust_extract_toml();
-        let lang: Language = tree_sitter_rust::LANGUAGE.into();
+        let rs = crate::parser::Parser::for_language(codequery_core::Language::Rust).unwrap();
+        let lang = rs.ts_language();
 
         let errors = validate_config(&config, &lang);
         assert!(
@@ -823,15 +848,14 @@ name = "@bad"
     #[test]
     fn test_rust_extract_toml_extracts_from_fixture() {
         let config = load_rust_extract_toml();
-        let lang: Language = tree_sitter_rust::LANGUAGE.into();
-
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/fixtures/rust_project/src/lib.rs");
         let source = std::fs::read_to_string(&fixture_path).unwrap();
 
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&lang).unwrap();
-        let tree = parser.parse(source.as_bytes(), None).unwrap();
+        let mut rs_parser =
+            crate::parser::Parser::for_language(codequery_core::Language::Rust).unwrap();
+        let tree = rs_parser.parse(source.as_bytes()).unwrap();
+        let lang = rs_parser.ts_language();
 
         let config_symbols =
             extract_with_config_uncached(&config, &source, &tree, &fixture_path, &lang);

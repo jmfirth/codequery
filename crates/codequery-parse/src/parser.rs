@@ -110,6 +110,25 @@ impl Parser {
     pub fn language(&self) -> Language {
         self.language
     }
+
+    /// Return the underlying `tree_sitter::Language` loaded in this parser.
+    ///
+    /// Clones the language from the inner parser so callers can pass it to
+    /// tree-sitter APIs (e.g. `Query::new`) without holding a reference to
+    /// the parser. The `WasmStore` that backs the language remains alive as
+    /// long as this `Parser` is alive.
+    ///
+    /// # Panics
+    ///
+    /// Panics if no language has been set (should not happen after successful
+    /// construction via `for_language` or `for_name`).
+    #[must_use]
+    pub fn ts_language(&self) -> tree_sitter::Language {
+        self.parser
+            .language()
+            .expect("parser has no language set")
+            .clone()
+    }
 }
 
 // ── Auto-install ────────────────────────────────────────────────
