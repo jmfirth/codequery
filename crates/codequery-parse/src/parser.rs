@@ -708,9 +708,8 @@ mod tests {
 
     #[test]
     fn test_for_name_unknown_without_runtime_grammar_returns_error() {
-        // This will fail because "haskell" is not a builtin and no
-        // runtime grammar is installed in the test environment
-        let result = Parser::for_name("haskell");
+        // Use a language name that definitely doesn't exist in any registry
+        let result = Parser::for_name("nonexistent_lang_xyz_12345");
         assert!(result.is_err());
     }
 }

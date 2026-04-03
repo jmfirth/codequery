@@ -5,6 +5,12 @@
 //! `cq grammar install` plugin system, allowing languages beyond the compiled
 //! Tier 1/2 set.
 //!
+//! # Thread safety
+//!
+//! A single process-global `wasmtime::Engine` is shared across all WASM grammar
+//! loads. Creating multiple engines concurrently causes crashes (SIGBUS) on some
+//! platforms. The global engine is lazily initialized on first use.
+//!
 //! # Ownership model
 //!
 //! Tree-sitter's WASM integration requires a [`WasmStore`] to be set on the
@@ -18,6 +24,18 @@
 use std::path::{Path, PathBuf};
 
 use crate::error::{ParseError, Result};
+
+/// Process-global WASM engine shared across all grammar loads.
+///
+/// Creating multiple `wasmtime::Engine` instances concurrently causes SIGBUS
+/// on some platforms. A single shared engine avoids this race condition and
+/// also enables cross-grammar module caching within the engine.
+#[cfg(feature = "wasm")]
+fn global_wasm_engine() -> &'static tree_sitter::wasmtime::Engine {
+    use std::sync::OnceLock;
+    static ENGINE: OnceLock<tree_sitter::wasmtime::Engine> = OnceLock::new();
+    ENGINE.get_or_init(tree_sitter::wasmtime::Engine::default)
+}
 
 /// Metadata about an installed WASM grammar package.
 #[derive(Debug, Clone)]
@@ -192,7 +210,6 @@ pub fn load_wasm_language(
     wasm_path: &Path,
     parser: &mut tree_sitter::Parser,
 ) -> Result<tree_sitter::Language> {
-    use tree_sitter::wasmtime;
     use tree_sitter::WasmStore;
 
     let wasm_bytes = std::fs::read(wasm_path).map_err(|e| {
@@ -208,9 +225,9 @@ pub fn load_wasm_language(
         .and_then(|s| s.to_str())
         .unwrap_or("unknown");
 
-    let engine = wasmtime::Engine::default();
+    let engine = global_wasm_engine();
     let mut store =
-        WasmStore::new(&engine).map_err(|e| ParseError::WasmError(format!("wasm store: {e}")))?;
+        WasmStore::new(engine).map_err(|e| ParseError::WasmError(format!("wasm store: {e}")))?;
 
     let language = load_language_with_fallback(&mut store, lang_name, wasm_path, &wasm_bytes)
         .map_err(ParseError::WasmError)?;
@@ -246,7 +263,6 @@ pub fn load_wasm_language_cached(
     wasm_path: &Path,
     parser: &mut tree_sitter::Parser,
 ) -> Result<tree_sitter::Language> {
-    use tree_sitter::wasmtime;
     use tree_sitter::WasmStore;
 
     let lang_name = wasm_path
@@ -255,10 +271,10 @@ pub fn load_wasm_language_cached(
         .and_then(|s| s.to_str())
         .unwrap_or("unknown");
 
-    let engine = wasmtime::Engine::default();
+    let engine = global_wasm_engine();
 
     // Check for a cached cwasm
-    let cwasm_bytes = try_load_cwasm(lang_name, &engine);
+    let cwasm_bytes = try_load_cwasm(lang_name, engine);
 
     // If we have cached native code, we still need to go through WasmStore
     // because tree-sitter's WASM integration manages the language lifecycle
@@ -277,13 +293,13 @@ pub fn load_wasm_language_cached(
     })?;
 
     let mut store =
-        WasmStore::new(&engine).map_err(|e| ParseError::WasmError(format!("wasm store: {e}")))?;
+        WasmStore::new(engine).map_err(|e| ParseError::WasmError(format!("wasm store: {e}")))?;
 
     let language = load_language_with_fallback(&mut store, lang_name, wasm_path, &wasm_bytes)
         .map_err(ParseError::WasmError)?;
 
     // Attempt to cache the precompiled module for future loads
-    try_save_cwasm(lang_name, &engine, &wasm_bytes);
+    try_save_cwasm(lang_name, engine, &wasm_bytes);
 
     parser
         .set_wasm_store(store)
@@ -557,7 +573,7 @@ mod tests {
         let prev = std::env::var("CQ_CACHE_DIR").ok();
         std::env::set_var("CQ_CACHE_DIR", tmp.path());
 
-        let engine = tree_sitter::wasmtime::Engine::default();
+        let engine = global_wasm_engine();
         let result = try_load_cwasm("elixir", &engine);
         assert!(result.is_none());
 
@@ -581,7 +597,7 @@ mod tests {
         let prev = std::env::var("CQ_CACHE_DIR").ok();
         std::env::set_var("CQ_CACHE_DIR", tmp.path());
 
-        let engine = tree_sitter::wasmtime::Engine::default();
+        let engine = global_wasm_engine();
         let result = try_load_cwasm("elixir", &engine);
         assert!(result.is_none());
 
@@ -605,7 +621,7 @@ mod tests {
         let prev = std::env::var("CQ_CACHE_DIR").ok();
         std::env::set_var("CQ_CACHE_DIR", tmp.path());
 
-        let engine = tree_sitter::wasmtime::Engine::default();
+        let engine = global_wasm_engine();
         let result = try_load_cwasm("elixir", &engine);
         assert!(result.is_some());
         assert_eq!(result.unwrap(), b"cached-bytes");
@@ -623,7 +639,7 @@ mod tests {
         let prev = std::env::var("CQ_CACHE_DIR").ok();
         std::env::set_var("CQ_CACHE_DIR", tmp.path());
 
-        let engine = tree_sitter::wasmtime::Engine::default();
+        let engine = global_wasm_engine();
 
         // Even with invalid wasm bytes, the function should not panic
         // (precompile_module will fail, but we silently ignore that)
