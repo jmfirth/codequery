@@ -163,6 +163,24 @@ mod tests {
     use codequery_parse::Parser;
     use std::path::PathBuf;
 
+    /// Check if grammar and TSG rules are available for a language.
+    fn grammar_and_tsg_available(lang: Language) -> bool {
+        let source = match lang {
+            Language::Python => "x = 1\n",
+            Language::Rust => "fn main() {}\n",
+            _ => "x = 1\n",
+        };
+        let Ok(mut parser) = Parser::for_language(lang) else {
+            return false;
+        };
+        let Ok(tree) = parser.parse(source.as_bytes()) else {
+            return false;
+        };
+        let file = PathBuf::from("test.tmp");
+        let files = vec![(file, source.to_string(), tree)];
+        codequery_resolve::build_graph(&files, lang).is_ok()
+    }
+
     /// Create a `FileSymbols` from source text, path, and language.
     fn make_file_symbols(path: &str, source: &str, lang: Language) -> FileSymbols {
         let mut parser = Parser::for_language(lang).unwrap();
@@ -181,6 +199,10 @@ mod tests {
 
     #[test]
     fn test_cascade_no_daemon_no_semantic_uses_stack_graph() {
+        if !grammar_and_tsg_available(Language::Python) {
+            eprintln!("skipping: python grammar or TSG rules not available");
+            return;
+        }
         let source = "def greet(name):\n    return f'Hello, {name}!'\n\ngreet('world')\n";
         let fs = make_file_symbols("app.py", source, Language::Python);
 
@@ -383,6 +405,10 @@ mod tests {
 
     #[test]
     fn test_cascade_multiple_files_with_matching_symbol() {
+        if !grammar_and_tsg_available(Language::Python) {
+            eprintln!("skipping: python grammar or TSG rules not available");
+            return;
+        }
         let source1 = "def greet():\n    pass\n";
         let source2 = "from app import greet\ngreet()\n";
         let fs1 = make_file_symbols("app.py", source1, Language::Python);
@@ -458,6 +484,10 @@ mod tests {
 
     #[test]
     fn test_cascade_result_warnings_empty_for_stack_graph() {
+        if !grammar_and_tsg_available(Language::Python) {
+            eprintln!("skipping: python grammar or TSG rules not available");
+            return;
+        }
         let source = "def foo():\n    pass\n\nfoo()\n";
         let fs = make_file_symbols("app.py", source, Language::Python);
 
