@@ -165,6 +165,27 @@ See the [full usage guide](docs/guide.md) and [real output examples](docs/exampl
 
 ---
 
+## Configuration
+
+cq is configured via environment variables and CLI flags. No config files needed.
+
+| Variable | Values | Default | Effect |
+|----------|--------|---------|--------|
+| `CQ_SEMANTIC` | `0` / `1` / `daemon` | off | LSP precision tier: off, one-shot, or auto-daemon |
+| `CQ_CACHE` | `0` / `1` | off | Disk caching of scan results (enable for read-only workloads) |
+| `CQ_BIN` | path | `cq` on PATH | Path to cq binary (used by MCP server) |
+| `CQ_DATA_DIR` | path | `~/.local/share/cq` | Grammar and plugin storage |
+| `CQ_CACHE_DIR` | path | `~/.cache/cq` | Scan cache and compiled WASM cache |
+
+**Recommended for local development** — add to your shell profile:
+```bash
+export CQ_SEMANTIC=daemon
+```
+
+This auto-starts an LSP daemon on first semantic query and reuses it across commands. Agents should leave `CQ_SEMANTIC` unset (default off) for speed.
+
+---
+
 ## Output Format
 
 **Framed** (default) — `@@ file:line:column kind name @@` headers with raw source between them. Designed for humans and agents alike: no JSON escaping, source code passes through verbatim.
