@@ -16,7 +16,7 @@ use tree_sitter_stack_graphs::{
 };
 
 use crate::error::{ResolveError, Result};
-use crate::rules::{get_stack_graph_language, language_config};
+use crate::rules::get_stack_graph_language;
 
 /// Default timeout for graph construction per file.
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -91,42 +91,7 @@ pub fn build_graph_with_timeout(
     language: Language,
     timeout: Option<Duration>,
 ) -> Result<GraphResult> {
-    let sgl = language_config(language)
-        .ok_or_else(|| {
-            ResolveError::RuleLoadError(format!("{language:?}: no stack graph rules available"))
-        })?
-        .map_err(|e| ResolveError::RuleLoadError(format!("{language:?}: {e}")))?;
-
-    let mut graph = StackGraph::new();
-    let mut warnings = Vec::new();
-    let globals = Variables::new();
-
-    for (path, source, _tree) in files {
-        let path_str = path.to_string_lossy();
-        let file_handle = graph.get_or_create_file(&*path_str);
-
-        let build_result = if let Some(limit) = timeout {
-            let cancel = CancelAfterDuration::new(limit);
-            sgl.build_stack_graph_into(&mut graph, file_handle, source, &globals, &cancel)
-        } else {
-            sgl.build_stack_graph_into(&mut graph, file_handle, source, &globals, &NoCancellation)
-        };
-
-        if let Err(err) = build_result {
-            warnings.push(GraphWarning {
-                file: path.clone(),
-                message: format!("{err}"),
-            });
-        }
-    }
-
-    let partial_paths = PartialPaths::new();
-
-    Ok(GraphResult {
-        graph,
-        partial_paths,
-        warnings,
-    })
+    build_graph_by_name(files, language.name(), timeout)
 }
 
 /// Build a stack graph by language name, using pre-parsed trees.
@@ -196,7 +161,7 @@ pub fn build_graph_by_name(
     })
 }
 
-#[cfg(all(test, feature = "compiled-rules"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use codequery_parse::Parser;
@@ -503,13 +468,7 @@ mod tests {
         // Test against actual source files from this crate to ensure real-world
         // Rust code doesn't produce graph construction warnings.
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let test_files = [
-            "src/rules/rust.rs",
-            "src/graph.rs",
-            "src/lib.rs",
-            "src/error.rs",
-            "src/types.rs",
-        ];
+        let test_files = ["src/graph.rs", "src/lib.rs", "src/error.rs", "src/types.rs"];
 
         for rel_path in &test_files {
             let source_path = manifest_dir.join(rel_path);

@@ -28,9 +28,8 @@ pub use extract_engine::{
 };
 pub use hierarchy::{extract_supertype_relations, SupertypeRelation};
 pub use imports::{extract_imports, ImportInfo};
-#[cfg(feature = "lang-rust")]
 pub use languages::rust::{extract_body, extract_signature};
-pub use parser::{compiled_grammar, grammar_for_language, grammar_for_name, Parser, RustParser};
+pub use parser::{grammar_for_language, grammar_for_name, Parser, RustParser};
 pub use runtime_grammar::{list_runtime_grammars, load_runtime_grammar};
 pub use search::{search_file, SearchMatch};
 pub use types::extract_type_at_position;

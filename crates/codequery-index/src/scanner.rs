@@ -38,13 +38,9 @@ pub struct FileSymbols {
 fn scan_single_file(root: &Path, relative: &Path) -> Option<FileSymbols> {
     let absolute = root.join(relative);
 
-    // Try builtin language with compiled-in grammar (safe for parallel execution).
-    // WASM grammar loading is NOT thread-safe in rayon workers — tree-sitter's
-    // wasmtime engine can crash (SIGBUS) when multiple threads create engines
-    // concurrently. So we only use compiled-in grammars in the parallel scanner.
-    // Runtime languages are handled by the sequential CLI command paths.
+    // TODO: WASM grammar loading may not be thread-safe in rayon workers.
+    // Consider serializing WASM engine creation if SIGBUS issues arise.
     let language = language_for_file(&absolute)?;
-    codequery_parse::compiled_grammar(language)?;
 
     let mut parser = Parser::for_language(language).ok()?;
     let (source, tree) = parser.parse_file(&absolute).ok()?;
@@ -170,9 +166,7 @@ fn rebuild_from_cache(
         .filter_map(|entry| {
             let absolute = root.join(&entry.path);
 
-            // Only use compiled-in grammars in parallel context (WASM not thread-safe)
             let language = language_for_file(&absolute)?;
-            codequery_parse::compiled_grammar(language)?;
             let mut parser = Parser::for_language(language).ok()?;
 
             let (source, tree) = parser.parse_file(&absolute).ok()?;

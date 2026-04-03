@@ -10,53 +10,6 @@ edition = "2021"
 default = ["wasm"]
 wasm = ["tree-sitter/wasm"]
 
-# Convenience: all common grammars + WASM runtime.
-full = ["common", "wasm"]
-
-# The common preset: top 10 programming languages + structured data formats
-common = [
-    "lang-python", "lang-typescript", "lang-javascript",
-    "lang-rust", "lang-go", "lang-c", "lang-java",
-    "lang-ruby", "lang-cpp", "lang-php",
-    "lang-html", "lang-css", "lang-json", "lang-yaml", "lang-toml",
-]
-
-# All compiled-in languages. Used for `cargo test` to ensure full coverage.
-# Not a user-facing feature — end users use `common` or individual lang-* features.
-test-all-langs = [
-    "common",
-    "lang-csharp", "lang-swift", "lang-kotlin", "lang-scala",
-    "lang-zig", "lang-lua", "lang-bash",
-]
-
-# Thin: no compiled-in grammars, everything via WASM plugins
-# Use: cargo install codequery-cli --no-default-features --features thin,wasm
-thin = []
-
-# Individual language features
-lang-python = ["dep:tree-sitter-python"]
-lang-typescript = ["dep:tree-sitter-typescript"]
-lang-javascript = ["dep:tree-sitter-javascript"]
-lang-rust = ["dep:tree-sitter-rust"]
-lang-go = ["dep:tree-sitter-go"]
-lang-c = ["dep:tree-sitter-c"]
-lang-cpp = ["dep:tree-sitter-cpp"]
-lang-java = ["dep:tree-sitter-java"]
-lang-ruby = ["dep:tree-sitter-ruby"]
-lang-php = ["dep:tree-sitter-php"]
-lang-csharp = ["dep:tree-sitter-c-sharp"]
-lang-swift = ["dep:tree-sitter-swift"]
-lang-kotlin = ["dep:tree-sitter-kotlin-ng"]
-lang-scala = ["dep:tree-sitter-scala"]
-lang-zig = ["dep:tree-sitter-zig"]
-lang-lua = ["dep:tree-sitter-lua"]
-lang-bash = ["dep:tree-sitter-bash"]
-lang-html = ["dep:tree-sitter-html"]
-lang-css = ["dep:tree-sitter-css"]
-lang-json = ["dep:tree-sitter-json"]
-lang-yaml = ["dep:tree-sitter-yaml"]
-lang-toml = ["dep:tree-sitter-toml-ng"]
-
 [dependencies]
 codequery-core = { path = "../codequery-core" }
 libloading = "0.8"
@@ -64,28 +17,6 @@ serde = { version = "1", features = ["derive"] }
 streaming-iterator = "0.1"
 thiserror = "2"
 tree-sitter = { version = "0.26", default-features = false, features = ["std"] }
-tree-sitter-rust = { version = "0.24", optional = true }
-tree-sitter-typescript = { version = "0.23", optional = true }
-tree-sitter-javascript = { version = "0.25", optional = true }
-tree-sitter-python = { version = "0.25", optional = true }
-tree-sitter-go = { version = "0.25", optional = true }
-tree-sitter-c = { version = "0.24", optional = true }
-tree-sitter-cpp = { version = "0.23", optional = true }
-tree-sitter-java = { version = "0.23", optional = true }
-tree-sitter-ruby = { version = "0.23", optional = true }
-tree-sitter-php = { version = "0.24", optional = true }
-tree-sitter-c-sharp = { version = "0.23", optional = true }
-tree-sitter-swift = { version = "0.7", optional = true }
-tree-sitter-scala = { version = "0.25", optional = true }
-tree-sitter-zig = { version = "1", optional = true }
-tree-sitter-lua = { version = "0.5", optional = true }
-tree-sitter-bash = { version = "0.25", optional = true }
-tree-sitter-kotlin-ng = { version = "1", optional = true }
-tree-sitter-html = { version = "0.23", optional = true }
-tree-sitter-css = { version = "0.25", optional = true }
-tree-sitter-json = { version = "0.24", optional = true }
-tree-sitter-yaml = { version = "0.7", optional = true }
-tree-sitter-toml-ng = { version = "0.7", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

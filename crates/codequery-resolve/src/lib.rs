@@ -21,5 +21,5 @@ pub use graph::{
 };
 pub use resolve::{resolve_all_references, resolve_references, resolve_references_with_timeout};
 pub use resolver::StackGraphResolver;
-pub use rules::{has_rules, has_rules_by_name, language_config};
+pub use rules::{has_rules, has_rules_by_name};
 pub use types::{Resolution, ResolutionResult, ResolvedReference};

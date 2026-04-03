@@ -9,12 +9,6 @@ edition = "2021"
 [features]
 default = ["codequery-parse/wasm", "codequery-resolve/wasm"]
 
-# Batteries-included: all common grammars compiled in + WASM + compiled resolve rules.
-full = ["codequery-parse/common", "codequery-resolve/compiled-rules"]
-
-# Enable all compiled-in languages. Used by CI and `cargo test --workspace`.
-test-all-langs = ["codequery-parse/test-all-langs"]
-
 [[bin]]
 name = "cq"
 path = "src/main.rs"

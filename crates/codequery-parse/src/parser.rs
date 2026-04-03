@@ -31,24 +31,13 @@ impl Parser {
     ///
     /// Returns `ParseError::LanguageError` if the grammar fails to load.
     pub fn for_language(language: Language) -> Result<Self> {
-        // Try compiled-in grammar first (fast path)
-        if let Some(grammar) = compiled_grammar(language) {
-            let mut parser = tree_sitter::Parser::new();
-            parser
-                .set_language(&grammar)
-                .map_err(|e| ParseError::LanguageError(e.to_string()))?;
-            return Ok(Self { parser, language });
-        }
-
-        // For non-compiled-in grammars, try runtime/WASM fallback.
-        // Cannot delegate to for_name here (would recurse).
         Self::from_runtime_or_wasm(language.name(), language)
     }
 
     /// Create a parser for a language identified by name.
     ///
     /// Resolution order:
-    /// 1. Builtin language (Tier 1/2 compiled grammars)
+    /// 1. Builtin language name → Language enum (routes to `for_language`)
     /// 2. Native runtime grammar (`.so`/`.dylib` from `~/.local/share/cq/grammars/`)
     /// 3. WASM grammar (`.wasm` from `~/.local/share/cq/languages/<name>/grammar.wasm`)
     ///
@@ -261,109 +250,23 @@ impl Parser {
     }
 }
 
-/// Select the compiled-in tree-sitter grammar for a language, if available.
-///
-/// Maps a `codequery_core::Language` to the corresponding `tree_sitter::Language`
-/// grammar compiled into the binary. Returns `None` if the grammar's feature flag
-/// is not enabled, in which case callers should fall back to WASM or runtime
-/// grammar loading.
-#[must_use]
-pub fn compiled_grammar(language: Language) -> Option<tree_sitter::Language> {
-    match language {
-        #[cfg(feature = "lang-rust")]
-        Language::Rust => Some(tree_sitter_rust::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-typescript")]
-        Language::TypeScript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
-
-        #[cfg(feature = "lang-javascript")]
-        Language::JavaScript => Some(tree_sitter_javascript::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-python")]
-        Language::Python => Some(tree_sitter_python::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-go")]
-        Language::Go => Some(tree_sitter_go::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-c")]
-        Language::C => Some(tree_sitter_c::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-cpp")]
-        Language::Cpp => Some(tree_sitter_cpp::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-java")]
-        Language::Java => Some(tree_sitter_java::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-ruby")]
-        Language::Ruby => Some(tree_sitter_ruby::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-php")]
-        Language::Php => Some(tree_sitter_php::LANGUAGE_PHP.into()),
-
-        #[cfg(feature = "lang-csharp")]
-        Language::CSharp => Some(tree_sitter_c_sharp::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-swift")]
-        Language::Swift => Some(tree_sitter_swift::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-kotlin")]
-        Language::Kotlin => Some(tree_sitter_kotlin_ng::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-scala")]
-        Language::Scala => Some(tree_sitter_scala::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-zig")]
-        Language::Zig => Some(tree_sitter_zig::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-lua")]
-        Language::Lua => Some(tree_sitter_lua::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-bash")]
-        Language::Bash => Some(tree_sitter_bash::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-html")]
-        Language::Html => Some(tree_sitter_html::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-css")]
-        Language::Css => Some(tree_sitter_css::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-json")]
-        Language::Json => Some(tree_sitter_json::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-yaml")]
-        Language::Yaml => Some(tree_sitter_yaml::LANGUAGE.into()),
-
-        #[cfg(feature = "lang-toml")]
-        Language::Toml => Some(tree_sitter_toml_ng::LANGUAGE.into()),
-
-        // Catch-all for languages whose features are not enabled
-        #[allow(unreachable_patterns)]
-        _ => None,
-    }
-}
-
 /// Select the tree-sitter grammar for a language.
 ///
-/// Tries the compiled-in grammar first, then falls back to runtime (native
-/// `.so`/`.dylib`) and WASM grammar loading. This is the primary entry point
-/// for obtaining a grammar.
+/// Tries native runtime grammar first, then falls back to WASM grammar loading.
+/// This is the primary entry point for obtaining a grammar.
 ///
 /// # Errors
 ///
 /// Returns `ParseError::LanguageError` if no grammar is available by any method.
 pub fn grammar_for_language(language: Language) -> Result<tree_sitter::Language> {
-    // 1. Try compiled-in grammar
-    if let Some(grammar) = compiled_grammar(language) {
-        return Ok(grammar);
-    }
-
-    // 2. Try native runtime grammar (.so/.dylib)
     let name = language.name();
+
+    // 1. Try native runtime grammar (.so/.dylib)
     if let Ok(grammar) = runtime_grammar::load_runtime_grammar(name) {
         return Ok(grammar);
     }
 
-    // 3. Try WASM grammar
+    // 2. Try WASM grammar
     if let Some(info) = wasm_loader::find_wasm_grammar(name) {
         let mut parser = tree_sitter::Parser::new();
         let grammar = wasm_loader::load_wasm_language_cached(&info.wasm_path, &mut parser)?;
@@ -371,8 +274,7 @@ pub fn grammar_for_language(language: Language) -> Result<tree_sitter::Language>
     }
 
     Err(ParseError::LanguageError(format!(
-        "no grammar available for '{name}': not compiled in (enable feature \
-         'lang-{name}'), and no runtime or WASM grammar installed. \
+        "no grammar available for '{name}': no runtime or WASM grammar installed. \
          Try: cq grammar install {name}"
     )))
 }
@@ -380,8 +282,8 @@ pub fn grammar_for_language(language: Language) -> Result<tree_sitter::Language>
 /// Select the tree-sitter grammar for a language identified by name.
 ///
 /// Like [`grammar_for_language`], but accepts a name string instead of a
-/// `Language` enum. Tries builtin grammars first, then runtime (native),
-/// then WASM. This is the entry point for runtime/plugin languages.
+/// `Language` enum. Maps known names to the `Language` enum first, then
+/// falls back to runtime (native) and WASM loading.
 ///
 /// # Errors
 ///
