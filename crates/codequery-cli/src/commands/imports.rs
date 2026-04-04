@@ -132,8 +132,8 @@ mod tests {
         let project = rust_fixture();
         let file = project.join("src/services.rs");
         let result = run(&file, Some(&project), OutputMode::Framed, false);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("imports run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 
     // Test 2: TypeScript import statements extracted
@@ -142,8 +142,8 @@ mod tests {
         let project = ts_fixture();
         let file = project.join("src/services.ts");
         let result = run(&file, Some(&project), OutputMode::Framed, false);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("imports run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 
     // Test 3: File with no imports returns NoResults
@@ -152,8 +152,8 @@ mod tests {
         let project = rust_fixture();
         let file = project.join("src/models.rs");
         let result = run(&file, Some(&project), OutputMode::Framed, false);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("imports run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 
     // Test 4: Nonexistent file returns ProjectError
@@ -162,8 +162,8 @@ mod tests {
         let project = rust_fixture();
         let file = project.join("src/nonexistent.rs");
         let result = run(&file, Some(&project), OutputMode::Framed, false);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::ProjectError);
+        let exit = result.expect("imports run should succeed");
+        assert_eq!(exit, ExitCode::ProjectError);
     }
 
     // Test 5: JSON mode returns correct exit code
@@ -172,8 +172,8 @@ mod tests {
         let project = rust_fixture();
         let file = project.join("src/services.rs");
         let result = run(&file, Some(&project), OutputMode::Json, true);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("imports run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 
     // Test 6: Raw mode returns correct exit code
@@ -182,8 +182,8 @@ mod tests {
         let project = rust_fixture();
         let file = project.join("src/services.rs");
         let result = run(&file, Some(&project), OutputMode::Raw, false);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("imports run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 
     // Test 7: C includes extracted
@@ -192,8 +192,8 @@ mod tests {
         let project = c_fixture();
         let file = project.join("main.c");
         let result = run(&file, Some(&project), OutputMode::Framed, false);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("imports run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 
     // Test 8: Go imports extracted
@@ -202,8 +202,8 @@ mod tests {
         let project = go_fixture();
         let file = project.join("main.go");
         let result = run(&file, Some(&project), OutputMode::Framed, false);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("imports run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 
     // Test 9: Java imports extracted
@@ -212,8 +212,8 @@ mod tests {
         let project = java_fixture();
         let file = project.join("src/main/java/com/example/Main.java");
         let result = run(&file, Some(&project), OutputMode::Framed, false);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("imports run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 
     // Test 10: Unsupported file type returns ProjectError
@@ -225,8 +225,8 @@ mod tests {
         std::fs::write(&file, "Just text").unwrap();
 
         let result = run(&file, Some(tmp.path()), OutputMode::Framed, false);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::ProjectError);
+        let exit = result.expect("imports run should succeed");
+        assert_eq!(exit, ExitCode::ProjectError);
     }
 
     // Test 11: Empty file returns NoResults
@@ -238,7 +238,7 @@ mod tests {
         std::fs::write(&file, "").unwrap();
 
         let result = run(&file, Some(tmp.path()), OutputMode::Framed, false);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("imports run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 }

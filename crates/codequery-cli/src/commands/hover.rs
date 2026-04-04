@@ -583,8 +583,8 @@ mod tests {
             false,
             SemanticMode::Off,
         );
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("hover run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 
     // Test: position on `is_adult` in services.rs — method with doc
@@ -601,8 +601,8 @@ mod tests {
             false,
             SemanticMode::Off,
         );
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("hover run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 
     // Test: JSON output
@@ -618,8 +618,8 @@ mod tests {
             true,
             SemanticMode::Off,
         );
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("hover run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 
     // Test: Raw output
@@ -635,8 +635,8 @@ mod tests {
             false,
             SemanticMode::Off,
         );
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("hover run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 
     // Test: position with no type info and no enclosing symbol returns NoResults
@@ -653,8 +653,8 @@ mod tests {
             false,
             SemanticMode::Off,
         );
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExitCode::Success);
+        let exit = result.expect("hover run should succeed");
+        assert_eq!(exit, ExitCode::Success);
     }
 
     // Test: nonexistent file returns ProjectError
