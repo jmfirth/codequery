@@ -7,14 +7,14 @@ check:
 fmt:
     cargo fmt --all
 
-# Run test suite (includes all compiled-in languages for test coverage)
+# Run test suite
 test:
-    cargo test --workspace --features codequery-cli/test-all-langs
+    cargo test --workspace
 
 # Run full test suite including ignored/LSP tests
 test-all:
-    cargo test --workspace --features codequery-cli/test-all-langs
-    cargo test --workspace --features codequery-cli/test-all-langs -- --ignored
+    cargo test --workspace
+    cargo test --workspace -- --ignored
 
 # Debug build
 build:
