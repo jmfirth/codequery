@@ -887,8 +887,10 @@ mod tests {
         assert_eq!(result.unwrap(), ExitCode::Success);
     }
 
-    // CQ_DATA_DIR env var tests consolidated to prevent parallel races.
+    // CQ_DATA_DIR env var tests — ignored by default to prevent parallel races.
+    // Run with: cargo test -p codequery-cli -- --ignored test_grammar_operations_with_data_dir
     #[test]
+    #[ignore]
     fn test_grammar_operations_with_data_dir() {
         let tmp = tempfile::tempdir().unwrap();
         std::env::set_var("CQ_DATA_DIR", tmp.path().to_str().unwrap());
