@@ -572,6 +572,16 @@ mod tests {
     // Test: position on `greet` function — should find it and return Success
     #[test]
     fn test_hover_fixture_function_with_doc_succeeds() {
+        // Debug: print grammar lookup path for CI diagnosis
+        let lang_dir = codequery_core::dirs::languages_dir();
+        eprintln!("DEBUG languages_dir: {lang_dir:?}");
+        if let Some(ref dir) = lang_dir {
+            let rust_wasm = dir.join("rust").join("grammar.wasm");
+            eprintln!("DEBUG rust grammar exists: {}", rust_wasm.exists());
+            eprintln!("DEBUG CQ_DATA_DIR: {:?}", std::env::var("CQ_DATA_DIR"));
+            eprintln!("DEBUG HOME: {:?}", std::env::var("HOME"));
+        }
+
         let project = fixture_project();
         let file = project.join("src/lib.rs");
         // Line 9 is `pub fn greet(name: &str) -> String {`
