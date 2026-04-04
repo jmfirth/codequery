@@ -60,7 +60,7 @@ jobs:
 
       - name: Run tests
         if: runner.os != 'Windows'
-        run: cargo test --workspace -- --test-threads=4
+        run: cargo test --workspace
 
       - name: Build check (Windows)
         if: runner.os == 'Windows'
