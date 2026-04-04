@@ -1,5 +1,5 @@
 use crate::protocol::{ContentItem, ToolCallResult, ToolDefinition};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::process::Command;
 
 // ---------------------------------------------------------------------------
@@ -9,7 +9,7 @@ use std::process::Command;
 /// Return all MCP tool definitions.
 #[allow(clippy::too_many_lines)]
 pub fn all_tools() -> Vec<ToolDefinition> {
-    vec![
+    let mut tools = vec![
         ToolDefinition {
             name: "cq_def".to_string(),
             description: "Find where a symbol is defined across the project".to_string(),
@@ -247,7 +247,31 @@ pub fn all_tools() -> Vec<ToolDefinition> {
                 "required": ["symbol"]
             }),
         },
-    ]
+    ];
+
+    // cq_edit: file editing without Read precondition. Gated behind env var
+    // since it bypasses the safety guardrail that normally requires reading
+    // a file before editing it.
+    if std::env::var("CQ_MCP_EDIT").is_ok_and(|v| v == "1") {
+        tools.push(ToolDefinition {
+            name: "cq_edit".to_string(),
+            description: "Edit a file by replacing an exact string match. Does not require \
+                          reading the file first — use after cq_body to make surgical edits."
+                .to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "Absolute path to the file to edit"},
+                    "old_string": {"type": "string", "description": "Exact string to find and replace (must be unique in file unless replace_all is true)"},
+                    "new_string": {"type": "string", "description": "Replacement string"},
+                    "replace_all": {"type": "boolean", "description": "Replace all occurrences (default: false)"}
+                },
+                "required": ["file_path", "old_string", "new_string"]
+            }),
+        });
+    }
+
+    tools
 }
 
 // ---------------------------------------------------------------------------
@@ -278,6 +302,7 @@ pub fn execute_tool(name: &str, arguments: &serde_json::Value) -> ToolCallResult
         "cq_dead" => run_dead_command(arguments),
         "cq_callchain" => run_callchain_command(arguments),
         "cq_hierarchy" => run_symbol_command("hierarchy", arguments),
+        "cq_edit" => run_edit(arguments),
         _ => Err(format!("Unknown tool: {name}")),
     };
 
@@ -461,6 +486,63 @@ fn run_callchain_command(args: &serde_json::Value) -> Result<String, String> {
     }
 
     call_cq(&cmd_args, args)
+}
+
+// ---------------------------------------------------------------------------
+// Direct file operations (no cq subprocess)
+// ---------------------------------------------------------------------------
+
+/// Edit a file by replacing an exact string match.
+///
+/// Reads the file, validates that `old_string` appears exactly once (unless
+/// `replace_all` is set), performs the replacement, and writes back.
+fn run_edit(args: &Value) -> Result<String, String> {
+    let file_path = args
+        .get("file_path")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "Missing required argument: file_path".to_string())?;
+    let old_string = args
+        .get("old_string")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "Missing required argument: old_string".to_string())?;
+    let new_string = args
+        .get("new_string")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "Missing required argument: new_string".to_string())?;
+    let replace_all = args
+        .get("replace_all")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    let content = std::fs::read_to_string(file_path)
+        .map_err(|e| format!("Failed to read {file_path}: {e}"))?;
+
+    let count = content.matches(old_string).count();
+    if count == 0 {
+        return Err(format!("old_string not found in {file_path}"));
+    }
+    if count > 1 && !replace_all {
+        return Err(format!(
+            "old_string found {count} times in {file_path}. \
+             Provide more context to make it unique, or set replace_all: true"
+        ));
+    }
+
+    let first_offset = content.find(old_string).unwrap_or(0);
+    let line_number = content[..first_offset].lines().count() + 1;
+
+    let new_content = if replace_all {
+        content.replace(old_string, new_string)
+    } else {
+        content.replacen(old_string, new_string, 1)
+    };
+
+    std::fs::write(file_path, &new_content)
+        .map_err(|e| format!("Failed to write {file_path}: {e}"))?;
+
+    Ok(format!(
+        "Edited {file_path}: replaced {count} occurrence(s) starting at line {line_number}"
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -676,5 +758,101 @@ mod tests {
         assert!(result.content[0]
             .text
             .contains("Missing required argument: location"));
+    }
+
+    // --- cq_edit tests ---
+    // Env var tests are consolidated into one function to avoid parallel
+    // test races from set_var/remove_var (env vars are process-global).
+
+    #[test]
+    fn edit_tool_env_var_gating() {
+        // Without the env var, cq_edit must not appear.
+        std::env::remove_var("CQ_MCP_EDIT");
+        let tools = all_tools();
+        assert!(
+            !tools.iter().any(|t| t.name == "cq_edit"),
+            "cq_edit should not be registered without CQ_MCP_EDIT=1"
+        );
+
+        // With the env var set, cq_edit must appear.
+        std::env::set_var("CQ_MCP_EDIT", "1");
+        let tools = all_tools();
+        assert!(
+            tools.iter().any(|t| t.name == "cq_edit"),
+            "cq_edit should be registered when CQ_MCP_EDIT=1"
+        );
+
+        // Clean up.
+        std::env::remove_var("CQ_MCP_EDIT");
+    }
+
+    #[test]
+    fn edit_replaces_unique_string() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), "hello world\n").unwrap();
+        let args = json!({
+            "file_path": tmp.path().to_str().unwrap(),
+            "old_string": "hello",
+            "new_string": "goodbye"
+        });
+        let result = run_edit(&args);
+        assert!(result.is_ok());
+        let content = std::fs::read_to_string(tmp.path()).unwrap();
+        assert_eq!(content, "goodbye world\n");
+    }
+
+    #[test]
+    fn edit_rejects_ambiguous_match() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), "aaa bbb aaa\n").unwrap();
+        let args = json!({
+            "file_path": tmp.path().to_str().unwrap(),
+            "old_string": "aaa",
+            "new_string": "ccc"
+        });
+        let result = run_edit(&args);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("2 times"));
+    }
+
+    #[test]
+    fn edit_replace_all_works() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), "aaa bbb aaa\n").unwrap();
+        let args = json!({
+            "file_path": tmp.path().to_str().unwrap(),
+            "old_string": "aaa",
+            "new_string": "ccc",
+            "replace_all": true
+        });
+        let result = run_edit(&args);
+        assert!(result.is_ok());
+        let content = std::fs::read_to_string(tmp.path()).unwrap();
+        assert_eq!(content, "ccc bbb ccc\n");
+    }
+
+    #[test]
+    fn edit_nonexistent_file_returns_error() {
+        let args = json!({
+            "file_path": "/tmp/nonexistent_cq_edit_test_file.rs",
+            "old_string": "hello",
+            "new_string": "goodbye"
+        });
+        let result = run_edit(&args);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn edit_old_string_not_found_returns_error() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), "hello world\n").unwrap();
+        let args = json!({
+            "file_path": tmp.path().to_str().unwrap(),
+            "old_string": "nonexistent",
+            "new_string": "replacement"
+        });
+        let result = run_edit(&args);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
     }
 }
