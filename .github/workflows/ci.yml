@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CQ_DATA_DIR: ${{ github.workspace }}/.cq-data
 
 jobs:
   check:
@@ -46,7 +47,7 @@ jobs:
         if: runner.os != 'Windows'
         uses: actions/cache@v4
         with:
-          path: ~/.local/share/cq/languages
+          path: ${{ github.workspace }}/.cq-data/languages
           key: grammars-v1
 
       - name: Build cq binary
