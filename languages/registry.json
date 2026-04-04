@@ -1,5 +1,6 @@
 {
   "version": "1",
+  "grammar_release_tag": "grammars-v1",
   "languages": [
     {
       "name": "rust",

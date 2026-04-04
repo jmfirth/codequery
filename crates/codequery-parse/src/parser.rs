@@ -165,10 +165,9 @@ fn auto_install_grammar(name: &str) -> bool {
 
     eprintln!("cq: auto-installing {name} language support...");
 
-    let version = env!("CARGO_PKG_VERSION");
-    let url = format!(
-        "https://github.com/jmfirth/codequery/releases/download/v{version}/lang-{name}.tar.gz"
-    );
+    let tag = codequery_core::DEFAULT_GRAMMAR_RELEASE_TAG;
+    let url =
+        format!("https://github.com/jmfirth/codequery/releases/download/{tag}/lang-{name}.tar.gz");
 
     // Determine install directory
     let Some(languages_dir) = codequery_core::dirs::languages_dir() else {

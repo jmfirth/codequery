@@ -27,8 +27,19 @@ pub struct Registry {
     /// Schema version.
     #[allow(dead_code)]
     pub version: String,
+    /// GitHub release tag for grammar package downloads (e.g., "grammars-v1").
+    ///
+    /// Defaults to [`codequery_core::DEFAULT_GRAMMAR_RELEASE_TAG`] when absent
+    /// (backwards-compatible with older registry files).
+    #[serde(default = "default_grammar_release_tag")]
+    pub grammar_release_tag: String,
     /// Available language packages.
     pub languages: Vec<LanguagePackage>,
+}
+
+/// Serde default for [`Registry::grammar_release_tag`].
+fn default_grammar_release_tag() -> String {
+    codequery_core::DEFAULT_GRAMMAR_RELEASE_TAG.to_string()
 }
 
 /// A single language package entry in the registry.
@@ -149,14 +160,15 @@ pub fn run_list() -> anyhow::Result<ExitCode> {
 
 /// `cq grammar install <lang>` — install a language package.
 ///
-/// Downloads the language package from GitHub releases.
+/// Downloads the language package from GitHub releases. When `tag_override`
+/// is `Some`, that tag is used instead of the registry's `grammar_release_tag`.
 /// Creates the directory structure under `~/.local/share/cq/languages/<lang>/`.
 ///
 /// # Errors
 ///
 /// Returns an error if the language is unknown, already installed,
 /// or the directory cannot be created.
-pub fn run_install(language: &str) -> anyhow::Result<ExitCode> {
+pub fn run_install(language: &str, tag_override: Option<&str>) -> anyhow::Result<ExitCode> {
     let registry = load_registry()?;
     let Some(_pkg) = registry.languages.iter().find(|l| l.name == language) else {
         eprintln!("unknown language: {language}");
@@ -181,10 +193,10 @@ pub fn run_install(language: &str) -> anyhow::Result<ExitCode> {
         return Ok(ExitCode::Success);
     }
 
-    let version = env!("CARGO_PKG_VERSION");
-    let archive_url = format!("{RELEASE_BASE_URL}/v{version}/lang-{language}.tar.gz");
+    let tag = tag_override.unwrap_or(&registry.grammar_release_tag);
+    let archive_url = format!("{RELEASE_BASE_URL}/{tag}/lang-{language}.tar.gz");
 
-    eprintln!("Downloading {language} language package for cq v{version}...");
+    eprintln!("Downloading {language} language package (tag {tag})...");
     eprintln!("  from: {archive_url}");
 
     // Try to download via curl (available on macOS/Linux, most CI)
@@ -247,7 +259,7 @@ pub fn run_install(language: &str) -> anyhow::Result<ExitCode> {
         _ => {
             eprintln!(
                 "error: failed to download {language} language package.\n\
-                 Release v{version} may not be published yet.\n\
+                 Release tag '{tag}' may not exist yet.\n\
                  \n\
                  All 71 languages auto-install as WASM plugins on first use.\n\
                  If you have a language server installed, use --semantic\n\
@@ -263,7 +275,7 @@ pub fn run_install(language: &str) -> anyhow::Result<ExitCode> {
 /// # Errors
 ///
 /// Returns an error if installation of any package fails.
-pub fn run_install_all() -> anyhow::Result<ExitCode> {
+pub fn run_install_all(tag_override: Option<&str>) -> anyhow::Result<ExitCode> {
     let registry = load_registry()?;
     let languages_dir = codequery_core::dirs::languages_dir()
         .ok_or_else(|| anyhow::anyhow!("cannot determine languages directory"))?;
@@ -275,7 +287,7 @@ pub fn run_install_all() -> anyhow::Result<ExitCode> {
         if pkg_dir.exists() {
             continue;
         }
-        run_install(&pkg.name)?;
+        run_install(&pkg.name, tag_override)?;
         installed_count += 1;
     }
 
@@ -287,7 +299,10 @@ pub fn run_install_all() -> anyhow::Result<ExitCode> {
     Ok(ExitCode::Success)
 }
 
-/// `cq grammar update` — re-download all installed packages for the current version.
+/// `cq grammar update` — re-download all installed packages.
+///
+/// Refreshes the registry from GitHub and reinstalls all installed packages
+/// using the registry's `grammar_release_tag`.
 ///
 /// # Errors
 ///
@@ -319,11 +334,9 @@ pub fn run_update() -> anyhow::Result<ExitCode> {
         return Ok(ExitCode::Success);
     }
 
-    let version = env!("CARGO_PKG_VERSION");
-    eprintln!(
-        "Updating {} package(s) for cq v{version}...",
-        installed.len()
-    );
+    let registry = load_registry()?;
+    let tag = &registry.grammar_release_tag;
+    eprintln!("Updating {} package(s) (tag {tag})...", installed.len());
 
     for name in &installed {
         // Remove and reinstall
@@ -332,7 +345,7 @@ pub fn run_update() -> anyhow::Result<ExitCode> {
             std::fs::remove_dir_all(&pkg_dir)
                 .map_err(|e| anyhow::anyhow!("failed to remove {}: {e}", pkg_dir.display()))?;
         }
-        run_install(name)?;
+        run_install(name, None)?;
     }
 
     eprintln!("Update complete");
@@ -837,7 +850,7 @@ mod tests {
 
     #[test]
     fn test_install_unknown_language_rejected() {
-        let result = run_install("klingon").unwrap();
+        let result = run_install("klingon", None).unwrap();
         assert_eq!(result, ExitCode::UsageError);
     }
 
@@ -881,7 +894,7 @@ mod tests {
         std::env::set_var("CQ_DATA_DIR", tmp.path().to_str().unwrap());
 
         // Install fails gracefully for a non-existent language
-        let result = run_install("klingon_lang_xyz");
+        let result = run_install("klingon_lang_xyz", None);
         assert!(result.is_ok());
         let pkg_dir = tmp.path().join("languages").join("klingon_lang_xyz");
         assert!(
@@ -903,5 +916,35 @@ mod tests {
         assert_eq!(result, ExitCode::Success);
 
         std::env::remove_var("CQ_DATA_DIR");
+    }
+
+    #[test]
+    fn test_registry_grammar_release_tag_parsed() {
+        let registry = load_registry().unwrap();
+        assert_eq!(registry.grammar_release_tag, "grammars-v1");
+    }
+
+    #[test]
+    fn test_registry_grammar_release_tag_serde_default() {
+        // A registry without the grammar_release_tag field should default
+        let json = r#"{"version": "1", "languages": []}"#;
+        let registry: Registry = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            registry.grammar_release_tag,
+            codequery_core::DEFAULT_GRAMMAR_RELEASE_TAG
+        );
+    }
+
+    #[test]
+    fn test_registry_grammar_release_tag_override() {
+        let json = r#"{"version": "1", "grammar_release_tag": "grammars-v2", "languages": []}"#;
+        let registry: Registry = serde_json::from_str(json).unwrap();
+        assert_eq!(registry.grammar_release_tag, "grammars-v2");
+    }
+
+    #[test]
+    fn test_install_unknown_language_with_tag_override() {
+        let result = run_install("klingon", Some("grammars-v2")).unwrap();
+        assert_eq!(result, ExitCode::UsageError);
     }
 }

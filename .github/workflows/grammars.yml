@@ -6,13 +6,18 @@ concurrency:
   cancel-in-progress: false
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - "languages/**/extract.toml"
+      - "crates/codequery-resolve/tsg/**"
+      - "scripts/build-grammars.sh"
+      - "languages/registry.json"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to upload assets to (e.g., v0.1.0)"
-        required: true
+        description: "Release tag to upload assets to (default: grammars-v1)"
+        required: false
         type: string
       languages:
         description: "Space-separated list of languages to build (empty = all)"
@@ -49,11 +54,7 @@ jobs:
       - name: Determine release tag
         id: tag
         run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          fi
+          echo "tag=${{ inputs.tag || 'grammars-v1' }}" >> "$GITHUB_OUTPUT"
 
       - name: Build grammar packages
         run: |
@@ -71,6 +72,18 @@ jobs:
             sha256sum "$f" > "$f.sha256"
           done
           cat *.sha256 > grammar-SHA256SUMS.txt
+
+      - name: Ensure grammar release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          if ! gh release view "$TAG" &>/dev/null; then
+            gh release create "$TAG" \
+              --title "Grammar Packages ($TAG)" \
+              --notes "Pre-built WASM grammar packages for cq." \
+              --prerelease
+          fi
 
       - name: Upload grammar packages to release
         if: always()

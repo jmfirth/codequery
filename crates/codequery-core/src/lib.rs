@@ -22,6 +22,13 @@ pub mod query;
 pub mod reference;
 pub mod symbol;
 
+/// Default GitHub release tag for grammar package downloads.
+///
+/// Grammar packages are decoupled from binary releases — they live under a
+/// stable tag (e.g., `grammars-v1`) so that any binary version can download
+/// the latest compatible grammars without waiting for a matching release.
+pub const DEFAULT_GRAMMAR_RELEASE_TAG: &str = "grammars-v1";
+
 pub use callchain::CallChainNode;
 pub use config::{load_config, LspConfig, LspServerOverride, ProjectConfig};
 pub use diagnostic::{Diagnostic, DiagnosticSeverity, DiagnosticSource};

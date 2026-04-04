@@ -546,6 +546,9 @@ pub enum GrammarAction {
         /// Install all available packages from the registry
         #[arg(long)]
         all: bool,
+        /// Override the grammar release tag (e.g., grammars-v2)
+        #[arg(long)]
+        tag: Option<String>,
     },
     /// Update all installed language packages to current version
     Update,
@@ -1075,9 +1078,10 @@ mod tests {
         let args = CqArgs::parse_from(["cq", "grammar", "install", "elixir"]);
         match args.command {
             Command::Grammar { action } => match action {
-                GrammarAction::Install { language, all } => {
+                GrammarAction::Install { language, all, tag } => {
                     assert_eq!(language, Some("elixir".to_string()));
                     assert!(!all);
+                    assert!(tag.is_none());
                 }
                 _ => panic!("expected Install action"),
             },
@@ -1090,9 +1094,10 @@ mod tests {
         let args = CqArgs::parse_from(["cq", "grammar", "install", "--all"]);
         match args.command {
             Command::Grammar { action } => match action {
-                GrammarAction::Install { language, all } => {
+                GrammarAction::Install { language, all, tag } => {
                     assert!(all);
                     assert!(language.is_none());
+                    assert!(tag.is_none());
                 }
                 _ => panic!("expected Install action"),
             },
@@ -1130,6 +1135,23 @@ mod tests {
             Command::Grammar { action } => match action {
                 GrammarAction::Info { language } => assert_eq!(language, "haskell"),
                 _ => panic!("expected Info action"),
+            },
+            _ => panic!("expected Grammar command"),
+        }
+    }
+
+    #[test]
+    fn test_grammar_install_with_tag_override() {
+        let args =
+            CqArgs::parse_from(["cq", "grammar", "install", "elixir", "--tag", "grammars-v2"]);
+        match args.command {
+            Command::Grammar { action } => match action {
+                GrammarAction::Install { language, all, tag } => {
+                    assert_eq!(language, Some("elixir".to_string()));
+                    assert!(!all);
+                    assert_eq!(tag, Some("grammars-v2".to_string()));
+                }
+                _ => panic!("expected Install action"),
             },
             _ => panic!("expected Grammar command"),
         }

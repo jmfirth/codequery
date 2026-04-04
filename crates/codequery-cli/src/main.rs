@@ -222,11 +222,11 @@ fn run(args: CqArgs) -> anyhow::Result<ExitCode> {
         Command::DaemonRun { .. } => commands::daemon::run_foreground(),
         Command::Grammar { action } => match action {
             GrammarAction::List => commands::grammar::run_list(),
-            GrammarAction::Install { language, all } => {
+            GrammarAction::Install { language, all, tag } => {
                 if all {
-                    commands::grammar::run_install_all()
+                    commands::grammar::run_install_all(tag.as_deref())
                 } else if let Some(lang) = &language {
-                    commands::grammar::run_install(lang)
+                    commands::grammar::run_install(lang, tag.as_deref())
                 } else {
                     eprintln!("error: provide a language name or use --all");
                     Ok(args::ExitCode::UsageError)
