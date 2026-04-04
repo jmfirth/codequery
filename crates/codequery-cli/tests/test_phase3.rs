@@ -180,13 +180,13 @@ fn test_symbols_cache_second_invocation_uses_cache() {
         "second invocation should find greet: {out2}"
     );
 
-    // Sanity check: both complete within 5s
+    // Sanity check: both complete within 30s (CI runners are slow with WASM grammars)
     assert!(
-        elapsed1.as_secs() < 5,
+        elapsed1.as_secs() < 30,
         "first invocation took too long: {elapsed1:?}"
     );
     assert!(
-        elapsed2.as_secs() < 5,
+        elapsed2.as_secs() < 30,
         "second invocation took too long: {elapsed2:?}"
     );
 }
