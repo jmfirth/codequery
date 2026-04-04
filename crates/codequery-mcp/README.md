@@ -1,8 +1,8 @@
 # cq-mcp
 
-MCP (Model Context Protocol) server for [cq](https://github.com/jmfirth/codequery) — semantic code query tool. Exposes 18 cq commands as AI-callable tools over JSON-RPC stdio.
+MCP (Model Context Protocol) server for [cq](https://github.com/jmfirth/codequery) — semantic code query tool. Exposes cq commands as AI-callable tools over JSON-RPC stdio.
 
-71 languages. Three-tier precision cascade: tree-sitter → stack graphs → LSP. Auto-starts a language server daemon for compiler-level precision.
+71 languages. Three-tier precision cascade: tree-sitter → stack graphs → LSP.
 
 ## Setup
 
@@ -59,14 +59,50 @@ Or download from [GitHub releases](https://github.com/jmfirth/codequery/releases
 | `cq_search` | Structural AST pattern search |
 | `cq_context` | Get enclosing symbol for a line |
 | `cq_tree` | Show project structure tree |
+| `cq_hover` | Type info and docs at a source location |
+| `cq_diagnostics` | Run diagnostics on a file |
+| `cq_rename` | Preview or apply a symbol rename |
+| `cq_dead` | Find unreferenced symbols |
+| `cq_callchain` | Trace call chains to/from a function |
+| `cq_hierarchy` | Show type hierarchy for a symbol |
 
-Every tool accepts a `project` argument to specify the project root (defaults to cwd).
+### Optional: `cq_edit`
+
+| Tool | Description |
+|------|-------------|
+| `cq_edit` | Edit a file by replacing an exact string match (no Read required) |
+
+`cq_edit` is gated behind the `CQ_MCP_EDIT=1` environment variable. It enables agents to edit files directly after using `cq_body` — two calls instead of three.
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CQ_SEMANTIC` | off | Precision tier: `off`, `1`/`on` (oneshot LSP), `daemon` (persistent LSP) |
+| `CQ_MCP_EDIT` | off | Set to `1` to enable the `cq_edit` tool |
+| `CQ_CACHE` | off | Set to `1` to enable scan caching (off by default for agents — files change between queries) |
+
+### Recommended agent configuration
+
+```json
+{
+  "mcpServers": {
+    "cq": {
+      "command": "cq-mcp",
+      "env": {
+        "CQ_SEMANTIC": "daemon",
+        "CQ_MCP_EDIT": "1"
+      }
+    }
+  }
+}
+```
 
 ## How it works
 
-The MCP server shells out to the `cq` CLI with `--json --semantic --no-cache` on every tool call. It auto-starts `cq daemon` on initialization to keep language servers warm, giving sub-second semantic precision. The daemon is stopped on clean shutdown.
+The MCP server shells out to the `cq` CLI for query tools. `cq_edit` operates directly on files without a subprocess.
 
-`--semantic` is always on because the daemon tracks file changes — results stay fresh even as the agent edits code. `--no-cache` is always on because files change between queries in an agent workflow.
+`CQ_SEMANTIC` controls precision. When set to `daemon`, the server auto-starts `cq daemon` on initialization to keep language servers warm for sub-second semantic precision. Cache is off by default because files change between queries in agent workflows.
 
 ## Learn more
 
