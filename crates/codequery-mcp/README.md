@@ -1,6 +1,6 @@
-# cq-mcp
+# codequery-mcp
 
-MCP (Model Context Protocol) server for [cq](https://github.com/jmfirth/codequery) — semantic code query tool. Exposes cq commands as AI-callable tools over JSON-RPC stdio.
+MCP (Model Context Protocol) server for [codequery](https://github.com/jmfirth/codequery) — semantic code intelligence for AI agents. Exposes codequery commands as AI-callable tools over JSON-RPC stdio.
 
 71 languages. Three-tier precision cascade: tree-sitter → stack graphs → LSP.
 

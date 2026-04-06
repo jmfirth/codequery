@@ -1,8 +1,8 @@
 # @codequery/mcp
 
-MCP server for [cq](https://github.com/jmfirth/codequery) — semantic code query tool.
+MCP server for [codequery](https://github.com/jmfirth/codequery) — semantic code intelligence for AI agents.
 
-Exposes 18 cq commands as AI-callable tools. 71 languages. Three-tier precision cascade.
+Exposes 18 codequery commands as AI-callable tools. 71 languages. Three-tier precision cascade.
 
 ## Setup
 
@@ -24,9 +24,9 @@ Also available via: `npm install -g @codequery/mcp`
 
 ## How it works
 
-Auto-starts a cq language server daemon for compiler-level precision. Uses `--semantic --no-cache` on every call — results are always fresh, always the best precision available.
+Configure precision with `CQ_SEMANTIC` env var (`daemon` recommended). Cache off by default — results are always fresh.
 
-See the [cq-mcp README](https://github.com/jmfirth/codequery/tree/main/crates/codequery-mcp#readme) for tool details, and the [main README](https://github.com/jmfirth/codequery#readme) for full cq documentation.
+See the [codequery-mcp README](https://github.com/jmfirth/codequery/tree/main/crates/codequery-mcp#readme) for tool details, and the [main README](https://github.com/jmfirth/codequery#readme) for full documentation.
 
 ## Supported Platforms
 

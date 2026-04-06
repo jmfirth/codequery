@@ -1,4 +1,4 @@
-# cq
+# codequery
 
 Semantic code intelligence for AI agents. One 7.9MB binary, 71 languages, zero setup.
 

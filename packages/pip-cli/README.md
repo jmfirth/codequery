@@ -1,6 +1,6 @@
 # codequery-cli
 
-Pre-built binary distribution of [cq](https://github.com/jmfirth/codequery) — semantic code query tool.
+Pre-built binary distribution of [codequery](https://github.com/jmfirth/codequery) — semantic code intelligence for the command line.
 
 71 languages. Three-tier precision: tree-sitter, stack graphs, and LSP.
 

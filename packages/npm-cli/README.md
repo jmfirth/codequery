@@ -1,6 +1,6 @@
 # @codequery/cli
 
-Pre-built binary distribution of [cq](https://github.com/jmfirth/codequery) — semantic code query tool for the command line.
+Pre-built binary distribution of [codequery](https://github.com/jmfirth/codequery) — semantic code intelligence for the command line.
 
 71 languages. Three-tier precision: tree-sitter, stack graphs, and LSP.
 
@@ -13,9 +13,9 @@ npm install -g @codequery/cli             # or install globally
 
 Downloads a pre-built binary for your platform from GitHub releases.
 
-## What is cq?
+## What is codequery?
 
-`cq` answers structural questions about code: where is a symbol defined, what does it look like, who calls it. One binary, 71 languages, zero setup.
+codequery answers structural questions about code: where is a symbol defined, what does it look like, who calls it. One binary, 71 languages, zero setup.
 
 ```
 $ cq def handle_request
